@@ -4,11 +4,6 @@
 
 This Privacy Policy explains how personal data is collected and used in the mobile application **"Dart Counter: No ads all games"** ("App").
 
-**Controller (Data Owner):**
-[Your Name / Company Name]
-[Address]
-[Email Address]
-
 ---
 
 ## 2. Data Collected
@@ -80,8 +75,3 @@ This Privacy Policy may be updated from time to time. Users are encouraged to re
 
 ---
 
-## 10. Contact
-
-If you have any questions about this Privacy Policy, please contact:
-
-[Email Address]
