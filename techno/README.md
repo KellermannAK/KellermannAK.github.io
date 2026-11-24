@@ -12,34 +12,58 @@ Requirements: [Claude Docs page "Requirements: Algorithmischer Techno-Generator"
 | 1 | Engine skeleton: clock, kick + hi-hat, offline WAV render | done |
 | 2 | All drum tracks, euclidean patterns, mixer, sidechain | done |
 | 3 | Song DNA with bass and synths, scale and Markov rules | done |
-| 4 | Song structure with rise / drop / breakdown and energy | next (a fixed placeholder arrangement is used until then) |
+| 4 | Song structure with rise / drop / breakdown and energy | done |
 | 5 | Web version (WASM, AudioWorklet), runs on phones | |
-| 6 | Two decks, transitions, Camelot key choice, endless set | |
+| 6 | Two decks, transitions, Camelot key choice, endless set | done (offline) |
 | 7 | Song logs, replay, WAV export | |
+
+Extra: sound variety (kick styles, backbeats, lead kinds, arp, drone, per-song palette).
 
 ## Quick start
 
 ```sh
 cargo build --release
-./target/release/techno info   --seed 42                 # show the song DNA
-./target/release/techno render --seed 42 --out 42.wav    # ~4 min song, ~15-20x realtime
-./target/release/techno render --seed 42 --start-bar 80 --bars 8 --solo bass,lead --out dbg.wav
+./target/release/techno mix    --seed 7 --songs 5 --out mix.wav --tracklist mix.json
+./target/release/techno info   --seed 42                 # song DNA and structure
+./target/release/techno render --seed 42 --out 42.wav    # one song, ~5-7 min
+./target/release/techno render --seed 42 --start-bar 96 --bars 8 --solo bass,lead --out dbg.wav
 cargo test
+scripts/build_site.sh /tmp/site 1 7                      # preview site (needs ffmpeg)
 ```
 
-Feedback format: **"seed X, bar Y, problem"** - thanks to determinism every bar is
-exactly reproducible (`--start-bar` jumps straight there).
+Feedback format: **"mix X, minute Y, problem"** or **"seed X, bar Y, problem"** - everything is
+deterministic, so every moment is exactly reproducible.
+
+### Song structure
+
+Sections come from a grammar in the profile (`[structure]`): intro (32 bars, drums and
+reduced bass only) -> groove / build -> drop / breakdown -> build -> drop ... -> outro (32 bars).
+A breakdown always leads into a build, a build always into a drop. Each section has an energy
+curve; tracks join when the energy passes their (per-song jittered) threshold. Builds get a
+riser, a snare roll that gets denser, rising effect sends and a high-pass sweep; drops start
+with an impact and crash, often after a one-bar pause. Every 8-bar phrase can vary the DNA
+(lead octave, thinned lead, dropped percussion) without re-inventing it.
+
+### DJ sets
+
+`Set` runs two decks on one clock. The incoming song starts on a bar boundary of the running
+one, at its tempo, in the same or a neighbouring Camelot key. Transitions: cut (into the new
+song's first groove), fast blend (8-16 bars), slow blend (32-64 bars) and filter blend
+(high-pass out, low-pass in). The low end of both decks is never mixed: it is swapped hard at
+a phrase boundary.
 
 ## Layout
 
 ```
 profiles/hard_techno_simple.toml   style profile: every random choice is bounded here
 crates/core     deterministic, audio-free: time base (ticks), PRNG, theory, euclid,
-                Markov chain, profile, song DNA, placeholder arrangement
+                Markov chain, profile, song DNA, song structure / energy / automation
 crates/synth    DSP (PolyBLEP osc, TPT SVF, envelopes, delay, reverb, compressor,
                 limiter), synthesized instruments, channel strips, master bus
-crates/engine   deck: DNA -> note triggers on the musical clock -> instruments -> mix
-crates/cli      `techno` binary: offline render to WAV, DNA inspection
+crates/engine   deck: DNA -> note triggers on the musical clock -> instruments -> mix;
+                set: two decks, transitions, DJ strips (fader, low kill, filters)
+crates/cli      `techno` binary: render songs and mixes to WAV, DNA inspection
+site/, scripts/ preview page (GitHub Pages) and its build script
 ```
 
 ### Determinism
@@ -61,8 +85,9 @@ instrument within the profile's ranges.
 
 ### Instruments (all synthesized)
 
-Kick (pitch sweep, click, saturation, tuned to the key), rumble (kick -> dark reverb ->
+Kick (hard / punch / distorted; pitch sweep, click, saturation, tuned to the key), rumble (kick -> dark reverb ->
 low-pass -> drive, deep sidechain), rolling bass, closed/open hats (808-style metal + noise,
-choke), clap, snare (fills), rim, tuned toms, ride, crash, chord stab (delay/reverb), acid
-lead (two resonant LP stages, slide, accent), pad. Master: glue compressor, saturation,
+choke), clap and/or snare backbeat, snare rolls, rim, tuned toms, ride, crash, chord stab
+(delay/reverb), lead (acid with slides and accents, hoover, supersaw or FM pluck), arpeggiator,
+drone, pad, riser (noise sweep + rising saw stack), impact with downlifter. Master: glue compressor, saturation,
 look-ahead limiter at -0.8 dBFS.

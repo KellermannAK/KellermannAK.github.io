@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Techno Generator</title>
-<meta name="description" content="Algorithmisch generierter Techno – Vorschau der aktuellen Engine-Version.">
+<meta name="description" content="Algorithmisch generierter Techno – DJ-Mixes und einzelne Songs der aktuellen Engine-Version.">
 <style>
   :root {
     --bg: #0d0d0f;
@@ -13,6 +13,7 @@
     --text: #e9e9ee;
     --muted: #8d8d99;
     --accent: #ff3d5a;
+    --accent-dim: rgba(255, 61, 90, 0.12);
   }
   * { box-sizing: border-box; }
   body {
@@ -24,8 +25,9 @@
   main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
   h1 { font-size: 1.9rem; margin: 0 0 4px; letter-spacing: -0.02em; }
   h1 span { color: var(--accent); }
-  .sub { color: var(--muted); margin: 0 0 28px; }
-  .song {
+  h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin: 36px 0 12px; }
+  .sub { color: var(--muted); margin: 0 0 8px; }
+  .card {
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: 12px;
@@ -33,9 +35,9 @@
     margin-bottom: 16px;
   }
   .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 10px; }
-  .seed { font-weight: 700; font-size: 1.15rem; }
+  .title { font-weight: 700; font-size: 1.15rem; }
   .meta { color: var(--muted); font-variant-numeric: tabular-nums; }
-  .camelot {
+  .pill {
     margin-left: auto;
     border: 1px solid var(--accent);
     color: var(--accent);
@@ -45,6 +47,23 @@
     font-weight: 600;
   }
   audio { width: 100%; height: 40px; }
+  ol.tracks { list-style: none; margin: 12px 0 0; padding: 0; }
+  ol.tracks li {
+    display: grid;
+    grid-template-columns: 3.4em 1fr auto;
+    gap: 2px 10px;
+    align-items: baseline;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  ol.tracks li:hover { background: rgba(255, 255, 255, 0.04); }
+  ol.tracks li.now { background: var(--accent-dim); }
+  ol.tracks li.now .time { color: var(--accent); }
+  .time { font-variant-numeric: tabular-nums; color: var(--muted); }
+  .song-key { font-weight: 600; }
+  .how { color: var(--muted); font-size: 0.85rem; grid-column: 2; }
+  .cam { font-size: 0.85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
   details { margin-top: 10px; }
   summary { cursor: pointer; color: var(--muted); font-size: 0.9rem; }
   pre {
@@ -64,46 +83,115 @@
 <body>
 <main>
   <h1>Techno<span>.</span>Generator</h1>
-  <p class="sub">Komplett algorithmisch erzeugt und synthetisiert. Keine Samples. Jeder Song ist aus seinem Seed exakt reproduzierbar.</p>
-  <div id="songs"><p class="meta">Lade Songs…</p></div>
+  <p class="sub">Komplett algorithmisch erzeugt und synthetisiert. Keine Samples. Jeder Song und jeder Mix ist aus seinem Seed exakt reproduzierbar.</p>
+
+  <h2>Mixes</h2>
+  <div id="mixes"><p class="meta">Lade…</p></div>
+
+  <h2>Einzelne Songs</h2>
+  <div id="songs"></div>
+
   <footer id="foot"></footer>
 </main>
 <script>
-  const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  const mmss = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+  const HOW = { "cut": "harter Cut", "fast blend": "schnelle Blende", "slow blend": "langsame Blende", "filter blend": "Filter-Blende" };
+
+  // Only one player at a time.
+  document.addEventListener("play", (e) => {
+    for (const a of document.querySelectorAll("audio")) if (a !== e.target) a.pause();
+  }, true);
+
+  async function getJson(url) {
+    const r = await fetch(url, { cache: "no-store" });
+    if (!r.ok) throw new Error(url);
+    return r.json();
+  }
+
+  function mixCard(seed, set) {
+    const el = document.createElement("section");
+    el.className = "card";
+    const songs = set.songs || [];
+    el.innerHTML = `
+      <div class="head">
+        <span class="title">Mix #${seed}</span>
+        <span class="meta">${songs.length} Songs · ${set.bpm} BPM · ${mmss(set.duration)}</span>
+      </div>
+      <audio controls preload="none" src="audio/mix-${seed}.mp3"></audio>
+      <ol class="tracks">${songs.map((s, i) => `
+        <li data-start="${s.start}" data-i="${i}">
+          <span class="time">${mmss(s.start)}</span>
+          <span class="song-key">${esc(s.key)}</span>
+          <span class="cam">${esc(s.camelot)}</span>
+          <span class="how">${s.transition ? esc(HOW[s.transition] || s.transition) : "Start"} · Seed ${s.seed}</span>
+        </li>`).join("")}
+      </ol>
+      <details><summary>Aufbau der Songs</summary><pre>${songs.map((s) =>
+        `#${s.index + 1}  Seed ${s.seed}  ${esc(s.key)} (${esc(s.camelot)})\n${esc(s.structure)}`).join("\n\n")}</pre></details>`;
+    const audio = el.querySelector("audio");
+    const rows = [...el.querySelectorAll("li")];
+    const mark = (cur) => rows.forEach((li, i) => li.classList.toggle("now", i === cur));
+    rows.forEach((li, i) => li.addEventListener("click", () => {
+      const t = parseFloat(li.dataset.start);
+      mark(i);
+      // With preload="none" the position can only be set once metadata is known.
+      if (audio.readyState >= 1) audio.currentTime = t;
+      else audio.addEventListener("loadedmetadata", () => { audio.currentTime = t; }, { once: true });
+      audio.play().catch(() => {});
+    }));
+    audio.addEventListener("timeupdate", () => {
+      const t = audio.currentTime;
+      let cur = 0;
+      rows.forEach((li, i) => { if (t >= parseFloat(li.dataset.start)) cur = i; });
+      if (!audio.paused) mark(cur);
+    });
+    return el;
+  }
+
+  async function songCard(seed) {
+    const info = await fetch(`audio/seed-${seed}.txt`).then((r) => r.text()).catch(() => "");
+    const key = info.match(/^key\s+(.+?) \((\w+)\)/m) || [];
+    const tempo = (info.match(/^tempo\s+(\d+) BPM/m) || [])[1];
+    const sounds = (info.match(/^sounds\s+(.+)$/m) || [])[1];
+    const el = document.createElement("section");
+    el.className = "card";
+    el.innerHTML = `
+      <div class="head">
+        <span class="title">Seed ${seed}</span>
+        <span class="meta">${key[1] ? esc(key[1]) : ""}${tempo ? " · " + tempo + " BPM" : ""}</span>
+        ${key[2] ? `<span class="pill">${esc(key[2])}</span>` : ""}
+      </div>
+      <audio controls preload="none" src="audio/seed-${seed}.mp3"></audio>
+      ${sounds ? `<p class="meta" style="margin:8px 0 0;font-size:.9rem">${esc(sounds)}</p>` : ""}
+      <details><summary>Song-DNA &amp; Aufbau</summary><pre>${esc(info)}</pre></details>`;
+    return el;
+  }
 
   async function load() {
-    const box = document.getElementById("songs");
+    const mixBox = document.getElementById("mixes");
+    const songBox = document.getElementById("songs");
     let index;
     try {
-      index = await (await fetch("songs.json", { cache: "no-store" })).json();
+      index = await getJson("songs.json");
     } catch (e) {
-      box.innerHTML = '<p class="err">songs.json fehlt – Seite wurde noch nicht gebaut.</p>';
+      mixBox.innerHTML = '<p class="err">songs.json fehlt – Seite wurde noch nicht gebaut.</p>';
       return;
     }
-    box.innerHTML = "";
-    for (const seed of index.seeds) {
-      const info = await (await fetch(`audio/seed-${seed}.txt`)).text().catch(() => "");
-      const key = (info.match(/^key\s+(.+?) \((\w+)\)/m) || []);
-      const tempo = (info.match(/^tempo\s+(\d+) BPM/m) || [])[1];
-      const el = document.createElement("section");
-      el.className = "song";
-      el.innerHTML = `
-        <div class="head">
-          <span class="seed">Seed ${seed}</span>
-          <span class="meta">${key[1] ? esc(key[1]) : ""}${tempo ? " · " + tempo + " BPM" : ""}</span>
-          ${key[2] ? `<span class="camelot">${esc(key[2])}</span>` : ""}
-        </div>
-        <audio controls preload="none" src="audio/seed-${seed}.mp3"></audio>
-        <details><summary>Song-DNA &amp; Aufbau</summary><pre>${esc(info)}</pre></details>`;
-      box.appendChild(el);
+    mixBox.innerHTML = "";
+    for (const seed of index.mixes || []) {
+      try {
+        mixBox.appendChild(mixCard(seed, await getJson(`audio/mix-${seed}.json`)));
+      } catch (e) {
+        mixBox.insertAdjacentHTML("beforeend", `<p class="err">Mix ${seed} fehlt.</p>`);
+      }
     }
-    // Only one player at a time.
-    box.addEventListener("play", (e) => {
-      for (const a of box.querySelectorAll("audio")) if (a !== e.target) a.pause();
-    }, true);
+    if (!(index.mixes || []).length) mixBox.innerHTML = '<p class="meta">Noch keine Mixes.</p>';
+    for (const seed of index.seeds || []) songBox.appendChild(await songCard(seed));
+
     const sha = (index.commit || "").slice(0, 7);
     document.getElementById("foot").innerHTML =
-      `Build <code>${esc(sha)}</code> · ${esc(index.built || "")} · Feedback-Format: „Seed X, Takt Y, Problem“`;
+      `Build <code>${esc(sha)}</code> · ${esc(index.built || "")} · Feedback-Format: „Mix X, Minute Y, Problem“ oder „Seed X, Takt Y, Problem“`;
   }
   load();
 </script>
