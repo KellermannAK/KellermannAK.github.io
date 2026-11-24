@@ -12,6 +12,10 @@ use crate::tracks::{Track, TrackSet};
 
 pub const MAX_SECTIONS: usize = 24;
 pub const PHRASE_BARS: u32 = 8;
+
+/// Short, rhythmic synths: at most one of them plays in any bar.
+pub const SHORT_SYNTHS: TrackSet =
+    TrackSet((1 << Track::Lead as u32) | (1 << Track::Arp as u32) | (1 << Track::Stab as u32));
 const MAX_PHRASES: usize = 64;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -198,6 +202,10 @@ pub struct SongPlan {
     drop_pause: [bool; MAX_SECTIONS],
     /// Tracks the song uses at all (some DNA leaves e.g. the arp out).
     pub palette: TrackSet,
+    /// The short synth that carries the song.
+    pub main_synth: Track,
+    /// Short synth that replaces the main one in breakdowns, if any.
+    pub alt_synth: Option<Track>,
 }
 
 fn len_pick(w: &Weighted<u32>, rng: &mut Rng) -> u32 {
@@ -205,7 +213,13 @@ fn len_pick(w: &Weighted<u32>, rng: &mut Rng) -> u32 {
 }
 
 impl SongPlan {
-    pub fn generate(rng: &mut Rng, profile: &Profile, palette: TrackSet) -> SongPlan {
+    pub fn generate(
+        rng: &mut Rng,
+        profile: &Profile,
+        palette: TrackSet,
+        main_synth: Track,
+        alt_synth: Option<Track>,
+    ) -> SongPlan {
         let r = &profile.structure;
         let target = {
             let lo = r.target_bars[0] / PHRASE_BARS;
@@ -370,6 +384,8 @@ impl SongPlan {
             variations,
             drop_pause,
             palette,
+            main_synth,
+            alt_synth,
         }
     }
 
@@ -538,6 +554,16 @@ impl SongPlan {
             Variation::default()
         };
 
+        // One short synth at a time: whenever the arrangement asks for any of them, the
+        // song's main synth plays (or its alternative in breakdowns), never two at once.
+        if !active.and(SHORT_SYNTHS).is_empty() {
+            let pick = match (s.kind, self.alt_synth) {
+                (SectionKind::Breakdown, Some(alt)) => alt,
+                _ => self.main_synth,
+            };
+            active = active.minus(SHORT_SYNTHS).with(pick);
+        }
+
         BarPlan {
             section: s.kind,
             section_bar: sb,
@@ -635,7 +661,15 @@ mod tests {
 
     fn plans() -> impl Iterator<Item = SongPlan> {
         let p = Profile::hard_techno_simple();
-        (0..300u64).map(move |s| SongPlan::generate(&mut Rng::new(s), &p, TrackSet::ALL))
+        (0..300u64).map(move |s| {
+            SongPlan::generate(
+                &mut Rng::new(s),
+                &p,
+                TrackSet::ALL,
+                Track::Lead,
+                Some(Track::Arp),
+            )
+        })
     }
 
     #[test]

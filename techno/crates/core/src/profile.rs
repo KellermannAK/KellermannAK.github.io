@@ -39,7 +39,7 @@ pub struct Profile {
     pub pad: PadRules,
     pub arp: ArpRules,
     pub drone: DroneRules,
-    pub palette: PaletteRules,
+    pub synths: SynthRules,
     pub mix: MixRules,
     pub structure: StructureRules,
 }
@@ -104,13 +104,34 @@ pub struct DroneRules {
     pub detune: Range,
 }
 
-/// Probability that a song uses an optional instrument at all.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ShortSynth {
+    Lead,
+    Arp,
+    Stab,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LongLayer {
+    Pad,
+    Drone,
+    None,
+}
+
+/// Which synths a song uses and how they may overlap.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct PaletteRules {
-    pub stab: f32,
-    pub lead: f32,
-    pub arp: f32,
-    pub drone: f32,
+pub struct SynthRules {
+    /// The one short synth that carries the song.
+    pub main: Weighted<ShortSynth>,
+    /// Probability that a different short synth takes over in breakdowns. It replaces the
+    /// main synth there, it never plays at the same time.
+    pub breakdown_alt_prob: f32,
+    /// At most one sustained background layer.
+    pub long_layer: Weighted<LongLayer>,
+    /// Notes per stab hit: 1 = single tone, more = chords.
+    pub stab_notes: u8,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

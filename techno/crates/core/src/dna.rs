@@ -8,10 +8,11 @@
 use crate::euclid::{euclid, Pattern};
 use crate::markov::next_degree;
 use crate::profile::{
-    ArpPattern, Backbeat, BassRhythm, ChordShape, HatStyle, KickStyle, LeadKind, Profile, RideStyle,
+    ArpPattern, Backbeat, BassRhythm, ChordShape, HatStyle, KickStyle, LeadKind, LongLayer,
+    Profile, RideStyle, ShortSynth,
 };
 use crate::rng::Rng;
-use crate::structure::SongPlan;
+use crate::structure::{SongPlan, SHORT_SYNTHS};
 use crate::theory::{is_harsh_interval, midi_to_hz, Key, ScaleKind};
 use crate::time::STEPS_PER_BAR;
 use crate::tracks::{Track, TrackSet};
@@ -189,6 +190,8 @@ pub struct RumbleParams {
 #[derive(Clone, Copy, Debug)]
 pub struct StabParams {
     pub chord: ChordShape,
+    /// Notes per hit (1 = single tone).
+    pub notes: u8,
     pub cutoff_hz: f32,
     pub env_mod: f32,
     pub decay: f32,
@@ -317,21 +320,44 @@ impl SongDna {
         sound.kick.style = profile.drums.kick.styles.pick(&mut v);
         sound.lead.kind = profile.lead.kinds.pick(&mut v);
         drums.backbeat = profile.drums.backbeat.pick(&mut v);
-        let mut palette = TrackSet::ALL;
-        let pr = &profile.palette;
-        for (t, prob) in [
-            (Track::Stab, pr.stab),
-            (Track::Lead, pr.lead),
-            (Track::Arp, pr.arp),
-            (Track::Drone, pr.drone),
-        ] {
-            if !v.chance(prob) {
-                palette = palette.without(t);
-            }
+        // One short synth carries the song; another may only replace it in breakdowns.
+        let sr = &profile.synths;
+        let to_track = |s: ShortSynth| match s {
+            ShortSynth::Lead => Track::Lead,
+            ShortSynth::Arp => Track::Arp,
+            ShortSynth::Stab => Track::Stab,
+        };
+        let main_synth = to_track(sr.main.pick(&mut v));
+        let alt_synth = if v.chance(sr.breakdown_alt_prob) {
+            let others: Vec<(ShortSynth, f32)> = sr
+                .main
+                .values
+                .iter()
+                .zip(&sr.main.weights)
+                .filter(|(s, _)| to_track(**s) != main_synth)
+                .map(|(s, w)| (*s, *w))
+                .collect();
+            let w: Vec<f32> = others.iter().map(|o| o.1).collect();
+            (!others.is_empty()).then(|| to_track(others[v.weighted_index(&w)].0))
+        } else {
+            None
+        };
+        let long_layer = match sr.long_layer.pick(&mut v) {
+            LongLayer::Pad => Some(Track::Pad),
+            LongLayer::Drone => Some(Track::Drone),
+            LongLayer::None => None,
+        };
+        let mut palette = TrackSet::ALL
+            .minus(SHORT_SYNTHS)
+            .minus(TrackSet::of(&[Track::Pad, Track::Drone]));
+        palette = palette.with(main_synth);
+        if let Some(t) = alt_synth {
+            palette = palette.with(t);
         }
-        if !palette.contains(Track::Lead) && !palette.contains(Track::Arp) {
-            palette = palette.with(Track::Lead);
+        if let Some(t) = long_layer {
+            palette = palette.with(t);
         }
+        sound.stab.notes = sr.stab_notes.max(1);
         let (arp, arp_sound) = gen_arp(&mut root.fork("arp"), profile);
         sound.arp = arp_sound;
         let mut r = root.fork("drone");
@@ -340,7 +366,13 @@ impl SongDna {
             drive: r.in_range(profile.drone.drive),
             detune: r.in_range(profile.drone.detune),
         };
-        let plan = SongPlan::generate(&mut root.fork("structure"), profile, palette);
+        let plan = SongPlan::generate(
+            &mut root.fork("structure"),
+            profile,
+            palette,
+            main_synth,
+            alt_synth,
+        );
 
         SongDna {
             seed,
@@ -385,6 +417,7 @@ impl SongDna {
              pad        chord {:?}\n\
              arp        {}   chord {:?}\n\
              sounds     kick {:?}, lead {:?}, backbeat {:?}\n\
+             synths     main {}, breakdown {}\n\
              palette    {}\n\
              (motif digits = scale degree above root, a/b/c.. = 1/2/3.. below)",
             self.seed,
@@ -416,6 +449,8 @@ impl SongDna {
             self.sound.kick.style,
             self.sound.lead.kind,
             self.drums.backbeat,
+            self.plan.main_synth.name(),
+            self.plan.alt_synth.map(|t| t.name()).unwrap_or("same"),
             self.plan
                 .palette
                 .iter()
@@ -766,6 +801,7 @@ fn gen_arp(rng: &mut Rng, p: &Profile) -> (Motif, StabParams) {
     }
     let params = StabParams {
         chord,
+        notes: 1,
         cutoff_hz: rng.in_range(a.cutoff_hz),
         env_mod: rng.in_range(a.env_mod),
         decay: rng.in_range(a.decay),
@@ -826,6 +862,7 @@ fn gen_sound(rng: &mut Rng, p: &Profile, key: Key) -> SoundParams {
     SoundParams {
         arp: StabParams {
             chord: ChordShape::Triad,
+            notes: 1,
             cutoff_hz: 1000.0,
             env_mod: 2.0,
             decay: 0.1,
@@ -888,6 +925,7 @@ fn gen_sound(rng: &mut Rng, p: &Profile, key: Key) -> SoundParams {
         },
         stab: StabParams {
             chord: p.stab.chords.pick(rng),
+            notes: 1,
             cutoff_hz: rng.in_range(p.stab.cutoff_hz),
             env_mod: rng.in_range(p.stab.env_mod),
             decay: rng.in_range(p.stab.decay),
@@ -1027,6 +1065,28 @@ mod tests {
                 if let Some(n) = dna.bass.at(s) {
                     assert!((lo..=hi).contains(&(n.degree as i32)), "seed {}", dna.seed);
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn one_short_synth_and_one_long_layer_at_a_time() {
+        use crate::structure::SHORT_SYNTHS;
+        let long = TrackSet::of(&[Track::Pad, Track::Drone]);
+        for dna in songs() {
+            assert!(
+                dna.plan.palette.and(long).0.count_ones() <= 1,
+                "seed {}",
+                dna.seed
+            );
+            for bar in 0..dna.plan.total_bars {
+                let a = dna.plan.bar(bar).active;
+                assert!(
+                    a.and(SHORT_SYNTHS).0.count_ones() <= 1,
+                    "seed {} bar {}",
+                    dna.seed,
+                    bar
+                );
             }
         }
     }

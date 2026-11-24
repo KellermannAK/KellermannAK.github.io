@@ -436,6 +436,7 @@ impl Deck {
                     self.bass_base + 24,
                     &mut buf,
                 );
+                let k = k.min(self.dna.sound.stab.notes.max(1) as usize);
                 self.stab.trigger_chord(&buf[..k], n.velocity);
             }
         }

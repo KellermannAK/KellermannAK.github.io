@@ -132,11 +132,15 @@ cutoff_hz = [250.0, 700.0]
 drive = [1.5, 4.0]
 detune = [0.08, 0.25]
 
-[palette]
-stab = 0.8
-lead = 0.85
-arp = 0.55
-drone = 0.5
+[synths]
+# Deep techno rules: never two different short synths (lead, arp, stab) at the same time.
+# A second short synth may take over in breakdowns, never alongside the first.
+# At most one sustained layer (pad or drone) in the background.
+main = { values = ["lead", "arp", "stab"], weights = [4.0, 3.0, 2.0] }
+breakdown_alt_prob = 0.4
+long_layer = { values = ["pad", "drone", "none"], weights = [3.0, 2.0, 1.0] }
+# Notes per stab hit: 1 = single tone, 4 = full chord.
+stab_notes = 4
 
 [mix]
 sidechain_depth = [0.6, 0.9]
