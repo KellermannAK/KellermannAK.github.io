@@ -7,6 +7,7 @@ use techno_core::dna::{
     SnareParams, StabParams, ToneParams,
 };
 use techno_core::profile::{KickStyle, LeadKind};
+use techno_core::structure::RiserKind;
 
 // ----------------------------------------------------------------------------- kick
 
@@ -816,6 +817,9 @@ pub struct Riser {
     saw_lp: Svf,
     base_hz: f32,
     pitched: f32,
+    /// Which riser this build uses (set per bar by the deck).
+    pub kind: RiserKind,
+    swell_hp: Svf,
 }
 
 impl Riser {
@@ -829,14 +833,33 @@ impl Riser {
             saw_lp: Svf::new(800.0, 0.2, sr),
             base_hz,
             pitched,
+            kind: RiserKind::Noise,
+            swell_hp: Svf::new(3000.0, 0.1, sr),
         }
     }
 
-    /// `level` 0..1, `progress` 0..1 through the build.
+    /// `level` 0..1, `progress` 0..1 through the build, `beat_frac` 0..1 within the beat.
     #[inline]
-    pub fn process(&mut self, level: f32, progress: f32) -> f32 {
-        if level <= 1e-4 {
+    pub fn process(&mut self, level: f32, progress: f32, beat_frac: f32) -> f32 {
+        if level <= 1e-4 || self.kind == RiserKind::None {
             return 0.0;
+        }
+        match self.kind {
+            RiserKind::Gated => {
+                // Gate speeds up: quarters, 8ths, 16ths, 32nds.
+                let rate = [1.0, 2.0, 4.0, 8.0][((progress * 4.0) as usize).min(3)];
+                let open = (beat_frac * rate).fract() < 0.5;
+                let x = self.noise_sweep(progress);
+                return if open { x * level } else { 0.0 };
+            }
+            RiserKind::Swell => {
+                // Bright, airy swell that grows towards the end (reverse-cymbal feel).
+                let n = self.noise.next();
+                self.swell_hp.set(2500.0 + 5000.0 * progress, 0.15, self.sr);
+                return self.swell_hp.hp(n) * level * level * 1.6;
+            }
+            RiserKind::Noise => return self.noise_sweep(progress) * level,
+            _ => {}
         }
         let cutoff = 300.0 * (progress * 5.0 * core::f32::consts::LN_2).exp(); // 300 Hz .. 9.6 kHz
         self.bp.set(cutoff, 0.55, self.sr);
@@ -844,7 +867,7 @@ impl Riser {
         let noise = self.bp.bp(n) * 1.5 + self.hp.hp(n) * 0.15 * progress;
         let mut saw = 0.0;
         if self.pitched > 0.0 {
-            let f = self.base_hz * (1.0 + progress); // one octave up over the build
+            let f = self.base_hz * (1.0 + 0.5 * progress); // up a fifth over the build
             const DETUNE: [f32; 5] = [1.0, 1.006, 0.994, 1.013, 0.987];
             for (o, d) in self.saws.iter_mut().zip(DETUNE) {
                 saw += o.saw(f * d, self.sr);
@@ -853,7 +876,15 @@ impl Riser {
                 .set(600.0 + 6000.0 * progress * progress, 0.2, self.sr);
             saw = self.saw_lp.lp(saw) * 0.25 * self.pitched;
         }
-        (noise + saw) * level
+        (noise + saw * 0.7) * level
+    }
+
+    #[inline]
+    fn noise_sweep(&mut self, progress: f32) -> f32 {
+        let cutoff = 300.0 * (progress * 5.0 * core::f32::consts::LN_2).exp(); // 300 Hz .. 9.6 kHz
+        self.bp.set(cutoff, 0.55, self.sr);
+        let n = self.noise.next();
+        self.bp.bp(n) * 1.5 + self.hp.hp(n) * 0.15 * progress
     }
 }
 

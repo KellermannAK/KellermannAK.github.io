@@ -64,10 +64,11 @@ screen locked or the page in the background; a native app would be needed for th
 
 Sections come from a grammar in the profile (`[structure]`): intro (32 bars, drums and
 reduced bass only) -> groove / build -> drop / breakdown -> build -> drop ... -> outro (32 bars).
-A breakdown always leads into a build, a build always into a drop. Each section has an energy
-curve; tracks join when the energy passes their (per-song jittered) threshold. Builds get a
-riser, a snare roll that gets denser, rising effect sends and a high-pass sweep; drops start
-with an impact and crash, often after a one-bar pause. Every 8-bar phrase can vary the DNA
+A build always leads into a drop; a breakdown leads into a build (30 %) or straight into the drop with a 4-bar run-up of its own. Breakdowns are mostly 8-16 bars. Each section has an energy
+curve; tracks join when the energy passes their (per-song jittered) threshold. Every build picks its own riser
+(noise sweep, gated noise, swell, rarely a pitched rise, or none), roll (snare, clap, kick or
+none) and maybe a high-pass sweep. Every drop picks a style (full, bass first, stripped,
+filter opening) and an entry (impact + crash, crash, dry), sometimes after a one-bar pause. Every 8-bar phrase can vary the DNA
 (lead octave, thinned lead, dropped percussion) without re-inventing it.
 
 ### DJ sets

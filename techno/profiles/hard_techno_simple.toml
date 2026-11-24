@@ -155,10 +155,17 @@ intro_bars = 32
 outro_bars = 32
 groove_bars = { values = [16, 32], weights = [2.0, 1.0] }
 build_bars = { values = [8, 16], weights = [1.0, 2.0] }
-breakdown_bars = { values = [16, 32], weights = [2.0, 1.0] }
+breakdown_bars = { values = [8, 16, 32], weights = [2.0, 4.0, 0.5] }
 drop_bars = { values = [32, 48], weights = [3.0, 1.0] }
 after_intro = { values = ["groove", "build"], weights = [4.0, 1.0] }
-after_groove = { values = ["build", "breakdown", "groove"], weights = [2.0, 3.0, 0.5] }
+after_groove = { values = ["build", "breakdown", "groove"], weights = [3.0, 2.0, 0.5] }
 after_drop = { values = ["groove", "breakdown", "drop"], weights = [3.0, 1.5, 0.3] }
-drop_pause_prob = 0.6
+drop_pause_prob = 0.45
+breakdown_to_build_prob = 0.3
+# Every build and drop picks its own flavour.
+riser = { values = ["noise", "gated", "swell", "pitched", "none"], weights = [3.0, 2.5, 2.0, 0.5, 1.5] }
+roll = { values = ["snare", "clap", "kick", "none"], weights = [3.0, 2.0, 1.5, 1.0] }
+build_highpass_prob = 0.5
+drop_style = { values = ["full", "bass_first", "stripped", "filter_open"], weights = [2.0, 2.0, 1.2, 1.5] }
+drop_impact = { values = ["impact_crash", "crash", "none"], weights = [2.0, 2.0, 1.0] }
 threshold_jitter = 0.08

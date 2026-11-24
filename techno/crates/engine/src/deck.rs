@@ -3,9 +3,11 @@
 
 use techno_core::dna::{bass_base_midi, Note, SongDna};
 use techno_core::profile::{Backbeat, ChordShape, LeadKind};
-use techno_core::structure::{Automation, BarPlan, Fill, SongPlan};
+use techno_core::structure::{Automation, BarPlan, Fill, RollKind, SongPlan};
 use techno_core::theory::midi_to_hz;
-use techno_core::time::{samples_per_tick, seconds_per_bar, Tick, TICKS_PER_BAR, TICKS_PER_STEP};
+use techno_core::time::{
+    samples_per_tick, seconds_per_bar, Tick, PPQ, TICKS_PER_BAR, TICKS_PER_STEP,
+};
 use techno_core::{Track, TrackSet};
 use techno_synth::dsp::{Duck, PingPongDelay, Reverb, Smoother, Svf};
 use techno_synth::instruments::*;
@@ -119,6 +121,9 @@ pub struct Deck {
     fx_send: Smoother,
     riser_level: Smoother,
     riser_progress: f32,
+    lowpass: Smoother,
+    lp_l: Svf,
+    lp_r: Svf,
     hp_l: Svf,
     hp_r: Svf,
     sr: f32,
@@ -217,6 +222,9 @@ impl Deck {
             riser_progress: 0.0,
             hp_l: Svf::new(20.0, 0.0, sr),
             hp_r: Svf::new(20.0, 0.0, sr),
+            lowpass: Smoother::new(0.0, 0.1, sr),
+            lp_l: Svf::new(20000.0, 0.0, sr),
+            lp_r: Svf::new(20000.0, 0.0, sr),
             sr,
             mute: TrackSet::NONE,
             solo: TrackSet::NONE,
@@ -270,10 +278,12 @@ impl Deck {
         self.fx_send.target = a.fx_send;
         self.riser_level.target = a.riser;
         self.riser_progress = a.riser_progress;
+        self.lowpass.target = a.lowpass;
     }
 
     fn on_bar(&mut self, bar: u32) {
         self.plan = self.dna.plan.bar(bar);
+        self.riser.kind = self.plan.riser_kind;
         for t in Track::ALL {
             let on = (self.plan.active.contains(t) || ONE_SHOTS.contains(&t)) && self.audible(t);
             self.channels[t.index()].set_on(on);
@@ -393,7 +403,18 @@ impl Deck {
                 } else {
                     (step - Fill::Roll.starts_at()) as f32 / 7.0
                 };
-                self.snare.trigger(0.3 + 0.7 * k.clamp(0.0, 1.0));
+                let v = 0.3 + 0.7 * k.clamp(0.0, 1.0);
+                match (plan.roll_every > 0, plan.roll_kind) {
+                    (true, RollKind::Clap) => self.clap.trigger(v),
+                    (true, RollKind::Kick) => {
+                        // The regular kick already hits the quarters.
+                        if !(a.contains(Track::Kick) && d.kick.hit(step)) {
+                            self.kick.trigger(0.55 + 0.45 * v);
+                            self.duck.trigger();
+                        }
+                    }
+                    _ => self.snare.trigger(v),
+                }
             }
         }
 
@@ -515,6 +536,7 @@ impl Deck {
         let fx_send = self.fx_send.next();
         let riser_level = self.riser_level.next();
 
+        let beat_frac = (self.tick % PPQ as u64) as f32 / PPQ as f32;
         let kick = self.kick.process();
         let rumble = self.rumble.process(kick);
         let (hc, ho) = self.hats.process();
@@ -538,7 +560,8 @@ impl Deck {
             (Track::Lead, self.lead.process()),
             (
                 Track::Riser,
-                self.riser.process(riser_level, self.riser_progress),
+                self.riser
+                    .process(riser_level, self.riser_progress, beat_frac),
             ),
             (Track::Impact, self.impact.process()),
         ];
@@ -563,6 +586,16 @@ impl Deck {
         let mut r = sum.r + (dr + rr) * fx_duck;
 
         // Build high-pass sweep (bypassed when fully open).
+        // Filter-open drops: low-pass opens over the first bars.
+        let lp = self.lowpass.next();
+        if lp > 1e-3 {
+            let cutoff = 20000.0 * (lp * (250f32 / 20000.0).ln()).exp(); // 20 kHz .. 250 Hz
+            self.lp_l.set(cutoff, 0.2, self.sr);
+            self.lp_r.set(cutoff, 0.2, self.sr);
+            l = self.lp_l.lp(l);
+            r = self.lp_r.lp(r);
+        }
+
         let hp = self.highpass.next();
         if hp > 1e-3 {
             let cutoff = 20.0 * (hp * 20f32.ln()).exp(); // 20 Hz .. 400 Hz

@@ -87,6 +87,76 @@ impl Fill {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RiserKind {
+    /// Band-passed noise sweeping up.
+    Noise,
+    /// Noise sweep chopped by a gate that speeds up (quarters -> 32nds).
+    Gated,
+    /// Bright noise swell, like a reversed cymbal.
+    Swell,
+    /// Noise plus a detuned saw stack rising a fifth.
+    Pitched,
+    None,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RollKind {
+    Snare,
+    Clap,
+    /// Kick drum roll (classic techno build).
+    Kick,
+    None,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DropStyle {
+    /// Everything at once.
+    Full,
+    /// Kick, bass and drums first; synths and layers join after 8 bars.
+    BassFirst,
+    /// Starts reduced and builds up over 16 bars.
+    Stripped,
+    /// Full, but a low-pass opens over the first 8 bars.
+    FilterOpen,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DropImpact {
+    ImpactCrash,
+    Crash,
+    None,
+}
+
+/// Random flavour of one section (only the fields matching its kind are used).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SectionStyle {
+    pub riser: RiserKind,
+    pub roll: RollKind,
+    pub highpass: bool,
+    pub drop: DropStyle,
+    pub impact: DropImpact,
+    /// One-bar pause (only riser and roll) right before this drop.
+    pub pause_before: bool,
+}
+
+impl Default for SectionStyle {
+    fn default() -> Self {
+        SectionStyle {
+            riser: RiserKind::Noise,
+            roll: RollKind::Snare,
+            highpass: false,
+            drop: DropStyle::Full,
+            impact: DropImpact::ImpactCrash,
+            pause_before: false,
+        }
+    }
+}
+
 /// Per-phrase variation of the DNA (never a re-invention).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Variation {
@@ -113,8 +183,10 @@ pub struct BarPlan {
     pub crash: bool,
     /// Impact + downlifter on the downbeat.
     pub impact: bool,
-    /// Snare roll in this bar: hit every n 16ths (0 = none).
+    /// Roll in this bar: hit every n 16ths (0 = none).
     pub roll_every: u8,
+    pub roll_kind: RollKind,
+    pub riser_kind: RiserKind,
     /// 0..1 progress of a build (roll velocity ramps with it).
     pub build_progress: f32,
     pub variation: Variation,
@@ -134,6 +206,8 @@ pub struct Automation {
     /// Riser level 0..1 and sweep progress 0..1.
     pub riser: f32,
     pub riser_progress: f32,
+    /// Deck low-pass 0..1 (0 = open, 1 = ~250 Hz), used for filter-open drops.
+    pub lowpass: f32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -151,6 +225,14 @@ pub struct StructureRules {
     pub after_drop: Weighted<SectionKind>,
     /// Probability of a one-bar pause (only riser and roll) right before a drop.
     pub drop_pause_prob: f32,
+    /// Probability that a breakdown is followed by a build (otherwise it goes straight
+    /// into the drop with a short run-up of its own).
+    pub breakdown_to_build_prob: f32,
+    pub riser: Weighted<RiserKind>,
+    pub roll: Weighted<RollKind>,
+    pub build_highpass_prob: f32,
+    pub drop_style: Weighted<DropStyle>,
+    pub drop_impact: Weighted<DropImpact>,
     /// Per-song jitter of the energy thresholds at which tracks join.
     pub threshold_jitter: f32,
 }
@@ -198,8 +280,8 @@ pub struct SongPlan {
     pub total_bars: u32,
     thresholds: [f32; Track::COUNT],
     variations: [Variation; MAX_PHRASES],
-    /// Per drop section: whether the bar before it is a pause.
-    drop_pause: [bool; MAX_SECTIONS],
+    /// Random flavour per section (riser, roll, drop style ...).
+    pub styles: [SectionStyle; MAX_SECTIONS],
     /// Tracks the song uses at all (some DNA leaves e.g. the arp out).
     pub palette: TrackSet,
     /// The short synth that carries the song.
@@ -254,11 +336,14 @@ impl SongPlan {
                     }
                 };
                 match kind {
-                    SectionKind::Breakdown => vec![
-                        (SectionKind::Breakdown, len(&r.breakdown_bars, rng)),
-                        (SectionKind::Build, len(&r.build_bars, rng)),
-                        (SectionKind::Drop, len(&r.drop_bars, rng)),
-                    ],
+                    SectionKind::Breakdown => {
+                        let mut v = vec![(SectionKind::Breakdown, len(&r.breakdown_bars, rng))];
+                        if rng.chance(r.breakdown_to_build_prob) {
+                            v.push((SectionKind::Build, len(&r.build_bars, rng)));
+                        }
+                        v.push((SectionKind::Drop, len(&r.drop_bars, rng)));
+                        v
+                    }
                     SectionKind::Build => vec![
                         (SectionKind::Build, len(&r.build_bars, rng)),
                         (SectionKind::Drop, len(&r.drop_bars, rng)),
@@ -369,11 +454,18 @@ impl SongPlan {
             v.no_open_hat = rng.chance(0.12);
         }
 
-        let mut drop_pause = [false; MAX_SECTIONS];
-        for (i, s) in sections[..list.len()].iter().enumerate() {
-            if s.kind == SectionKind::Drop {
-                drop_pause[i] = rng.chance(r.drop_pause_prob);
-            }
+        // Styles come from their own stream so they do not reshuffle the structure.
+        let mut st = rng.fork("styles");
+        let mut styles = [SectionStyle::default(); MAX_SECTIONS];
+        for style in styles.iter_mut() {
+            *style = SectionStyle {
+                riser: r.riser.pick(&mut st),
+                roll: r.roll.pick(&mut st),
+                highpass: st.chance(r.build_highpass_prob),
+                drop: r.drop_style.pick(&mut st),
+                impact: r.drop_impact.pick(&mut st),
+                pause_before: st.chance(r.drop_pause_prob),
+            };
         }
 
         SongPlan {
@@ -382,7 +474,7 @@ impl SongPlan {
             total_bars: total,
             thresholds,
             variations,
-            drop_pause,
+            styles,
             palette,
             main_synth,
             alt_synth,
@@ -438,6 +530,9 @@ impl SongPlan {
 
         let mut fill = Fill::None;
         let mut roll_every = 0u8;
+        let style = self.styles[idx];
+        let mut roll_kind = style.roll;
+        let mut riser_kind = style.riser;
         let mut build_progress = 0.0;
         let mut impact = false;
         let mut crash = false;
@@ -473,22 +568,33 @@ impl SongPlan {
             SectionKind::Groove => by_energy(energy).minus(TrackSet::of(&[Pad, Drone])),
             SectionKind::Drop => {
                 if sb == 0 {
-                    impact = true;
-                    crash = true;
+                    impact = style.impact == DropImpact::ImpactCrash;
+                    crash = style.impact != DropImpact::None;
                 }
-                by_energy(energy + 0.05)
+                let full = by_energy(energy + 0.05)
                     .with(Pad)
-                    .minus(TrackSet::of(&[Snare]))
+                    .with(Drone)
+                    .minus(TrackSet::of(&[Snare]));
+                let layers = SHORT_SYNTHS.union(TrackSet::of(&[Pad, Drone, Ride]));
+                match style.drop {
+                    DropStyle::BassFirst if sb < 8 => full.minus(layers),
+                    DropStyle::Stripped if sb < 8 => {
+                        full.and(TrackSet::of(&[Kick, Bass, Rumble, HatClosed, Clap]))
+                    }
+                    DropStyle::Stripped if sb < 16 => full.minus(layers).with(HatOpen),
+                    _ => full,
+                }
             }
             SectionKind::Build => {
                 build_progress = sb as f32 / s.bars as f32;
-                let mut a = by_energy(energy)
-                    .minus(TrackSet::of(&[Pad, Tom]))
-                    .with(Riser);
-                // Snare roll over the second half, getting denser.
+                let mut a = by_energy(energy).minus(TrackSet::of(&[Pad, Tom]));
+                if style.riser != RiserKind::None {
+                    a = a.with(Riser);
+                }
+                // Roll over the second half, getting denser.
                 let half = s.bars / 2;
-                if sb >= half {
-                    a = a.with(Snare);
+                if sb >= half && style.roll != RollKind::None {
+                    a = a.with(roll_track(style.roll));
                     roll_every = if left <= 1 {
                         1
                     } else if left <= half / 2 {
@@ -497,10 +603,14 @@ impl SongPlan {
                         4
                     };
                 }
-                let pause =
-                    self.next_kind(idx) == Some(SectionKind::Drop) && self.drop_pause[idx + 1];
+                let pause = self.next_kind(idx) == Some(SectionKind::Drop)
+                    && self.styles[idx + 1].pause_before;
                 if left == 1 && pause {
-                    a = TrackSet::of(&[Riser, Snare]);
+                    let mut p = TrackSet::of(&[Riser]);
+                    if style.roll != RollKind::None {
+                        p = p.with(roll_track(style.roll));
+                    }
+                    a = p;
                 }
                 a
             }
@@ -515,6 +625,19 @@ impl SongPlan {
                 }
                 if left <= 2 {
                     a = a.with(Clap);
+                }
+                // Straight into a drop: a short run-up of its own over the last 4 bars.
+                if self.next_kind(idx) == Some(SectionKind::Drop) && left <= 4 {
+                    if riser_kind == RiserKind::None {
+                        riser_kind = RiserKind::Noise;
+                    }
+                    a = a.with(Riser).with(HatClosed);
+                    build_progress = (4 - left) as f32 / 4.0;
+                    if left <= 2 {
+                        roll_kind = RollKind::Snare;
+                        roll_every = if left == 1 { 1 } else { 2 };
+                        a = a.with(Snare);
+                    }
                 }
                 a
             }
@@ -531,7 +654,7 @@ impl SongPlan {
         {
             fill = Fill::Small;
         }
-        if s.kind == SectionKind::Breakdown && left == 1 {
+        if s.kind == SectionKind::Breakdown && left == 1 && roll_every == 0 {
             fill = Fill::Roll;
             active = active.with(Snare);
         }
@@ -580,6 +703,8 @@ impl SongPlan {
             crash,
             impact,
             roll_every,
+            roll_kind,
+            riser_kind,
             build_progress,
             variation,
         }
@@ -599,7 +724,10 @@ impl SongPlan {
             fx_send: 1.0,
             riser: 0.0,
             riser_progress: 0.0,
+            lowpass: 0.0,
         };
+        let style = self.styles[idx];
+        let into_drop = self.next_kind(idx) == Some(SectionKind::Drop);
         match s.kind {
             SectionKind::Intro => {
                 a.bass_filter = lerp(0.35, 0.6);
@@ -614,17 +742,31 @@ impl SongPlan {
             SectionKind::Build => {
                 a.lead_filter = lerp(0.35, 1.0);
                 a.fx_send = lerp(1.0, 1.8);
-                a.riser = x * x;
-                a.riser_progress = x;
-                // Filter build: high-pass sweeps in over the last quarter.
-                a.highpass = ((x - 0.75) * 4.0).clamp(0.0, 1.0) * 0.8;
+                if style.riser != RiserKind::None {
+                    a.riser = x * x;
+                    a.riser_progress = x;
+                }
+                // Filter build (not every time): high-pass sweeps in over the last quarter.
+                if style.highpass {
+                    a.highpass = ((x - 0.75) * 4.0).clamp(0.0, 1.0) * 0.8;
+                }
             }
             SectionKind::Breakdown => {
                 a.lead_filter = lerp(0.15, 0.55);
                 a.fx_send = 2.2;
+                if into_drop {
+                    // Short run-up over the last 4 bars.
+                    let run = ((pos_bars - (s.end() as f32 - 4.0)) / 4.0).clamp(0.0, 1.0);
+                    a.riser = run * run;
+                    a.riser_progress = run;
+                }
             }
             SectionKind::Drop => {
                 a.lead_filter = 1.0;
+                if style.drop == DropStyle::FilterOpen {
+                    let open = ((pos_bars - s.start as f32) / 8.0).clamp(0.0, 1.0);
+                    a.lowpass = (1.0 - open) * (1.0 - open);
+                }
             }
         }
         a
@@ -633,15 +775,36 @@ impl SongPlan {
     pub fn describe(&self, bpm: f32) -> String {
         let spb = seconds_per_bar(bpm as f64);
         let mut out = String::new();
-        for s in self.sections() {
+        for (i, s) in self.sections().iter().enumerate() {
             let t = s.start as f64 * spb;
+            let st = self.styles[i];
+            let detail = match s.kind {
+                SectionKind::Build => format!(
+                    "riser {:?}, roll {:?}{}",
+                    st.riser,
+                    st.roll,
+                    if st.highpass { ", high-pass" } else { "" }
+                ),
+                SectionKind::Drop => format!(
+                    "{:?}, {:?}{}",
+                    st.drop,
+                    st.impact,
+                    if st.pause_before && i > 0 && self.sections[i - 1].kind == SectionKind::Build {
+                        ", pause before"
+                    } else {
+                        ""
+                    }
+                ),
+                _ => String::new(),
+            };
             out.push_str(&format!(
-                "  bar {:>3}  {:>2}:{:02}  {:<9} {:>2} bars\n",
+                "  bar {:>3}  {:>2}:{:02}  {:<9} {:>2} bars  {}\n",
                 s.start + 1,
                 (t / 60.0) as u32,
                 t as u32 % 60,
                 s.kind.name(),
-                s.bars
+                s.bars,
+                detail.to_lowercase()
             ));
         }
         let t = self.total_bars as f64 * spb;
@@ -652,6 +815,14 @@ impl SongPlan {
             t as u32 % 60
         ));
         out
+    }
+}
+
+fn roll_track(r: RollKind) -> Track {
+    match r {
+        RollKind::Clap => Track::Clap,
+        RollKind::Kick => Track::Kick,
+        _ => Track::Snare,
     }
 }
 
@@ -681,7 +852,9 @@ mod tests {
             assert!(s.iter().any(|x| x.kind == SectionKind::Drop));
             for w in s.windows(2) {
                 match w[0].kind {
-                    SectionKind::Breakdown => assert_eq!(w[1].kind, SectionKind::Build),
+                    SectionKind::Breakdown => {
+                        assert!(matches!(w[1].kind, SectionKind::Build | SectionKind::Drop))
+                    }
                     SectionKind::Build => assert_eq!(w[1].kind, SectionKind::Drop),
                     _ => {}
                 }
@@ -713,6 +886,38 @@ mod tests {
                 assert!(plan.bar(bar).active.and(melodic).is_empty());
             }
         }
+    }
+
+    #[test]
+    fn builds_and_drops_vary() {
+        use std::collections::HashSet;
+        let mut risers = HashSet::new();
+        let mut drops = HashSet::new();
+        let mut long_breakdowns = 0;
+        let mut breakdowns = 0;
+        for plan in plans() {
+            for (i, s) in plan.sections().iter().enumerate() {
+                match s.kind {
+                    SectionKind::Build => {
+                        risers.insert(format!("{:?}", plan.styles[i].riser));
+                    }
+                    SectionKind::Drop => {
+                        drops.insert(format!("{:?}", plan.styles[i].drop));
+                    }
+                    SectionKind::Breakdown => {
+                        breakdowns += 1;
+                        long_breakdowns += (s.bars >= 32) as u32;
+                    }
+                    _ => {}
+                }
+            }
+        }
+        assert!(risers.len() >= 4, "{risers:?}");
+        assert_eq!(drops.len(), 4, "{drops:?}");
+        assert!(
+            long_breakdowns * 5 < breakdowns,
+            "32-bar breakdowns should be rare"
+        );
     }
 
     #[test]
