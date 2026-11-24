@@ -2,7 +2,7 @@
 //! and runs the instruments through their channel strips and send effects.
 
 use techno_core::dna::{bass_base_midi, Note, SongDna};
-use techno_core::profile::ChordShape;
+use techno_core::profile::{Backbeat, ChordShape, LeadKind};
 use techno_core::structure::{Automation, BarPlan, Fill, SongPlan};
 use techno_core::theory::midi_to_hz;
 use techno_core::time::{samples_per_tick, seconds_per_bar, Tick, TICKS_PER_BAR, TICKS_PER_STEP};
@@ -48,8 +48,8 @@ fn channel_settings(t: Track, dna: &SongDna) -> ChannelSettings {
         Track::Stab => settings(0.22, 0.0, sc * 0.8, 0.28, 0.22, 250.0),
         Track::Lead => settings(0.14, 0.0, sc * 0.7, 0.16, 0.10, 180.0),
         Track::Pad => settings(0.18, 0.0, sc * 0.9, 0.0, 0.30, 200.0),
-        Track::Arp => settings(0.13, 0.2, sc * 0.8, 0.35, 0.15, 250.0),
-        Track::Drone => settings(0.12, 0.0, sc, 0.05, 0.25, 90.0),
+        Track::Arp => settings(0.38, 0.2, sc * 0.8, 0.35, 0.15, 250.0),
+        Track::Drone => settings(0.08, 0.0, sc, 0.05, 0.25, 90.0),
         Track::Riser => settings(0.20, 0.0, 0.0, 0.10, 0.25, 150.0),
         Track::Impact => settings(0.45, 0.0, 0.0, 0.0, 0.35, 0.0),
     }
@@ -102,6 +102,8 @@ pub struct Deck {
     pad: Pad,
     riser: Riser,
     impact: Impact,
+    arp: Stab,
+    drone: Drone,
 
     delay: PingPongDelay,
     reverb: Reverb,
@@ -169,6 +171,8 @@ impl Deck {
             lead: Lead::new(s.lead, sr),
             pad: Pad::new(s.pad, sr),
             riser: Riser::new(midi_to_hz((bass_base + 24) as f32), 1.0, sr),
+            arp: Stab::new(s.arp, sr),
+            drone: Drone::new(s.drone, sr),
             impact: Impact::new(seconds_per_bar(dna.bpm as f64) as f32, sr),
             delay: PingPongDelay::new(2.0, beat * 0.75, 0.38, sr),
             reverb: Reverb::new(2, 0.82, 0.45, 250.0, sr),
@@ -264,6 +268,14 @@ impl Deck {
             self.pad.release_all();
             self.pad_root = None;
         }
+
+        if self.plan.active.contains(Track::Drone) {
+            let root = fold_root(self.dna.progression.root_at_bar(bar));
+            let midi = self.bass_base + 12 + self.dna.key.degree_to_semitone(root);
+            self.drone.play(midi_to_hz(midi as f32));
+        } else {
+            self.drone.release();
+        }
     }
 
     fn chord_freqs(
@@ -323,7 +335,14 @@ impl Deck {
         }
         if a.contains(Track::Clap) && !(in_fill && plan.fill == Fill::Roll) {
             if d.clap.hit(step) {
-                self.clap.trigger(1.0);
+                match d.backbeat {
+                    Backbeat::Clap => self.clap.trigger(1.0),
+                    Backbeat::Snare => self.snare.trigger(0.95),
+                    Backbeat::ClapSnare => {
+                        self.clap.trigger(0.9);
+                        self.snare.trigger(0.7);
+                    }
+                }
             } else if d.clap_ghost.hit(step) {
                 self.clap.trigger(0.45);
             }
@@ -404,13 +423,30 @@ impl Deck {
                 let octave = if v.lead_up { 12 } else { 0 };
                 let f = self.note_freq(self.bass_base + 24 + octave, root, &n);
                 let len = n.len as f32 * self.step_samples;
-                let gate = if n.slide { len * 1.1 } else { len * 0.55 } as u32;
+                let hold = match self.dna.sound.lead.kind {
+                    LeadKind::Acid => 0.55,
+                    LeadKind::Pluck => 0.4,
+                    LeadKind::Hoover | LeadKind::Supersaw => 0.85,
+                };
+                let gate = if n.slide { len * 1.1 } else { len * hold } as u32;
                 self.lead
                     .trigger(f, n.velocity, n.accent, gate, self.prev_lead_slide);
                 self.prev_lead_slide = n.slide;
             } else {
                 self.prev_lead_slide = false;
             }
+        }
+    }
+
+    fn on_arp(&mut self, bar: u32, step: u32) {
+        if !self.plan.active.contains(Track::Arp) {
+            return;
+        }
+        let abs = bar * 16 + step;
+        if let Some(n) = self.dna.arp.at(abs) {
+            let root = fold_root(self.dna.progression.root_at_bar(bar));
+            let f = self.note_freq(self.bass_base + 36, root, &n);
+            self.arp.trigger_chord(&[f], n.velocity);
         }
     }
 
@@ -429,6 +465,7 @@ impl Deck {
         let trigger_at = if step % 2 == 1 { self.swing_ticks } else { 0 };
         if tis == trigger_at {
             self.on_step(t.bar(), step);
+            self.on_arp(t.bar(), step);
         }
     }
 
@@ -453,7 +490,9 @@ impl Deck {
         let (hc, ho) = self.hats.process();
         let (pad_l, pad_r) = self.pad.process();
 
-        let mono: [(Track, f32); 15] = [
+        let mono: [(Track, f32); 17] = [
+            (Track::Arp, self.arp.process()),
+            (Track::Drone, self.drone.process()),
             (Track::Kick, kick),
             (Track::Rumble, rumble),
             (Track::Bass, self.bass.process()),

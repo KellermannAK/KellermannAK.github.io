@@ -37,8 +37,80 @@ pub struct Profile {
     pub stab: StabRules,
     pub lead: LeadRules,
     pub pad: PadRules,
+    pub arp: ArpRules,
+    pub drone: DroneRules,
+    pub palette: PaletteRules,
     pub mix: MixRules,
     pub structure: StructureRules,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum KickStyle {
+    /// Pitch-swept sine into tanh saturation: pounding.
+    Hard,
+    /// 909-like: short, clicky, little drive.
+    Punch,
+    /// Hard-clipped and darkened: rave / industrial.
+    Distorted,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Backbeat {
+    Clap,
+    Snare,
+    ClapSnare,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LeadKind {
+    /// Resonant two-stage low-pass, slides, accents.
+    Acid,
+    /// Detuned saw stack with a pitch dive into each note.
+    Hoover,
+    /// Seven detuned saws, open filter.
+    Supersaw,
+    /// Two-operator FM pluck.
+    Pluck,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ArpPattern {
+    Up,
+    Down,
+    UpDown,
+    Random,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ArpRules {
+    pub patterns: Weighted<ArpPattern>,
+    /// Steps per note: 1 = 16ths, 2 = 8ths.
+    pub rate: Weighted<u8>,
+    pub octaves: Weighted<u8>,
+    pub chords: Weighted<ChordShape>,
+    pub cutoff_hz: Range,
+    pub env_mod: Range,
+    pub decay: Range,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DroneRules {
+    pub cutoff_hz: Range,
+    pub drive: Range,
+    pub detune: Range,
+}
+
+/// Probability that a song uses an optional instrument at all.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PaletteRules {
+    pub stab: f32,
+    pub lead: f32,
+    pub arp: f32,
+    pub drone: f32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -85,6 +157,8 @@ pub enum RideStyle {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DrumRules {
+    /// What plays on 2 and 4.
+    pub backbeat: Weighted<Backbeat>,
     pub kick: KickSound,
     pub hats: HatRules,
     pub clap: ClapRules,
@@ -96,6 +170,7 @@ pub struct DrumRules {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct KickSound {
+    pub styles: Weighted<KickStyle>,
     pub tune_hz: Range,
     /// Fold the key's tonic into `tune_hz` so the kick sits with the bass.
     pub tune_to_key: bool,
@@ -222,6 +297,7 @@ pub struct StabRules {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LeadRules {
+    pub kinds: Weighted<LeadKind>,
     pub motif_bars: Weighted<u8>,
     pub density: Range,
     pub slide_prob: f32,

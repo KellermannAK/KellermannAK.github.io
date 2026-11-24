@@ -3,9 +3,10 @@
 
 use crate::dsp::*;
 use techno_core::dna::{
-    BassParams, HatParams, KickParams, LeadParams, PadParams, RumbleParams, SnareParams,
-    StabParams, ToneParams,
+    BassParams, DroneParams, HatParams, KickParams, LeadParams, PadParams, RumbleParams,
+    SnareParams, StabParams, ToneParams,
 };
+use techno_core::profile::{KickStyle, LeadKind};
 
 // ----------------------------------------------------------------------------- kick
 
@@ -23,7 +24,23 @@ pub struct Kick {
 }
 
 impl Kick {
-    pub fn new(p: KickParams, sr: f32) -> Kick {
+    pub fn new(mut p: KickParams, sr: f32) -> Kick {
+        // Styles reshape the sampled parameters instead of needing their own ranges.
+        let tone = match p.style {
+            KickStyle::Hard => 7000.0,
+            KickStyle::Punch => {
+                p.decay *= 0.75;
+                p.pitch_decay *= 0.7;
+                p.drive = 1.0 + p.drive * 0.25;
+                p.click *= 1.8;
+                9000.0
+            }
+            KickStyle::Distorted => {
+                p.decay *= 1.15;
+                p.drive *= 2.2;
+                4200.0
+            }
+        };
         Kick {
             sr,
             p,
@@ -33,7 +50,7 @@ impl Kick {
             vel: 1.0,
             noise: Noise::new(0x4B1C),
             click_hp: Svf::new(2500.0, 0.2, sr),
-            tone_lp: Svf::new(7000.0, 0.0, sr),
+            tone_lp: Svf::new(tone, 0.0, sr),
         }
     }
 
@@ -62,7 +79,12 @@ impl Kick {
         let click_env = (-t / 0.0018).exp();
         let click = self.click_hp.hp(self.noise.next()) * click_env * p.click;
         let x = body * amp + click;
-        let y = self.tone_lp.lp(saturate(x, p.drive));
+        let shaped = match p.style {
+            // Hard clip after the soft stage: square-ish, aggressive.
+            KickStyle::Distorted => (saturate(x, p.drive) * 1.4).clamp(-1.0, 1.0) * 0.78,
+            _ => saturate(x, p.drive),
+        };
+        let y = self.tone_lp.lp(shaped);
         self.t += 1.0 / self.sr;
         if t > p.decay + 0.12 {
             self.active = false;
@@ -499,6 +521,9 @@ pub struct Lead {
     accent: f32,
     /// External filter opening 0..1 (arrangement automation).
     pub filter_open: f32,
+    stack: [Osc; 7],
+    modulator: Osc,
+    dive: f32,
 }
 
 impl Lead {
@@ -520,6 +545,9 @@ impl Lead {
             vel: 1.0,
             accent: 0.0,
             filter_open: 1.0,
+            stack: core::array::from_fn(|i| Osc::with_phase(i as f32 * 0.137 % 1.0)),
+            modulator: Osc::default(),
+            dive: 0.0,
         }
     }
 
@@ -533,6 +561,10 @@ impl Lead {
             self.freq = freq;
             self.fenv.trigger(1.0);
             self.amp.gate_on();
+            self.dive = 1.0;
+            if self.p.kind == LeadKind::Pluck {
+                self.modulator.phase = 0.0;
+            }
         }
     }
 
@@ -549,17 +581,51 @@ impl Lead {
         }
         let p = &self.p;
         self.freq += (self.target - self.freq) * self.glide;
-        let saw = self.osc.saw(self.freq, self.sr);
-        // Square derived from the same phase via a second oscillator would drift; a cheap
-        // waveshape blend is enough for the acid character.
-        let sq = if saw > 0.0 { 1.0 } else { -1.0 };
-        let x = saw * (1.0 - p.square) + sq * p.square * 0.7;
         let fe = self.fenv.next();
+        let sr = self.sr;
         let open = 0.3 + 1.5 * self.filter_open;
-        let cutoff = p.cutoff_hz * open * (1.0 + p.env_mod * fe * (1.0 + 0.8 * self.accent));
-        self.f1.set(cutoff, 0.0, self.sr);
-        self.f2.set(cutoff, p.resonance, self.sr);
-        let y = self.f2.lp(self.f1.lp(x));
+        let y = match p.kind {
+            LeadKind::Acid => {
+                let saw = self.osc.saw(self.freq, sr);
+                let sq = if saw > 0.0 { 1.0 } else { -1.0 };
+                let x = saw * (1.0 - p.square) + sq * p.square * 0.7;
+                let cutoff =
+                    p.cutoff_hz * open * (1.0 + p.env_mod * fe * (1.0 + 0.8 * self.accent));
+                self.f1.set(cutoff, 0.0, sr);
+                self.f2.set(cutoff, p.resonance, sr);
+                self.f2.lp(self.f1.lp(x))
+            }
+            LeadKind::Hoover => {
+                // Pitch dives into the note from a fourth above.
+                self.dive *= 0.9985;
+                let f = self.freq * (1.0 + 0.33 * self.dive * self.dive);
+                const DET: [f32; 4] = [1.0, 1.008, 0.992, 0.5];
+                let mut x = 0.0;
+                for (o, d) in self.stack.iter_mut().zip(DET) {
+                    x += o.saw(f * d, sr);
+                }
+                let cutoff = p.cutoff_hz * 3.0 * open * (1.0 + 0.5 * fe);
+                self.f1.set(cutoff, 0.15, sr);
+                self.f1.lp(x * 0.4)
+            }
+            LeadKind::Supersaw => {
+                const DET: [f32; 7] = [1.0, 1.011, 0.989, 1.022, 0.978, 1.034, 0.966];
+                let mut x = 0.0;
+                for (o, d) in self.stack.iter_mut().zip(DET) {
+                    x += o.saw(self.freq * d, sr);
+                }
+                let cutoff = p.cutoff_hz * 4.0 * open * (1.0 + 0.4 * fe);
+                self.f1.set(cutoff, 0.1, sr);
+                self.f1.lp(x * 0.3)
+            }
+            LeadKind::Pluck => {
+                // 2-op FM: modulation index decays with the filter envelope -> bell pluck.
+                let m = self.modulator.sine(self.freq * 2.0, sr);
+                let index = 0.25 + 2.5 * fe * (0.4 + 0.6 * self.filter_open);
+                self.osc.phase = (self.osc.phase + m * index * 0.02).rem_euclid(1.0);
+                self.osc.sine(self.freq, sr) * (0.4 + 0.6 * fe)
+            }
+        };
         saturate(y * self.amp.next() * (1.0 + 0.3 * self.accent), p.drive) * self.vel
     }
 }
@@ -827,5 +893,68 @@ impl Impact {
             self.active = false;
         }
         saturate(boom * 0.9, 1.5) + crack * 0.5 + down
+    }
+}
+
+// ----------------------------------------------------------------------------- drone
+
+/// Long, evolving drone: detuned saws on root and fifth plus a sub octave, slowly
+/// breathing low-pass, saturation. Follows the progression root with a glide.
+pub struct Drone {
+    sr: f32,
+    p: DroneParams,
+    osc: [Osc; 5],
+    lfo: Osc,
+    filt: Svf,
+    env: Adsr,
+    freq: f32,
+    target: f32,
+    glide: f32,
+}
+
+impl Drone {
+    pub fn new(p: DroneParams, sr: f32) -> Drone {
+        Drone {
+            sr,
+            p,
+            osc: core::array::from_fn(|i| Osc::with_phase(i as f32 * 0.19 % 1.0)),
+            lfo: Osc::default(),
+            filt: Svf::new(p.cutoff_hz, 0.3, sr),
+            env: Adsr::new(2.5, 1.0, 1.0, 3.0, sr),
+            freq: 110.0,
+            target: 110.0,
+            glide: smooth_coef(0.4, sr),
+        }
+    }
+
+    pub fn play(&mut self, freq: f32) {
+        if !self.env.is_active() {
+            self.freq = freq;
+        }
+        self.target = freq;
+        self.env.gate_on();
+    }
+
+    pub fn release(&mut self) {
+        self.env.gate_off();
+    }
+
+    #[inline]
+    pub fn process(&mut self) -> f32 {
+        if !self.env.is_active() {
+            return 0.0;
+        }
+        let sr = self.sr;
+        self.freq += (self.target - self.freq) * self.glide;
+        let d = 2f32.powf(self.p.detune / 12.0);
+        let f = self.freq;
+        let x = self.osc[0].saw(f * d, sr)
+            + self.osc[1].saw(f / d, sr)
+            + 0.7 * self.osc[2].saw(f * 1.5 * d, sr)
+            + 0.7 * self.osc[3].saw(f * 1.5 / d, sr)
+            + 0.8 * self.osc[4].sine(f * 0.5, sr);
+        let lfo = self.lfo.sine(0.045, sr);
+        self.filt.set(self.p.cutoff_hz * (1.0 + 0.6 * lfo), 0.3, sr);
+        saturate(self.filt.lp(x * 0.3) * self.env.next(), self.p.drive) * 0.6
     }
 }

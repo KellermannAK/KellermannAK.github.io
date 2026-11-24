@@ -7,7 +7,9 @@
 
 use crate::euclid::{euclid, Pattern};
 use crate::markov::next_degree;
-use crate::profile::{BassRhythm, ChordShape, HatStyle, Profile, RideStyle};
+use crate::profile::{
+    ArpPattern, Backbeat, BassRhythm, ChordShape, HatStyle, KickStyle, LeadKind, Profile, RideStyle,
+};
 use crate::rng::Rng;
 use crate::structure::SongPlan;
 use crate::theory::{is_harsh_interval, midi_to_hz, Key, ScaleKind};
@@ -118,6 +120,7 @@ impl Progression {
 
 #[derive(Clone, Copy, Debug)]
 pub struct DrumPatterns {
+    pub backbeat: Backbeat,
     pub kick: Pattern,
     pub hat_closed: Pattern,
     pub hat_accent: Pattern,
@@ -135,6 +138,7 @@ pub struct DrumPatterns {
 
 #[derive(Clone, Copy, Debug)]
 pub struct KickParams {
+    pub style: KickStyle,
     pub tune_hz: f32,
     pub pitch_start_hz: f32,
     pub pitch_decay: f32,
@@ -193,6 +197,7 @@ pub struct StabParams {
 
 #[derive(Clone, Copy, Debug)]
 pub struct LeadParams {
+    pub kind: LeadKind,
     pub cutoff_hz: f32,
     pub resonance: f32,
     pub env_mod: f32,
@@ -216,7 +221,17 @@ pub struct MixParams {
 }
 
 #[derive(Clone, Copy, Debug)]
+pub struct DroneParams {
+    pub cutoff_hz: f32,
+    pub drive: f32,
+    pub detune: f32,
+}
+
+#[derive(Clone, Copy, Debug)]
 pub struct SoundParams {
+    /// Arp voice reuses the stab synth; `chord` is the arpeggiated chord.
+    pub arp: StabParams,
+    pub drone: DroneParams,
     pub kick: KickParams,
     pub hats: HatParams,
     pub clap: ToneParams,
@@ -244,6 +259,7 @@ pub struct SongDna {
     pub bass: Motif,
     pub stab: Motif,
     pub lead: Motif,
+    pub arp: Motif,
     pub sound: SoundParams,
     /// Song structure, fixed at song start.
     pub plan: SongPlan,
@@ -293,7 +309,37 @@ impl SongDna {
         let mut bass = gen_bass(&mut root.fork("bass"), profile);
         fit_bass_to_stabs(&mut bass, &stab, sound.stab.chord);
         let lead = gen_lead(&mut root.fork("lead"), profile, key, &bass, &progression);
-        let palette = TrackSet::ALL.without(Track::Arp).without(Track::Drone);
+        let mut sound = sound;
+        let mut drums = drums;
+        // Sound variety and the instrument palette come from their own streams, so
+        // adding them did not change the core sound of existing seeds.
+        let mut v = root.fork("variety");
+        sound.kick.style = profile.drums.kick.styles.pick(&mut v);
+        sound.lead.kind = profile.lead.kinds.pick(&mut v);
+        drums.backbeat = profile.drums.backbeat.pick(&mut v);
+        let mut palette = TrackSet::ALL;
+        let pr = &profile.palette;
+        for (t, prob) in [
+            (Track::Stab, pr.stab),
+            (Track::Lead, pr.lead),
+            (Track::Arp, pr.arp),
+            (Track::Drone, pr.drone),
+        ] {
+            if !v.chance(prob) {
+                palette = palette.without(t);
+            }
+        }
+        if !palette.contains(Track::Lead) && !palette.contains(Track::Arp) {
+            palette = palette.with(Track::Lead);
+        }
+        let (arp, arp_sound) = gen_arp(&mut root.fork("arp"), profile);
+        sound.arp = arp_sound;
+        let mut r = root.fork("drone");
+        sound.drone = DroneParams {
+            cutoff_hz: r.in_range(profile.drone.cutoff_hz),
+            drive: r.in_range(profile.drone.drive),
+            detune: r.in_range(profile.drone.detune),
+        };
         let plan = SongPlan::generate(&mut root.fork("structure"), profile, palette);
 
         SongDna {
@@ -306,6 +352,7 @@ impl SongDna {
             bass,
             stab,
             lead,
+            arp,
             sound,
             plan,
         }
@@ -336,6 +383,9 @@ impl SongDna {
              stab       {}   chord {:?}\n\
              lead       {}\n\
              pad        chord {:?}\n\
+             arp        {}   chord {:?}\n\
+             sounds     kick {:?}, lead {:?}, backbeat {:?}\n\
+             palette    {}\n\
              (motif digits = scale degree above root, a/b/c.. = 1/2/3.. below)",
             self.seed,
             self.bpm,
@@ -361,6 +411,17 @@ impl SongDna {
             self.sound.stab.chord,
             self.lead.to_string_grid(),
             self.sound.pad.chord,
+            self.arp.to_string_grid(),
+            self.sound.arp.chord,
+            self.sound.kick.style,
+            self.sound.lead.kind,
+            self.drums.backbeat,
+            self.plan
+                .palette
+                .iter()
+                .map(|t| t.name())
+                .collect::<Vec<_>>()
+                .join(" "),
         )
     }
 }
@@ -467,6 +528,7 @@ fn gen_drums(rng: &mut Rng, p: &Profile) -> DrumPatterns {
     };
 
     DrumPatterns {
+        backbeat: Backbeat::Clap,
         kick: KICK_STEPS,
         hat_closed,
         hat_accent: OFFBEATS,
@@ -661,6 +723,57 @@ fn gen_lead(rng: &mut Rng, p: &Profile, key: Key, bass: &Motif, prog: &Progressi
     m
 }
 
+fn gen_arp(rng: &mut Rng, p: &Profile) -> (Motif, StabParams) {
+    let a = &p.arp;
+    let chord = a.chords.pick(rng);
+    let octaves = a.octaves.pick(rng).clamp(1, 2) as i32;
+    let rate = a.rate.pick(rng).clamp(1, 4) as usize;
+    let pattern = a.patterns.pick(rng);
+    let mut tones: Vec<i32> = Vec::new();
+    for o in 0..octaves {
+        for d in chord.degrees() {
+            let t = d + 7 * o;
+            if !tones.contains(&t) {
+                tones.push(t);
+            }
+        }
+    }
+    tones.sort();
+    let seq: Vec<i32> = match pattern {
+        ArpPattern::Up => tones.clone(),
+        ArpPattern::Down => tones.iter().rev().copied().collect(),
+        ArpPattern::UpDown => {
+            let mut v = tones.clone();
+            v.extend(
+                tones
+                    .iter()
+                    .rev()
+                    .skip(1)
+                    .take(tones.len().saturating_sub(2)),
+            );
+            v
+        }
+        ArpPattern::Random => (0..8)
+            .map(|_| tones[rng.range_i32(0, tones.len() as i32 - 1) as usize])
+            .collect(),
+    };
+    let mut m = Motif::empty(16);
+    let mut k = 0;
+    for step in (0..16).step_by(rate) {
+        let v = if step % 4 == 0 { 1.0 } else { 0.72 };
+        m.notes[step] = Some(Note::new(seq[k % seq.len()], v));
+        k += 1;
+    }
+    let params = StabParams {
+        chord,
+        cutoff_hz: rng.in_range(a.cutoff_hz),
+        env_mod: rng.in_range(a.env_mod),
+        decay: rng.in_range(a.decay),
+        detune: 0.04,
+    };
+    (m, params)
+}
+
 fn nearest_chord_tone(d: i32) -> i32 {
     const TONES: [i32; 6] = [-3, 0, 2, 4, 7, 9];
     *TONES.iter().min_by_key(|t| (d - **t).abs()).unwrap()
@@ -711,7 +824,20 @@ fn gen_sound(rng: &mut Rng, p: &Profile, key: Key) -> SoundParams {
         kick_tune = kick_tune_for_key(key, d.kick.tune_hz);
     }
     SoundParams {
+        arp: StabParams {
+            chord: ChordShape::Triad,
+            cutoff_hz: 1000.0,
+            env_mod: 2.0,
+            decay: 0.1,
+            detune: 0.05,
+        },
+        drone: DroneParams {
+            cutoff_hz: 400.0,
+            drive: 2.0,
+            detune: 0.1,
+        },
         kick: KickParams {
+            style: KickStyle::Hard,
             tune_hz: kick_tune,
             pitch_start_hz: rng.in_range(d.kick.pitch_start_hz),
             pitch_decay: rng.in_range(d.kick.pitch_decay),
@@ -768,6 +894,7 @@ fn gen_sound(rng: &mut Rng, p: &Profile, key: Key) -> SoundParams {
             detune: rng.in_range(p.stab.detune),
         },
         lead: LeadParams {
+            kind: LeadKind::Acid,
             cutoff_hz: rng.in_range(p.lead.cutoff_hz),
             resonance: rng.in_range(p.lead.resonance),
             env_mod: rng.in_range(p.lead.env_mod),
