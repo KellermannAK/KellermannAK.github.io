@@ -72,6 +72,14 @@ impl Key {
         format!("{n}{l}")
     }
 
+    /// Key `steps` positions around the Camelot wheel (same ring). +1 = a fifth up.
+    pub fn camelot_step(self, steps: i32) -> Key {
+        Key {
+            root: (self.root as i32 + 7 * steps).rem_euclid(12) as u8,
+            scale: self.scale,
+        }
+    }
+
     pub fn name(self) -> String {
         format!(
             "{} {}",
@@ -110,6 +118,17 @@ mod tests {
         assert_eq!(k(8).camelot_code(), "1A"); // G# / Ab minor
         assert_eq!(k(0).camelot_code(), "5A"); // C minor
         assert_eq!(k(6).camelot_code(), "11A"); // F# minor
+    }
+
+    #[test]
+    fn camelot_steps_are_neighbours() {
+        let k = Key {
+            root: 9,
+            scale: ScaleKind::NaturalMinor,
+        }; // 8A
+        assert_eq!(k.camelot_step(1).camelot_code(), "9A");
+        assert_eq!(k.camelot_step(-1).camelot_code(), "7A");
+        assert_eq!(k.camelot_step(12), k);
     }
 
     #[test]

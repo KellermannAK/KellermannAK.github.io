@@ -4,8 +4,10 @@
 //! the WASM AudioWorklet and a native cpal host.
 
 pub mod deck;
+pub mod set;
 
 pub use deck::Deck;
+pub use set::{Set, SetEntry, TransitionKind};
 use techno_core::{Profile, SongDna};
 use techno_synth::mixer::MasterBus;
 
