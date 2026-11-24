@@ -3,12 +3,12 @@
 //! Time base, seeded PRNG, music theory, euclidean rhythms, Markov melodies,
 //! style profiles and the song DNA. Nothing here touches audio or the system clock.
 
-pub mod arrangement;
 pub mod dna;
 pub mod euclid;
 pub mod markov;
 pub mod profile;
 pub mod rng;
+pub mod structure;
 pub mod theory;
 pub mod time;
 pub mod tracks;

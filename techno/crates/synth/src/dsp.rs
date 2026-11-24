@@ -24,6 +24,10 @@ pub fn gain_to_db(g: f32) -> f32 {
     20.0 * g.max(1e-9).log10()
 }
 
+/// Tiny DC offset fed into recursive structures so decaying states never become
+/// denormal floats (which are very slow on x86). Inaudible: ~-360 dBFS.
+pub const ANTI_DENORMAL: f32 = 1e-18;
+
 /// Per-sample multiplier that decays to 1 % (-40 dB) after `seconds`.
 #[inline]
 pub fn decay_coef(seconds: f32, sr: f32) -> f32 {
@@ -226,6 +230,7 @@ impl Svf {
 
     #[inline]
     pub fn process(&mut self, x: f32) -> SvfOut {
+        let x = x + ANTI_DENORMAL;
         let v3 = x - self.ic2;
         let v1 = self.a1 * self.ic1 + self.a2 * v3;
         let v2 = self.ic2 + self.a2 * self.ic1 + self.a3 * v3;
@@ -275,7 +280,7 @@ impl OnePole {
     }
     #[inline]
     pub fn lp(&mut self, x: f32) -> f32 {
-        self.z += (x - self.z) * self.a;
+        self.z += (x + ANTI_DENORMAL - self.z) * self.a;
         self.z
     }
     #[inline]
@@ -430,6 +435,9 @@ impl Duck {
             }
         } else {
             self.env *= self.release_coef;
+            if self.env < 1e-6 {
+                self.env = 0.0;
+            }
         }
         self.env
     }
@@ -497,7 +505,7 @@ impl Comb {
     fn process(&mut self, x: f32, feedback: f32, damp: f32) -> f32 {
         let out = self.buf[self.pos];
         self.store = out * (1.0 - damp) + self.store * damp;
-        self.buf[self.pos] = x + self.store * feedback;
+        self.buf[self.pos] = x + ANTI_DENORMAL + self.store * feedback;
         self.pos += 1;
         if self.pos == self.buf.len() {
             self.pos = 0;
@@ -522,7 +530,7 @@ impl Allpass {
     fn process(&mut self, x: f32) -> f32 {
         let b = self.buf[self.pos];
         let out = b - x;
-        self.buf[self.pos] = x + b * 0.5;
+        self.buf[self.pos] = x + ANTI_DENORMAL + b * 0.5;
         self.pos += 1;
         if self.pos == self.buf.len() {
             self.pos = 0;

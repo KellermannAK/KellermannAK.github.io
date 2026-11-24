@@ -9,8 +9,10 @@ use crate::euclid::{euclid, Pattern};
 use crate::markov::next_degree;
 use crate::profile::{BassRhythm, ChordShape, HatStyle, Profile, RideStyle};
 use crate::rng::Rng;
+use crate::structure::SongPlan;
 use crate::theory::{is_harsh_interval, midi_to_hz, Key, ScaleKind};
 use crate::time::STEPS_PER_BAR;
+use crate::tracks::{Track, TrackSet};
 
 pub const MAX_MOTIF_STEPS: usize = 32;
 pub const MAX_PROGRESSION: usize = 4;
@@ -243,6 +245,16 @@ pub struct SongDna {
     pub stab: Motif,
     pub lead: Motif,
     pub sound: SoundParams,
+    /// Song structure, fixed at song start.
+    pub plan: SongPlan,
+}
+
+/// Overrides for songs inside a set: the running song dictates tempo, the Camelot
+/// wheel dictates the key.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Constraints {
+    pub bpm: Option<f32>,
+    pub key_root: Option<u8>,
 }
 
 /// MIDI note of the bass tonic: folded into E1..D#2 (41-78 Hz) for a solid low end.
@@ -252,17 +264,27 @@ pub fn bass_base_midi(key: Key) -> i32 {
 
 impl SongDna {
     pub fn generate(seed: u64, profile: &Profile) -> SongDna {
+        SongDna::generate_with(seed, profile, Constraints::default())
+    }
+
+    pub fn generate_with(seed: u64, profile: &Profile, c: Constraints) -> SongDna {
         let root = Rng::new(seed);
 
         let mut r = root.fork("tempo");
-        let bpm = r.in_range(profile.tempo.bpm).round();
+        let mut bpm = r.in_range(profile.tempo.bpm).round();
         let swing = r.in_range(profile.tempo.swing);
+        if let Some(b) = c.bpm {
+            bpm = b;
+        }
 
         let mut r = root.fork("key");
-        let key = Key {
+        let mut key = Key {
             root: r.range_i32(0, 11) as u8,
             scale: profile.harmony.scales.pick(&mut r),
         };
+        if let Some(k) = c.key_root {
+            key.root = k % 12;
+        }
 
         let progression = gen_progression(&mut root.fork("progression"), profile, key);
         let drums = gen_drums(&mut root.fork("drums"), profile);
@@ -271,6 +293,8 @@ impl SongDna {
         let mut bass = gen_bass(&mut root.fork("bass"), profile);
         fit_bass_to_stabs(&mut bass, &stab, sound.stab.chord);
         let lead = gen_lead(&mut root.fork("lead"), profile, key, &bass, &progression);
+        let palette = TrackSet::ALL.without(Track::Arp).without(Track::Drone);
+        let plan = SongPlan::generate(&mut root.fork("structure"), profile, palette);
 
         SongDna {
             seed,
@@ -283,6 +307,7 @@ impl SongDna {
             stab,
             lead,
             sound,
+            plan,
         }
     }
 

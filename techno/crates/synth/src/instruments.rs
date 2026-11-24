@@ -423,6 +423,8 @@ pub struct Bass {
     gate: u32,
     vel: f32,
     accent: f32,
+    /// External filter amount 0..1 (arrangement automation; 1 = as designed).
+    pub filter_mul: f32,
 }
 
 impl Bass {
@@ -441,6 +443,7 @@ impl Bass {
             gate: 0,
             vel: 1.0,
             accent: 0.0,
+            filter_mul: 1.0,
         }
     }
 
@@ -468,7 +471,9 @@ impl Bass {
         let x = self.saw.saw(self.freq, self.sr) * (1.0 - p.sub_mix * 0.5)
             + self.sub.sine(self.freq, self.sr) * p.sub_mix;
         let fe = self.fenv.next();
-        let cutoff = p.cutoff_hz * (1.0 + p.env_mod * fe * (1.0 + 0.5 * self.accent));
+        let cutoff = p.cutoff_hz
+            * (0.3 + 0.7 * self.filter_mul)
+            * (1.0 + p.env_mod * fe * (1.0 + 0.5 * self.accent) * (0.4 + 0.6 * self.filter_mul));
         self.filt.set(cutoff, p.resonance, self.sr);
         let y = self.filt.lp(x);
         saturate(y * self.amp.next(), p.drive) * self.vel
@@ -713,5 +718,114 @@ impl Pad {
             r += v.filt_r.lp(v.b.saw(v.freq / self.detune, sr)) * e;
         }
         (l * 0.22, r * 0.22)
+    }
+}
+
+// ----------------------------------------------------------------------------- fx
+
+/// Build-up riser: a noise sweep plus an optional detuned saw stack climbing an octave.
+/// Level and progress come from the arrangement automation (no internal timing).
+pub struct Riser {
+    sr: f32,
+    noise: Noise,
+    bp: Svf,
+    hp: Svf,
+    saws: [Osc; 5],
+    saw_lp: Svf,
+    base_hz: f32,
+    pitched: f32,
+}
+
+impl Riser {
+    pub fn new(base_hz: f32, pitched: f32, sr: f32) -> Riser {
+        Riser {
+            sr,
+            noise: Noise::new(0x7153),
+            bp: Svf::new(400.0, 0.5, sr),
+            hp: Svf::new(200.0, 0.0, sr),
+            saws: core::array::from_fn(|i| Osc::with_phase(i as f32 * 0.21)),
+            saw_lp: Svf::new(800.0, 0.2, sr),
+            base_hz,
+            pitched,
+        }
+    }
+
+    /// `level` 0..1, `progress` 0..1 through the build.
+    #[inline]
+    pub fn process(&mut self, level: f32, progress: f32) -> f32 {
+        if level <= 1e-4 {
+            return 0.0;
+        }
+        let cutoff = 300.0 * (progress * 5.0 * core::f32::consts::LN_2).exp(); // 300 Hz .. 9.6 kHz
+        self.bp.set(cutoff, 0.55, self.sr);
+        let n = self.noise.next();
+        let noise = self.bp.bp(n) * 1.5 + self.hp.hp(n) * 0.15 * progress;
+        let mut saw = 0.0;
+        if self.pitched > 0.0 {
+            let f = self.base_hz * (1.0 + progress); // one octave up over the build
+            const DETUNE: [f32; 5] = [1.0, 1.006, 0.994, 1.013, 0.987];
+            for (o, d) in self.saws.iter_mut().zip(DETUNE) {
+                saw += o.saw(f * d, self.sr);
+            }
+            self.saw_lp
+                .set(600.0 + 6000.0 * progress * progress, 0.2, self.sr);
+            saw = self.saw_lp.lp(saw) * 0.25 * self.pitched;
+        }
+        (noise + saw) * level
+    }
+}
+
+/// Impact on a drop / breakdown downbeat: sub boom, noise crack and a falling
+/// noise downlifter over about two bars.
+pub struct Impact {
+    sr: f32,
+    osc: Osc,
+    noise: Noise,
+    down_bp: Svf,
+    crack_hp: Svf,
+    t: f32,
+    active: bool,
+    down_len: f32,
+}
+
+impl Impact {
+    pub fn new(bar_seconds: f32, sr: f32) -> Impact {
+        Impact {
+            sr,
+            osc: Osc::default(),
+            noise: Noise::new(0x1A9C7),
+            down_bp: Svf::new(6000.0, 0.4, sr),
+            crack_hp: Svf::new(1500.0, 0.0, sr),
+            t: 0.0,
+            active: false,
+            down_len: bar_seconds * 2.0,
+        }
+    }
+
+    pub fn trigger(&mut self) {
+        self.t = 0.0;
+        self.osc.phase = 0.0;
+        self.active = true;
+    }
+
+    #[inline]
+    pub fn process(&mut self) -> f32 {
+        if !self.active {
+            return 0.0;
+        }
+        let t = self.t;
+        let boom_f = 35.0 + 60.0 * (-t / 0.08).exp();
+        let boom = self.osc.sine(boom_f, self.sr) * (-t * 4.6 / 1.6).exp();
+        let n = self.noise.next();
+        let crack = self.crack_hp.hp(n) * (-t / 0.05).exp();
+        let x = (t / self.down_len).min(1.0);
+        let down_f = 7000.0 * (-x * 3.5).exp() + 150.0;
+        self.down_bp.set(down_f, 0.4, self.sr);
+        let down = self.down_bp.bp(n) * (1.0 - x) * (1.0 - x) * 0.8;
+        self.t += 1.0 / self.sr;
+        if t > self.down_len.max(1.6) + 0.1 {
+            self.active = false;
+        }
+        saturate(boom * 0.9, 1.5) + crack * 0.5 + down
     }
 }

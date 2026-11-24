@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::rng::Rng;
+use crate::structure::StructureRules;
 use crate::theory::ScaleKind;
 
 /// Closed interval `[min, max]` sampled uniformly.
@@ -37,6 +38,7 @@ pub struct Profile {
     pub lead: LeadRules,
     pub pad: PadRules,
     pub mix: MixRules,
+    pub structure: StructureRules,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

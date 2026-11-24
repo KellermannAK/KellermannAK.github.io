@@ -10,7 +10,6 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::Instant;
 
-use techno_core::arrangement::{demo_plan, DEMO_BARS};
 use techno_core::time::seconds_per_bar;
 use techno_core::{Profile, SongDna, Track, TrackSet};
 use techno_engine::Engine;
@@ -47,7 +46,7 @@ fn parse() -> Result<Args, String> {
     let mut a = Args {
         cmd,
         seed: 1,
-        bars: DEMO_BARS,
+        bars: 0,
         start_bar: 0,
         sr: 44100,
         out: PathBuf::new(),
@@ -117,22 +116,7 @@ fn cmd_info(a: &Args, profile: &Profile) {
     let dna = SongDna::generate(a.seed, profile);
     println!("profile    {} ({})", profile.name, profile.id);
     println!("{}", dna.describe());
-    println!("\narrangement (placeholder until milestone 4):");
-    let mut last = "";
-    for bar in 0..DEMO_BARS {
-        let p = demo_plan(bar);
-        if p.section != last {
-            let secs = bar as f64 * seconds_per_bar(dna.bpm as f64);
-            println!(
-                "  bar {:>3}  {:>2}:{:02}  {}",
-                bar + 1,
-                (secs / 60.0) as u32,
-                secs as u32 % 60,
-                p.section
-            );
-            last = p.section;
-        }
-    }
+    println!("\nstructure:\n{}", dna.plan.describe(dna.bpm));
 }
 
 fn cmd_render(a: &Args, profile: &Profile) -> Result<(), String> {
@@ -143,7 +127,12 @@ fn cmd_render(a: &Args, profile: &Profile) -> Result<(), String> {
     if a.start_bar > 0 {
         e.deck.seek_bar(a.start_bar);
     }
-    let secs = seconds_per_bar(dna.bpm as f64) * a.bars as f64;
+    let bars = if a.bars == 0 {
+        dna.plan.total_bars.saturating_sub(a.start_bar) + 1
+    } else {
+        a.bars
+    };
+    let secs = seconds_per_bar(dna.bpm as f64) * bars as f64;
     let frames = (secs * a.sr as f64) as usize;
     let mut buf = vec![0.0f32; frames * 2];
 
@@ -165,7 +154,7 @@ fn cmd_render(a: &Args, profile: &Profile) -> Result<(), String> {
     );
     println!(
         "rendered {} bars ({:.0}:{:04.1}) in {:.2}s = {:.0}x realtime",
-        a.bars,
+        bars,
         (secs / 60.0).floor(),
         secs % 60.0,
         took,

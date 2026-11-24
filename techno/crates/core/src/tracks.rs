@@ -1,68 +1,51 @@
 //! Instrument tracks of a deck.
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[repr(u8)]
-pub enum Track {
-    Kick,
-    Rumble,
-    Bass,
-    HatClosed,
-    HatOpen,
-    Clap,
-    Snare,
-    Rim,
-    Tom,
-    Ride,
-    Crash,
-    Stab,
-    Lead,
-    Pad,
+macro_rules! tracks {
+    ($($variant:ident => $name:literal),* $(,)?) => {
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+        #[repr(u8)]
+        pub enum Track { $($variant),* }
+
+        impl Track {
+            pub const ALL: [Track; Track::COUNT] = [$(Track::$variant),*];
+
+            pub const fn name(self) -> &'static str {
+                match self { $(Track::$variant => $name),* }
+            }
+        }
+    };
+}
+
+tracks! {
+    Kick => "kick",
+    Rumble => "rumble",
+    Bass => "bass",
+    HatClosed => "hat_closed",
+    HatOpen => "hat_open",
+    Clap => "clap",
+    Snare => "snare",
+    Rim => "rim",
+    Tom => "tom",
+    Ride => "ride",
+    Crash => "crash",
+    Stab => "stab",
+    Lead => "lead",
+    Pad => "pad",
+    Arp => "arp",
+    Drone => "drone",
+    Riser => "riser",
+    Impact => "impact",
 }
 
 impl Track {
-    pub const COUNT: usize = 14;
-    pub const ALL: [Track; Track::COUNT] = [
-        Track::Kick,
-        Track::Rumble,
-        Track::Bass,
-        Track::HatClosed,
-        Track::HatOpen,
-        Track::Clap,
-        Track::Snare,
-        Track::Rim,
-        Track::Tom,
-        Track::Ride,
-        Track::Crash,
-        Track::Stab,
-        Track::Lead,
-        Track::Pad,
-    ];
+    pub const COUNT: usize = 18;
 
     pub const fn index(self) -> usize {
         self as usize
     }
 
-    pub const fn bit(self) -> u16 {
-        1 << (self as u16)
-    }
-
-    pub const fn name(self) -> &'static str {
-        match self {
-            Track::Kick => "kick",
-            Track::Rumble => "rumble",
-            Track::Bass => "bass",
-            Track::HatClosed => "hat_closed",
-            Track::HatOpen => "hat_open",
-            Track::Clap => "clap",
-            Track::Snare => "snare",
-            Track::Rim => "rim",
-            Track::Tom => "tom",
-            Track::Ride => "ride",
-            Track::Crash => "crash",
-            Track::Stab => "stab",
-            Track::Lead => "lead",
-            Track::Pad => "pad",
-        }
+    pub const fn bit(self) -> u32 {
+        1 << (self as u32)
     }
 
     pub fn from_name(name: &str) -> Option<Track> {
@@ -72,7 +55,7 @@ impl Track {
 
 /// Set of tracks as a bitmask.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct TrackSet(pub u16);
+pub struct TrackSet(pub u32);
 
 impl TrackSet {
     pub const NONE: TrackSet = TrackSet(0);
@@ -90,7 +73,33 @@ impl TrackSet {
     pub fn without(self, t: Track) -> TrackSet {
         TrackSet(self.0 & !t.bit())
     }
+    pub fn union(self, o: TrackSet) -> TrackSet {
+        TrackSet(self.0 | o.0)
+    }
+    pub fn and(self, o: TrackSet) -> TrackSet {
+        TrackSet(self.0 & o.0)
+    }
+    pub fn minus(self, o: TrackSet) -> TrackSet {
+        TrackSet(self.0 & !o.0)
+    }
     pub fn is_empty(self) -> bool {
         self.0 == 0
+    }
+    pub fn iter(self) -> impl Iterator<Item = Track> {
+        Track::ALL.into_iter().filter(move |t| self.contains(*t))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn names_roundtrip() {
+        assert_eq!(Track::ALL.len(), Track::COUNT);
+        for t in Track::ALL {
+            assert_eq!(Track::from_name(t.name()), Some(t));
+            assert_eq!(Track::ALL[t.index()], t);
+        }
     }
 }
