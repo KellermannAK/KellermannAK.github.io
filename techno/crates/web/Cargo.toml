@@ -1,0 +1,13 @@
+[package]
+name = "techno-web"
+description = "WebAssembly build of the engine for the browser AudioWorklet (plain C ABI, no bindgen)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+techno-core.workspace = true
+techno-engine.workspace = true

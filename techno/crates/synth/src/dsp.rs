@@ -278,6 +278,10 @@ impl OnePole {
     pub fn set(&mut self, cutoff: f32, sr: f32) {
         self.a = 1.0 - (-TAU * cutoff / sr).exp();
     }
+    pub fn reset(&mut self) {
+        self.z = 0.0;
+    }
+
     #[inline]
     pub fn lp(&mut self, x: f32) -> f32 {
         self.z += (x + ANTI_DENORMAL - self.z) * self.a;
@@ -472,6 +476,17 @@ impl PingPongDelay {
         }
     }
 
+    /// Reuse the buffers for a new song: silence them and set a new delay time.
+    pub fn reset(&mut self, delay_seconds: f32, sr: f32) {
+        self.buf_l.fill(0.0);
+        self.buf_r.fill(0.0);
+        self.pos = 0;
+        self.delay = ((delay_seconds * sr) as usize).clamp(1, self.buf_l.len() - 1);
+        self.damp_l.reset();
+        self.damp_r.reset();
+        self.hp.reset();
+    }
+
     #[inline]
     pub fn process(&mut self, input: f32) -> (f32, f32) {
         let n = self.buf_l.len();
@@ -569,6 +584,22 @@ impl Reverb {
             room,
             damp,
             pre_hp: OnePole::new(pre_hp_hz, sr),
+        }
+    }
+
+    /// Silence all buffers (reuse for a new song without allocating).
+    pub fn clear(&mut self) {
+        self.pre_hp.reset();
+        for combs in self.combs.iter_mut() {
+            for c in combs.iter_mut() {
+                c.buf.fill(0.0);
+                c.store = 0.0;
+            }
+        }
+        for aps in self.allpasses.iter_mut() {
+            for a in aps.iter_mut() {
+                a.buf.fill(0.0);
+            }
         }
     }
 

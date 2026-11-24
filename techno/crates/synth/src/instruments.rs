@@ -118,9 +118,18 @@ impl Rumble {
         }
     }
 
+    /// Re-tune for a new song, keeping (and clearing) the reverb buffers.
+    pub fn reset(&mut self, p: RumbleParams) {
+        self.reverb.clear();
+        self.reverb.room = p.size;
+        self.hp.reset();
+        self.lp1 = Svf::new(p.lowpass_hz, 0.3, self.sr);
+        self.lp2 = Svf::new(p.lowpass_hz, 0.0, self.sr);
+        self.drive = p.drive;
+    }
+
     #[inline]
     pub fn process(&mut self, kick: f32) -> f32 {
-        let _ = self.sr;
         let (wet, _) = self.reverb.process(kick);
         let x = self.lp2.lp(self.lp1.lp(self.hp.hp(wet * 6.0)));
         saturate(x, self.drive)

@@ -2,14 +2,16 @@
 # Build the static preview site: DJ mixes (with tracklists) and single songs as MP3.
 # Usage: scripts/build_site.sh OUT_DIR SEED [SEED...]
 #   MIXES="7:5 21:4"  set seed:number of songs for each mix (default "7:5")
-# Run from techno/ after `cargo build --release`.
+# Run from techno/ after `cargo build --release` and
+#   `cargo build --release -p techno-web --target wasm32-unknown-unknown`.
 set -euo pipefail
 out=$1
 shift
 bin=target/release/techno
 mixes=${MIXES:-"7:5"}
 mkdir -p "$out/audio"
-cp site/index.html "$out/index.html"
+cp -r site/index.html site/manifest.webmanifest site/sw.js site/app site/icons "$out/"
+cp target/wasm32-unknown-unknown/release/techno_web.wasm "$out/app/techno.wasm"
 
 mp3() { # wav -> mp3, delete wav
   ffmpeg -loglevel error -y -i "$1" -codec:a libmp3lame -b:a "$2" -metadata title="$3" "${1%.wav}.mp3"

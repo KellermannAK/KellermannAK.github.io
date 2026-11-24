@@ -7,7 +7,7 @@ pub mod deck;
 pub mod set;
 
 pub use deck::Deck;
-pub use set::{Set, SetEntry, TransitionKind};
+pub use set::{Set, SetEntry, SetStatus, TransitionKind};
 use techno_core::{Profile, SongDna};
 use techno_synth::mixer::MasterBus;
 
@@ -88,6 +88,29 @@ mod tests {
         let a = render(77, 4, 22050.0);
         let b = render(77, 4, 22050.0);
         assert_eq!(hash(&a), hash(&b));
+    }
+
+    #[test]
+    fn recycled_deck_is_bit_identical() {
+        let p = Profile::hard_techno_simple();
+        let sr = 22050.0;
+        let dna = SongDna::generate(42, &p);
+        let render = |mut d: Deck| {
+            d.seek_bar(30);
+            (0..(sr as usize * 8))
+                .map(|_| d.process())
+                .fold(0u64, |h, (l, r)| {
+                    (h ^ l.to_bits() as u64 ^ ((r.to_bits() as u64) << 32))
+                        .wrapping_mul(0x100_0000_01B3)
+                })
+        };
+        // A used deck: play a different song for a while, then recycle it.
+        let mut used = Deck::new(SongDna::generate(7, &p), sr);
+        used.seek_bar(60);
+        for _ in 0..(sr as usize * 4) {
+            used.process();
+        }
+        assert_eq!(render(Deck::new(dna, sr)), render(used.recycle(dna)));
     }
 
     #[test]

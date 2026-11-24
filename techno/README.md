@@ -13,8 +13,8 @@ Requirements: [Claude Docs page "Requirements: Algorithmischer Techno-Generator"
 | 2 | All drum tracks, euclidean patterns, mixer, sidechain | done |
 | 3 | Song DNA with bass and synths, scale and Markov rules | done |
 | 4 | Song structure with rise / drop / breakdown and energy | done |
-| 5 | Web version (WASM, AudioWorklet), runs on phones | |
-| 6 | Two decks, transitions, Camelot key choice, endless set | done (offline) |
+| 5 | Web version (WASM, AudioWorklet), runs on phones | done |
+| 6 | Two decks, transitions, Camelot key choice, endless set | done |
 | 7 | Song logs, replay, WAV export | |
 
 Extra: sound variety (kick styles, backbeats, lead kinds, arp, drone, per-song palette).
@@ -33,6 +33,28 @@ scripts/build_site.sh /tmp/site 1 7                      # preview site (needs f
 
 Feedback format: **"mix X, minute Y, problem"** or **"seed X, bar Y, problem"** - everything is
 deterministic, so every moment is exactly reproducible.
+
+### Web version (live, endless)
+
+`crates/web` compiles the engine to WebAssembly with a plain C ABI (`techno_new`,
+`techno_render`, `techno_status`, ...), no wasm-bindgen. `site/app/worklet.js` runs it inside
+an AudioWorklet; `site/app/live.js` drives the UI (play/pause, volume, new set, set seed,
+status: song, key, section, energy, next transition), keeps the screen awake (Wake Lock),
+sets Media Session metadata and unmutes iOS (audio session "playback"). The page is an
+installable PWA (manifest + network-first service worker).
+
+The live set with seed N is the same as `techno mix --seed N`. Decks are recycled between
+songs (`Deck::recycle`, bit-identical to a fresh deck), so no audio buffers are allocated on
+the audio thread; preparing the next song costs ~0.05 ms. In V8 the engine renders at ~16x
+realtime on a desktop core (`node` benchmark, `cargo run --release -p techno-web --example bench`).
+
+```sh
+cargo build --release -p techno-web --target wasm32-unknown-unknown   # -> techno_web.wasm
+MIXES=" " scripts/build_site.sh /tmp/site                             # site without mixes
+```
+
+Known limit: browsers (iOS in particular) do not reliably keep Web Audio running with the
+screen locked or the page in the background; a native app would be needed for that.
 
 ### Song structure
 

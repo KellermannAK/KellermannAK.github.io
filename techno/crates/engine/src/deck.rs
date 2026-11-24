@@ -130,10 +130,39 @@ pub struct Deck {
 
 impl Deck {
     pub fn new(dna: SongDna, sample_rate: f32) -> Deck {
+        let beat = 60.0 / dna.bpm;
+        let rumble = Rumble::new(dna.sound.rumble, sample_rate);
+        let delay = PingPongDelay::new(2.0, beat * 0.75, 0.38, sample_rate);
+        let reverb = Reverb::new(2, 0.82, 0.45, 250.0, sample_rate);
+        Deck::assemble(dna, sample_rate, rumble, delay, reverb)
+    }
+
+    /// A deck for a new song that reuses this deck's large buffers (rumble reverb, delay,
+    /// reverb). Avoids allocating audio buffers, so it is safe on the audio thread.
+    pub fn recycle(self, dna: SongDna) -> Deck {
+        let Deck {
+            mut rumble,
+            mut delay,
+            mut reverb,
+            sr,
+            ..
+        } = self;
+        rumble.reset(dna.sound.rumble);
+        delay.reset(60.0 / dna.bpm * 0.75, sr);
+        reverb.clear();
+        Deck::assemble(dna, sr, rumble, delay, reverb)
+    }
+
+    fn assemble(
+        dna: SongDna,
+        sample_rate: f32,
+        rumble: Rumble,
+        delay: PingPongDelay,
+        reverb: Reverb,
+    ) -> Deck {
         let sr = sample_rate;
         let s = &dna.sound;
         let spt = samples_per_tick(dna.bpm as f64, sr as f64);
-        let beat = 60.0 / dna.bpm;
         let mut tom_p = s.tom;
         // Tune the tom to the key: tonic folded into the tom's range.
         let mut f = midi_to_hz(dna.key.root as f32 + 36.0);
@@ -158,7 +187,7 @@ impl Deck {
             bass_base,
             tom_base: tom_p.tone_hz,
             kick: Kick::new(s.kick, sr),
-            rumble: Rumble::new(s.rumble, sr),
+            rumble,
             hats: Hats::new(s.hats, sr),
             clap: Clap::new(s.clap, sr),
             snare: Snare::new(s.snare, sr),
@@ -174,8 +203,8 @@ impl Deck {
             arp: Stab::new(s.arp, sr),
             drone: Drone::new(s.drone, sr),
             impact: Impact::new(seconds_per_bar(dna.bpm as f64) as f32, sr),
-            delay: PingPongDelay::new(2.0, beat * 0.75, 0.38, sr),
-            reverb: Reverb::new(2, 0.82, 0.45, 250.0, sr),
+            delay,
+            reverb,
             duck: Duck::new(s.mix.sidechain_release, sr),
             channels,
             prev_lead_slide: false,

@@ -50,6 +50,27 @@ pub struct Transition {
     pub swap_after: u32,
 }
 
+/// Snapshot for displays (cheap, no allocation).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct SetStatus {
+    pub song_index: u32,
+    pub seed: u64,
+    pub key: Option<techno_core::theory::Key>,
+    pub bpm: f32,
+    pub section: Option<SectionKind>,
+    /// Bar of the current song, 0-based.
+    pub bar: u32,
+    pub section_bar: u32,
+    pub section_bars: u32,
+    pub total_bars: u32,
+    pub energy: f32,
+    pub transition: Option<TransitionKind>,
+    /// Bars until the planned transition starts (0 while it runs).
+    pub bars_to_transition: u32,
+    pub in_transition: bool,
+    pub seconds: f64,
+}
+
 /// One song as it appears in the set.
 #[derive(Clone, Debug)]
 pub struct SetEntry {
@@ -133,6 +154,8 @@ pub struct Set {
     plan: Option<Transition>,
     /// Pre-generated next song (created well before it is needed).
     next: Option<Deck>,
+    /// Deck of the last finished song, kept so its buffers can be reused.
+    spare: Option<Deck>,
     next_index: u32,
     max_songs: u32,
     /// Bar of the outgoing song when the transition started, and the frames per bar.
@@ -158,6 +181,7 @@ impl Set {
             current: 0,
             plan: None,
             next: None,
+            spare: None,
             next_index: 1,
             max_songs: max_songs.max(1),
             frame: 0,
@@ -178,6 +202,57 @@ impl Set {
 
     pub fn finished(&self) -> bool {
         self.done
+    }
+
+    /// What is playing right now. During a transition this still describes the
+    /// outgoing song; `in_transition` is set.
+    pub fn status(&self) -> SetStatus {
+        let Some(slot) = self.slots[self.current].as_ref() else {
+            return SetStatus::default();
+        };
+        let d = &slot.deck;
+        let bar = d.position().bar();
+        let plan = d.plan;
+        // During a transition, show the incoming song once the low end has been swapped.
+        let (deck, idx) = match (
+            self.transition_start_frame,
+            self.plan,
+            self.slots[1 - self.current].as_ref(),
+        ) {
+            (Some(start), Some(t), Some(other))
+                if (self.frame - start) as f64 / self.frames_per_bar >= t.swap_after as f64 =>
+            {
+                (&other.deck, self.next_index - 1)
+            }
+            _ => (
+                d,
+                self.next_index - 1 - self.transition_start_frame.is_some() as u32,
+            ),
+        };
+        let p = if core::ptr::eq(deck, d) {
+            plan
+        } else {
+            deck.plan
+        };
+        SetStatus {
+            song_index: idx,
+            seed: deck.dna.seed,
+            key: Some(deck.dna.key),
+            bpm: deck.dna.bpm,
+            section: Some(p.section),
+            bar: deck.position().bar(),
+            section_bar: p.section_bar,
+            section_bars: p.section_bars,
+            total_bars: deck.total_bars(),
+            energy: p.energy,
+            transition: self.plan.map(|t| t.kind),
+            bars_to_transition: self
+                .plan
+                .map(|t| t.out_bar.saturating_sub(bar))
+                .unwrap_or(0),
+            in_transition: self.transition_start_frame.is_some(),
+            seconds: self.frame as f64 / self.sr as f64,
+        }
     }
 
     pub fn bpm(&self) -> f32 {
@@ -259,7 +334,10 @@ impl Set {
             key_root: Some(key.root),
         };
         let dna = SongDna::generate_with(seed, &self.profile, c);
-        self.next = Some(Deck::new(dna, self.sr));
+        self.next = Some(match self.spare.take() {
+            Some(old) => old.recycle(dna),
+            None => Deck::new(dna, self.sr),
+        });
     }
 
     fn start_transition(&mut self, t: Transition) {
@@ -387,7 +465,7 @@ impl Set {
 
     fn finish_transition(&mut self) {
         let old = self.current;
-        self.slots[old] = None;
+        self.spare = self.slots[old].take().map(|s| s.deck);
         self.current = 1 - old;
         self.transition_start_frame = None;
         if let Some(s) = self.slots[self.current].as_mut() {

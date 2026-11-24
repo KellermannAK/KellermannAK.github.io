@@ -25,11 +25,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: techno
       - run: cargo test --workspace
       - run: cargo build --release
+      - run: cargo build --release -p techno-web --target wasm32-unknown-unknown
       - run: sudo apt-get install -y -qq ffmpeg >/dev/null
       - run: scripts/build_site.sh ../_site 1 7 42 2026
         env:

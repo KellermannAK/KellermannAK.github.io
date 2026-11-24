@@ -4,7 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Techno Generator</title>
-<meta name="description" content="Algorithmisch generierter Techno – DJ-Mixes und einzelne Songs der aktuellen Engine-Version.">
+<meta name="description" content="Endloser, live im Browser erzeugter Techno. Dazu DJ-Mixes und einzelne Songs der aktuellen Engine-Version.">
+<meta name="theme-color" content="#0d0d0f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
   :root {
     --bg: #0d0d0f;
@@ -75,6 +81,40 @@
     font: 12.5px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     color: #c9c9d3;
   }
+  .live { border-color: rgba(255, 61, 90, 0.35); }
+  .play {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; margin: 6px 0 4px; padding: 16px;
+    border: 0; border-radius: 12px;
+    background: var(--accent); color: #fff;
+    font: 600 1.1rem/1 system-ui, sans-serif; cursor: pointer;
+  }
+  .play:disabled { opacity: 0.6; cursor: progress; }
+  .play svg { width: 22px; height: 22px; fill: currentColor; }
+  .play .ico-pause { display: none; }
+  .play[data-state="playing"] .ico-play { display: none; }
+  .play[data-state="playing"] .ico-pause { display: inline; }
+  .live-now { margin-top: 14px; }
+  .now-song { font-size: 1.25rem; font-weight: 700; }
+  .row { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; margin-top: 12px; }
+  .section-name { font-weight: 600; color: var(--accent); }
+  .track { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+  .track > div { height: 100%; width: 0; background: var(--accent); transition: width 0.3s linear; }
+  .track.energy > div { background: linear-gradient(90deg, #ffb13d, var(--accent)); }
+  .label { color: var(--muted); font-size: 0.85rem; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; margin-top: 16px; }
+  .controls label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.9rem; flex: 1 1 180px; }
+  .controls input[type=range] { flex: 1; accent-color: var(--accent); }
+  .btn {
+    background: transparent; color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 12px; font: inherit; font-size: 0.9rem; cursor: pointer;
+  }
+  .btn:hover { border-color: var(--muted); }
+  .seed-row { display: flex; gap: 8px; margin-top: 8px; }
+  .seed-row input {
+    flex: 1; min-width: 0; background: var(--bg); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 10px; font: inherit;
+  }
   footer { color: var(--muted); font-size: 0.85rem; margin-top: 32px; }
   footer code { color: var(--text); }
   .err { color: var(--accent); }
@@ -84,6 +124,37 @@
 <main>
   <h1>Techno<span>.</span>Generator</h1>
   <p class="sub">Komplett algorithmisch erzeugt und synthetisiert. Keine Samples. Jeder Song und jeder Mix ist aus seinem Seed exakt reproduzierbar.</p>
+
+  <h2>Live</h2>
+  <section class="card live">
+    <div class="head">
+      <span class="title">Endlos-Set</span>
+      <span class="pill" id="lv-cam">live</span>
+    </div>
+    <button class="play" id="lv-play" data-state="idle">
+      <svg class="ico-play" viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>
+      <svg class="ico-pause" viewBox="0 0 24 24"><path d="M6 4h4.5v16H6zM13.5 4H18v16h-4.5z"/></svg>
+      <span>Live starten</span>
+    </button>
+    <p class="err" id="lv-error" hidden></p>
+    <div class="live-now" id="lv-info" hidden>
+      <div class="row"><span class="now-song" id="lv-song">–</span><span class="meta" id="lv-key"></span></div>
+      <div class="row"><span class="section-name" id="lv-section">–</span><span class="label" id="lv-bars"></span></div>
+      <div class="track"><div id="lv-progress"></div></div>
+      <div class="row"><span class="label">Energie</span></div>
+      <div class="track energy"><div id="lv-energy"></div></div>
+      <div class="row"><span id="lv-next"></span></div>
+      <div class="row"><span class="label" id="lv-time"></span><span class="label" id="lv-songbar"></span></div>
+    </div>
+    <div class="controls">
+      <label>Lautstärke <input type="range" id="lv-vol" min="0" max="1" step="0.01" value="0.85"></label>
+      <button class="btn" id="lv-new">Neues Set</button>
+    </div>
+    <details>
+      <summary>Set-Seed (gleicher Seed = gleiches Set)</summary>
+      <div class="seed-row"><input id="lv-seed" inputmode="numeric" aria-label="Set-Seed"><button class="btn" id="lv-seed-go">Starten</button></div>
+    </details>
+  </section>
 
   <h2>Mixes</h2>
   <div id="mixes"><p class="meta">Lade…</p></div>
@@ -96,6 +167,14 @@
 <script>
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
   const mmss = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+  // Engine key names ("F# phrygian") -> German ("Fis phrygisch").
+  const DE_NOTE = { "C": "C", "C#": "Cis", "D": "D", "D#": "Es", "E": "E", "F": "F", "F#": "Fis", "G": "G", "G#": "Gis", "A": "A", "A#": "B", "B": "H" };
+  const deKey = (k) => {
+    const m = /^([A-G]#?) (.+)$/.exec(k || "");
+    if (!m) return k;
+    const n = DE_NOTE[m[1]] || m[1];
+    return { "minor": `${n}-Moll`, "phrygian": `${n} phrygisch`, "harmonic minor": `${n} harmonisch Moll` }[m[2]] || k;
+  };
   const HOW = { "cut": "harter Cut", "fast blend": "schnelle Blende", "slow blend": "langsame Blende", "filter blend": "Filter-Blende" };
 
   // Only one player at a time.
@@ -122,13 +201,13 @@
       <ol class="tracks">${songs.map((s, i) => `
         <li data-start="${s.start}" data-i="${i}">
           <span class="time">${mmss(s.start)}</span>
-          <span class="song-key">${esc(s.key)}</span>
+          <span class="song-key">${esc(deKey(s.key))}</span>
           <span class="cam">${esc(s.camelot)}</span>
           <span class="how">${s.transition ? esc(HOW[s.transition] || s.transition) : "Start"} · Seed ${s.seed}</span>
         </li>`).join("")}
       </ol>
       <details><summary>Aufbau der Songs</summary><pre>${songs.map((s) =>
-        `#${s.index + 1}  Seed ${s.seed}  ${esc(s.key)} (${esc(s.camelot)})\n${esc(s.structure)}`).join("\n\n")}</pre></details>`;
+        `#${s.index + 1}  Seed ${s.seed}  ${esc(deKey(s.key))} (${esc(s.camelot)})\n${esc(s.structure)}`).join("\n\n")}</pre></details>`;
     const audio = el.querySelector("audio");
     const rows = [...el.querySelectorAll("li")];
     const mark = (cur) => rows.forEach((li, i) => li.classList.toggle("now", i === cur));
@@ -159,7 +238,7 @@
     el.innerHTML = `
       <div class="head">
         <span class="title">Seed ${seed}</span>
-        <span class="meta">${key[1] ? esc(key[1]) : ""}${tempo ? " · " + tempo + " BPM" : ""}</span>
+        <span class="meta">${key[1] ? esc(deKey(key[1])) : ""}${tempo ? " · " + tempo + " BPM" : ""}</span>
         ${key[2] ? `<span class="pill">${esc(key[2])}</span>` : ""}
       </div>
       <audio controls preload="none" src="audio/seed-${seed}.mp3"></audio>
@@ -194,6 +273,8 @@
       `Build <code>${esc(sha)}</code> · ${esc(index.built || "")} · Feedback-Format: „Mix X, Minute Y, Problem“ oder „Seed X, Takt Y, Problem“`;
   }
   load();
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 </script>
+<script type="module" src="app/live.js"></script>
 </body>
 </html>
