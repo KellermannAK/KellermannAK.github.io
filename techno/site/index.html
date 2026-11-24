@@ -115,6 +115,30 @@
     flex: 1; min-width: 0; background: var(--bg); color: var(--text); border: 1px solid var(--line);
     border-radius: 8px; padding: 8px 10px; font: inherit;
   }
+  .fb-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+  .fb-row .label { flex: 1; }
+  .thumb { font-size: 1.15rem; padding: 6px 14px; }
+  dialog#fb-dialog {
+    background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 14px;
+    padding: 18px; width: min(460px, calc(100vw - 32px)); margin: auto;
+  }
+  dialog#fb-dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+  .fb-thumbs { display: flex; gap: 10px; }
+  .fb-thumb {
+    flex: 1; font-size: 1.6rem; padding: 10px; border-radius: 10px; cursor: pointer;
+    background: var(--bg); border: 1px solid var(--line); opacity: 0.45;
+  }
+  .fb-thumb.on { opacity: 1; border-color: var(--accent); }
+  .fb-where { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--muted); font-size: 0.85rem; margin: 12px 0; }
+  .fb-where b { color: var(--text); font-weight: 600; }
+  .fb textarea {
+    width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 10px; font: inherit; resize: vertical;
+  }
+  .fb-hint { color: var(--muted); font-size: 0.8rem; margin: 8px 0 12px; }
+  .fb-actions { display: flex; gap: 10px; }
+  .fb-actions .btn { flex: 1; }
+  .fb-actions .play { flex: 2; margin: 0; padding: 10px; font-size: 1rem; }
   footer { color: var(--muted); font-size: 0.85rem; margin-top: 32px; }
   footer code { color: var(--text); }
   .err { color: var(--accent); }
@@ -145,6 +169,11 @@
       <div class="track energy"><div id="lv-energy"></div></div>
       <div class="row"><span id="lv-next"></span></div>
       <div class="row"><span class="label" id="lv-time"></span><span class="label" id="lv-songbar"></span></div>
+      <div class="fb-row">
+        <span class="label">Feedback zu dieser Stelle</span>
+        <button class="btn thumb" id="lv-up" aria-label="Daumen hoch">👍</button>
+        <button class="btn thumb" id="lv-down" aria-label="Daumen runter">👎</button>
+      </div>
     </div>
     <div class="controls">
       <label>Lautstärke <input type="range" id="lv-vol" min="0" max="1" step="0.01" value="0.85"></label>
@@ -198,6 +227,11 @@
         <span class="meta">${songs.length} Songs · ${set.bpm} BPM · ${mmss(set.duration)}</span>
       </div>
       <audio controls preload="none" src="audio/mix-${seed}.mp3"></audio>
+      <div class="fb-row">
+        <span class="label">Feedback zur aktuellen Stelle</span>
+        <button class="btn thumb" data-r="up" aria-label="Daumen hoch">👍</button>
+        <button class="btn thumb" data-r="down" aria-label="Daumen runter">👎</button>
+      </div>
       <ol class="tracks">${songs.map((s, i) => `
         <li data-start="${s.start}" data-i="${i}">
           <span class="time">${mmss(s.start)}</span>
@@ -210,6 +244,16 @@
         `#${s.index + 1}  Seed ${s.seed}  ${esc(deKey(s.key))} (${esc(s.camelot)})\n${esc(s.structure)}`).join("\n\n")}</pre></details>`;
     const audio = el.querySelector("audio");
     const rows = [...el.querySelectorAll("li")];
+    el.querySelectorAll(".fb-row .thumb").forEach((b) => b.addEventListener("click", () => {
+      const t = audio.currentTime;
+      let cur = 0;
+      songs.forEach((s, i) => { if (t >= s.start) cur = i; });
+      const s = songs[cur] || {};
+      window.TechnoFeedback && window.TechnoFeedback.open({
+        source: "Mix", mixSeed: seed, mixSongs: songs.length, songIndex: cur, songSeed: s.seed,
+        key: deKey(s.key), camelot: s.camelot, bpm: set.bpm, time: mmss(t),
+      }, b.dataset.r);
+    }));
     const mark = (cur) => rows.forEach((li, i) => li.classList.toggle("now", i === cur));
     rows.forEach((li, i) => li.addEventListener("click", () => {
       const t = parseFloat(li.dataset.start);
@@ -275,6 +319,7 @@
   load();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 </script>
+<script src="app/feedback.js"></script>
 <script type="module" src="app/live.js"></script>
 </body>
 </html>

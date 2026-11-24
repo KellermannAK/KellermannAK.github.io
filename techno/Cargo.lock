@@ -100,7 +100,7 @@ dependencies = [
 
 [[package]]
 name = "techno-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "techno-core",
  "techno-engine",
@@ -108,7 +108,7 @@ dependencies = [
 
 [[package]]
 name = "techno-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "toml",
@@ -116,7 +116,7 @@ dependencies = [
 
 [[package]]
 name = "techno-engine"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "techno-core",
  "techno-synth",
@@ -124,14 +124,14 @@ dependencies = [
 
 [[package]]
 name = "techno-synth"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "techno-core",
 ]
 
 [[package]]
 name = "techno-web"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "techno-core",
  "techno-engine",

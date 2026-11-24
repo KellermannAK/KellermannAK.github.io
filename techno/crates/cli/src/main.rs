@@ -30,6 +30,7 @@ struct Args {
 }
 
 const USAGE: &str = "usage:
+  techno version                       (engine version and profile id as JSON)
   techno mix    --seed N [--songs N] [--out FILE.wav] [--tracklist FILE.json] [--sr HZ]
   techno info   --seed N [--profile FILE]
   techno render --seed N [--out FILE.wav] [--bars N] [--start-bar N] [--sr HZ]
@@ -339,6 +340,14 @@ fn main() -> ExitCode {
     let res = match args.cmd.as_str() {
         "info" => {
             cmd_info(&args, &profile);
+            Ok(())
+        }
+        "version" => {
+            println!(
+                "{{\"engine\":\"{}\",\"profile\":\"{}\"}}",
+                techno_core::ENGINE_VERSION,
+                profile.id
+            );
             Ok(())
         }
         "render" => cmd_render(&args, &profile),

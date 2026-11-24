@@ -370,7 +370,7 @@ impl Rim {
             sr,
             osc: Osc::default(),
             noise: Noise::new(0x219),
-            bp: Svf::new(p.tone_hz, 0.8, sr),
+            bp: Svf::new(p.tone_hz, 0.45, sr),
             env,
             tone: p.tone_hz,
         }
@@ -400,6 +400,8 @@ pub struct Tom {
     vel: f32,
     freq: f32,
     decay: f32,
+    noise: Noise,
+    skin: Svf,
 }
 
 impl Tom {
@@ -412,6 +414,8 @@ impl Tom {
             vel: 1.0,
             freq: p.tone_hz,
             decay: p.decay,
+            noise: Noise::new(0x7037),
+            skin: Svf::new(p.tone_hz * 4.0, 0.2, sr),
         }
     }
 
@@ -429,13 +433,16 @@ impl Tom {
             return 0.0;
         }
         let t = self.t;
-        let f = self.freq * (1.0 + 0.8 * (-t / 0.03).exp());
+        // Small pitch drop (a big one sounds like a laser "pew") plus a bit of skin noise
+        // keeps the tom percussive rather than melodic.
+        let f = self.freq * (1.0 + 0.35 * (-t / 0.025).exp());
         let amp = (-t * 4.6 / self.decay).exp();
+        let skin = self.skin.bp(self.noise.next()) * (-t / 0.02).exp() * 0.5;
         self.t += 1.0 / self.sr;
         if t > self.decay + 0.05 {
             self.active = false;
         }
-        saturate(self.osc.sine(f, self.sr) * amp, 2.0) * self.vel
+        saturate(self.osc.sine(f, self.sr) * amp + skin, 1.3) * self.vel
     }
 }
 

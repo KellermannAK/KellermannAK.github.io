@@ -126,7 +126,29 @@ function showError(msg) {
 }
 
 let lastTitle = "";
+let lastStatus = null;
+
+function feedback(rating) {
+  if (!lastStatus || !window.TechnoFeedback) return;
+  const [song, songSeed, root, scale, camelot, bpm, section, bar, secBar, secBars, totalBars] = lastStatus;
+  window.TechnoFeedback.open({
+    source: "Live-Set",
+    setSeed: seed,
+    songIndex: song,
+    songSeed,
+    key: keyName(root, scale),
+    camelot: `${camelot}A`,
+    bpm,
+    section: SECTIONS[section],
+    sectionBar: `${secBar + 1}/${secBars}`,
+    songBar: `${bar + 1}/${totalBars}`,
+    songBarNum: bar + 1,
+    time: mmss(lastStatus[15]),
+  }, rating);
+}
+
 function showStatus(s) {
+  lastStatus = s;
   const [song, songSeed, root, scale, camelot, bpm, section, bar, secBar, secBars, totalBars, energy,
     transition, barsTo, inTransition, seconds] = s;
   const key = keyName(root, scale);
@@ -191,6 +213,8 @@ function init() {
     const s = parseInt($("lv-seed").value, 10);
     if (Number.isFinite(s) && s >= 0) startSet(s).catch((e) => showError(e.message));
   });
+  $("lv-up").addEventListener("click", () => feedback("up"));
+  $("lv-down").addEventListener("click", () => feedback("down"));
   $("lv-vol").addEventListener("input", () => {
     if (node) node.port.postMessage({ type: "gain", value: volume() });
   });

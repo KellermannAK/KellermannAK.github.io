@@ -60,10 +60,11 @@ tone_hz = [1500.0, 2400.0]
 decay = [0.02, 0.05]
 
 [drums.tom]
+# Toms only play short fills at phrase ends; tuned low so they stay percussive.
 hits = [2, 4]
 avoid_kick = true
-tone_hz = [90.0, 160.0]
-decay = [0.12, 0.25]
+tone_hz = [70.0, 110.0]
+decay = [0.15, 0.30]
 
 [drums.ride]
 styles = { values = ["offbeat", "eighths", "quarters"], weights = [3.0, 2.0, 1.0] }
@@ -120,9 +121,10 @@ attack = [0.8, 2.5]
 
 [arp]
 patterns = { values = ["up", "down", "up_down", "random"], weights = [3.0, 2.0, 3.0, 1.0] }
-rate = { values = [1, 2], weights = [3.0, 1.0] }
-octaves = { values = [1, 2], weights = [2.0, 2.0] }
-chords = { values = ["triad", "seventh", "power"], weights = [3.0, 2.0, 1.0] }
+# Deep: mostly 8ths over a plain triad or power chord in one octave.
+rate = { values = [1, 2], weights = [1.0, 3.0] }
+octaves = { values = [1, 2], weights = [3.0, 1.0] }
+chords = { values = ["triad", "seventh", "power"], weights = [3.0, 0.5, 2.0] }
 cutoff_hz = [800.0, 2400.0]
 env_mod = [1.0, 3.0]
 decay = [0.08, 0.2]

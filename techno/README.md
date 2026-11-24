@@ -31,7 +31,11 @@ cargo test
 scripts/build_site.sh /tmp/site 1 7                      # preview site (needs ffmpeg)
 ```
 
-Feedback format: **"mix X, minute Y, problem"** or **"seed X, bar Y, problem"** - everything is
+Listening feedback: the site has thumbs up / down buttons (live set and mixes). They capture
+the exact moment (set seed, song seed, bar, section, engine version, profile, build) and open a
+pre-filled GitHub issue titled `Feedback 👍/👎 ...` with repro commands.
+
+Manual format: **"mix X, minute Y, problem"** or **"seed X, bar Y, problem"** - everything is
 deterministic, so every moment is exactly reproducible.
 
 ### Web version (live, endless)

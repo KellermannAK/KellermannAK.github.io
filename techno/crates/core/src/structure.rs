@@ -175,7 +175,8 @@ fn base_threshold(t: Track) -> f32 {
     }
 }
 
-const ENERGY_TRACKS: [Track; 13] = [
+// Toms are not energy driven: they only play short fills (too melodic as a pattern).
+const ENERGY_TRACKS: [Track; 12] = [
     Track::Kick,
     Track::Bass,
     Track::HatClosed,
@@ -187,7 +188,6 @@ const ENERGY_TRACKS: [Track; 13] = [
     Track::Lead,
     Track::Ride,
     Track::Arp,
-    Track::Tom,
     Track::Drone,
 ];
 

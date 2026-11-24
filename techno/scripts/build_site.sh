@@ -38,6 +38,7 @@ done
 
 commit=${GITHUB_SHA:-$(git rev-parse HEAD 2>/dev/null || echo unknown)}
 built=$(date -u +%Y-%m-%dT%H:%MZ)
-printf '{"mixes":[%s],"seeds":[%s],"commit":"%s","built":"%s"}\n' \
-  "$mix_json" "$seeds_json" "$commit" "$built" > "$out/songs.json"
+version=$("$bin" version)
+printf '{"mixes":[%s],"seeds":[%s],"commit":"%s","built":"%s","version":%s}\n' \
+  "$mix_json" "$seeds_json" "$commit" "$built" "$version" > "$out/songs.json"
 echo "site written to $out"
