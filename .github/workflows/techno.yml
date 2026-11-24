@@ -1,0 +1,37 @@
+name: techno
+
+on:
+  push:
+    paths: ["techno/**", ".github/workflows/techno.yml"]
+  pull_request:
+    paths: ["techno/**", ".github/workflows/techno.yml"]
+
+defaults:
+  run:
+    working-directory: techno
+
+jobs:
+  test-and-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: techno
+      - run: cargo test --workspace
+      - run: cargo build --release
+      - name: Render preview songs
+        run: |
+          sudo apt-get install -y -qq ffmpeg >/dev/null
+          mkdir -p preview
+          for seed in 1 7 2026; do
+            ./target/release/techno render --seed $seed --out preview/seed-$seed.wav
+            ffmpeg -loglevel error -y -i preview/seed-$seed.wav -b:a 192k preview/seed-$seed.mp3
+            ./target/release/techno info --seed $seed > preview/seed-$seed.txt
+            rm preview/seed-$seed.wav
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: preview-${{ github.sha }}
+          path: techno/preview

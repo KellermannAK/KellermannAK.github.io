@@ -1,0 +1,9 @@
+[package]
+name = "techno-synth"
+description = "DSP building blocks, instruments and mixer. Allocation-free in the audio path."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+techno-core.workspace = true

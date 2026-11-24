@@ -1,0 +1,25 @@
+[workspace]
+resolver = "2"
+members = ["crates/core", "crates/synth", "crates/engine", "crates/cli"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+techno-core = { path = "crates/core" }
+techno-synth = { path = "crates/synth" }
+techno-engine = { path = "crates/engine" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+
+# Keep tests reasonably fast: the DSP is heavy in debug builds.
+[profile.test]
+opt-level = 2

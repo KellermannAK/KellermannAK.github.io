@@ -1,0 +1,10 @@
+[package]
+name = "techno-engine"
+description = "Connects core and synth: decks, sequencing, master bus."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+techno-core.workspace = true
+techno-synth.workspace = true

@@ -1,0 +1,14 @@
+[package]
+name = "techno-cli"
+description = "Offline rendering to WAV, song inspection."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "techno"
+path = "src/main.rs"
+
+[dependencies]
+techno-core.workspace = true
+techno-engine.workspace = true

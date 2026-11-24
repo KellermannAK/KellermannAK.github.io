@@ -1,0 +1,118 @@
+# Style profile: hard, pounding, predictable, simple techno.
+# Every random decision of the generator is bounded by the values below.
+# Ranges are [min, max]; weighted choices are { values = [...], weights = [...] }.
+
+id = "hard_techno_simple"
+name = "Hard Techno, simple"
+
+[tempo]
+bpm = [134.0, 136.0]
+swing = [0.0, 0.04]
+
+[harmony]
+scales = { values = ["natural_minor", "phrygian", "harmonic_minor"], weights = [5.0, 3.0, 1.0] }
+progression_length = { values = [1, 2, 4], weights = [5.0, 3.0, 1.5] }
+bars_per_root = { values = [2, 4, 8], weights = [1.0, 3.0, 1.0] }
+# Degrees after the tonic: 1 = bII (phrygian), 3 = iv, 5 = VI, 6 = VII
+progression_degrees = { values = [5, 6, 3, 1], weights = [3.0, 3.0, 2.0, 1.0] }
+# Melodic interval weights in scale steps: small steps likely, leaps rare.
+melody_steps = { values = [0, 1, -1, 2, -2, 3, -3, 4, -4, 7, -7], weights = [2.0, 4.0, 4.0, 2.5, 2.5, 1.0, 1.0, 0.7, 0.7, 0.5, 0.5] }
+# Bass: mostly stay, octave jumps allowed, the odd fifth.
+bass_steps = { values = [0, 7, -7, 4, -3, 1, -1, 2, -2], weights = [6.0, 2.5, 2.5, 1.0, 1.0, 0.6, 0.6, 0.4, 0.4] }
+passing_tone_prob = 0.0
+
+[drums.kick]
+tune_hz = [43.0, 58.0]
+tune_to_key = true
+pitch_start_hz = [240.0, 380.0]
+pitch_decay = [0.022, 0.040]
+decay = [0.30, 0.42]
+drive = [2.5, 5.0]
+click = [0.25, 0.55]
+
+[drums.hats]
+styles = { values = ["sixteenths", "offbeat", "euclid"], weights = [4.0, 2.0, 2.0] }
+euclid_hits = [7, 11]
+open_hat_prob = 0.8
+tone_hz = [7000.0, 9500.0]
+closed_decay = [0.025, 0.055]
+open_decay = [0.16, 0.30]
+metal = [0.3, 0.8]
+
+[drums.clap]
+ghost_prob = 0.3
+tone_hz = [1000.0, 1600.0]
+decay = [0.12, 0.22]
+
+[drums.snare]
+tone_hz = [170.0, 220.0]
+decay = [0.10, 0.18]
+snappy = [0.5, 0.9]
+
+[drums.rim]
+hits = [3, 7]
+avoid_kick = true
+tone_hz = [1500.0, 2400.0]
+decay = [0.02, 0.05]
+
+[drums.tom]
+hits = [2, 4]
+avoid_kick = true
+tone_hz = [90.0, 160.0]
+decay = [0.12, 0.25]
+
+[drums.ride]
+styles = { values = ["offbeat", "eighths", "quarters"], weights = [3.0, 2.0, 1.0] }
+tone_hz = [5500.0, 8000.0]
+decay = [0.35, 0.65]
+
+[bass]
+rhythms = { values = ["rolling", "offbeat", "gallop", "skippy"], weights = [5.0, 2.0, 2.0, 1.0] }
+motif_bars = { values = [1, 2], weights = [3.0, 2.0] }
+allow_on_kick = false
+movement = [0.10, 0.35]
+# Bass sits at 41-78 Hz already; it only moves upwards (octave, fifth) to stay audible.
+degree_range = [0, 9]
+cutoff_hz = [150.0, 340.0]
+env_mod = [0.8, 2.5]
+resonance = [0.1, 0.45]
+decay = [0.08, 0.16]
+drive = [1.5, 4.0]
+sub_mix = [0.4, 0.8]
+
+[rumble]
+amount = [0.5, 1.0]
+lowpass_hz = [110.0, 170.0]
+drive = [1.5, 3.5]
+size = [0.75, 0.90]
+
+[stab]
+hits = [2, 5]
+chords = { values = ["seventh", "dub", "triad", "power"], weights = [3.0, 3.0, 2.0, 1.0] }
+cutoff_hz = [600.0, 1600.0]
+env_mod = [1.5, 4.0]
+decay = [0.15, 0.35]
+detune = [0.05, 0.18]
+
+[lead]
+motif_bars = { values = [1, 2], weights = [2.0, 3.0] }
+density = [0.35, 0.65]
+slide_prob = 0.2
+accent_prob = 0.3
+degree_range = [-2, 9]
+cutoff_hz = [250.0, 700.0]
+resonance = [0.55, 0.85]
+env_mod = [2.0, 6.0]
+decay = [0.10, 0.30]
+drive = [1.5, 4.0]
+square = [0.0, 0.5]
+
+[pad]
+chords = { values = ["triad", "dub", "seventh"], weights = [2.0, 2.0, 1.0] }
+cutoff_hz = [700.0, 1800.0]
+detune = [0.08, 0.20]
+attack = [0.8, 2.5]
+
+[mix]
+sidechain_depth = [0.6, 0.9]
+sidechain_release = [0.12, 0.22]
