@@ -139,6 +139,22 @@
   .fb-actions { display: flex; gap: 10px; }
   .fb-actions .btn { flex: 1; }
   .fb-actions .play { flex: 2; margin: 0; padding: 10px; font-size: 1rem; }
+  .fb-list { list-style: none; margin: 0 0 12px; padding: 0; }
+  .fb-list li { display: grid; grid-template-columns: 1.8em 1fr auto; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); align-items: start; }
+  .fb-icon { font-size: 1.1rem; }
+  .fb-w { color: var(--muted); font-size: 0.85rem; }
+  .fb-c { font-size: 0.95rem; }
+  .fb-del { background: none; border: 0; color: var(--muted); font-size: 1rem; cursor: pointer; padding: 2px 6px; }
+  .fb-export { flex-wrap: wrap; }
+  .fb-export .btn { flex: 1 1 auto; text-align: center; text-decoration: none; }
+  .linkbtn { background: none; border: 0; padding: 0; color: var(--muted); text-decoration: underline; font: inherit; cursor: pointer; }
+  #fb-toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px);
+    background: #2a2a31; color: var(--text); padding: 10px 16px; border-radius: 999px;
+    font-size: 0.9rem; opacity: 0; transition: opacity 0.2s, transform 0.2s; pointer-events: none; z-index: 10;
+    max-width: calc(100vw - 32px);
+  }
+  #fb-toast.show { opacity: 1; transform: translate(-50%, 0); }
   footer { color: var(--muted); font-size: 0.85rem; margin-top: 32px; }
   footer code { color: var(--text); }
   .err { color: var(--accent); }
@@ -184,6 +200,9 @@
       <div class="seed-row"><input id="lv-seed" inputmode="numeric" aria-label="Set-Seed"><button class="btn" id="lv-seed-go">Starten</button></div>
     </details>
   </section>
+
+  <h2>Dein Feedback</h2>
+  <section class="card" id="fb-inbox"></section>
 
   <h2>Mixes</h2>
   <div id="mixes"><p class="meta">Lade…</p></div>
