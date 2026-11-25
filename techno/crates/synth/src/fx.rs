@@ -55,14 +55,17 @@ impl Chorus {
         let d = delay.clamp(1.0, (n - 2) as f32);
         let i = d as usize;
         let frac = d - i as f32;
-        let a = buf[(pos + n - i) % n];
-        let b = buf[(pos + n - i - 1) % n];
+        // Wrap without integer division (hot path).
+        let wrap = |j: usize| if j >= n { j - n } else { j };
+        let a = buf[wrap(pos + n - i)];
+        let b = buf[wrap(pos + n - i - 1)];
         a + (b - a) * frac
     }
 
     #[inline]
     pub fn process(&mut self, l: f32, r: f32, amount: f32) -> (f32, f32) {
         let n = self.buf[0].len();
+        let _ = n;
         self.buf[0][self.pos] = l;
         self.buf[1][self.pos] = r;
         self.phase = (self.phase + self.rate / self.sr).fract();
@@ -72,7 +75,10 @@ impl Chorus {
         let dr = base + depth * (self.phase * TAU + PI / 2.0).sin();
         let wl = Self::read(&self.buf[0], self.pos, dl);
         let wr = Self::read(&self.buf[1], self.pos, dr);
-        self.pos = (self.pos + 1) % n;
+        self.pos += 1;
+        if self.pos == self.buf[0].len() {
+            self.pos = 0;
+        }
         let mix = 0.5 * amount.clamp(0.0, 1.0);
         (
             l * (1.0 - mix * 0.5) + wr * mix,
@@ -87,6 +93,8 @@ const PHASER_STAGES: usize = 6;
 
 /// Six first-order all-pass stages swept by an LFO, with feedback.
 pub struct Phaser {
+    g: [f32; 2],
+    ctrl: u32,
     state: [[(f32, f32); PHASER_STAGES]; 2],
     fb: [f32; 2],
     phase: f32,
@@ -97,6 +105,8 @@ pub struct Phaser {
 impl Phaser {
     pub fn new(rate: f32, sr: f32) -> Phaser {
         Phaser {
+            g: [0.0; 2],
+            ctrl: 0,
             state: [[(0.0, 0.0); PHASER_STAGES]; 2],
             fb: [0.0; 2],
             phase: 0.0,
@@ -112,10 +122,14 @@ impl Phaser {
         let mut out = [l, r];
         for (ch, x) in out.iter_mut().enumerate() {
             // Right channel LFO offset for width.
-            let lfo = 0.5 + 0.5 * ((self.phase + ch as f32 * 0.25) * TAU).sin();
-            let fc = 200.0 * (lfo * 3.5 * core::f32::consts::LN_2 * 2.0).exp(); // 200 Hz .. ~25 kHz cap below
-            let t = (PI * fc.min(self.sr * 0.45) / self.sr).tan();
-            let g = (t - 1.0) / (t + 1.0);
+            // The sweep is slow: recompute the all-pass coefficient every 16 samples.
+            if self.ctrl == 0 {
+                let lfo = 0.5 + 0.5 * ((self.phase + ch as f32 * 0.25) * TAU).sin();
+                let fc = 200.0 * (lfo * 7.0 * core::f32::consts::LN_2).exp(); // 200 Hz .. 25.6 kHz (capped)
+                let t = crate::dsp::fast_tan(PI * fc.min(self.sr * 0.45) / self.sr);
+                self.g[ch] = (t - 1.0) / (t + 1.0);
+            }
+            let g = self.g[ch];
             let mut y = *x + self.fb[ch] * 0.5 * amount;
             for s in self.state[ch].iter_mut() {
                 let (x1, y1) = *s;
@@ -126,6 +140,7 @@ impl Phaser {
             self.fb[ch] = y;
             *x = *x * (1.0 - 0.5 * amount) + y * 0.5 * amount;
         }
+        self.ctrl = (self.ctrl + 1) & 15;
         (out[0], out[1])
     }
 }

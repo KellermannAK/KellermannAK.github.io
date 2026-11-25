@@ -24,6 +24,12 @@ pub struct Kick {
     tone_lp: Svf,
     /// External drive multiplier (harder kick in drops).
     pub drive_mul: f32,
+    pitch_env: f32,
+    pitch_coef: f32,
+    amp_env: f32,
+    amp_coef: f32,
+    click_env: f32,
+    click_coef: f32,
 }
 
 impl Kick {
@@ -55,6 +61,12 @@ impl Kick {
             click_hp: Svf::new(2500.0, 0.2, sr),
             tone_lp: Svf::new(tone, 0.0, sr),
             drive_mul: 1.0,
+            pitch_env: 0.0,
+            pitch_coef: (-1.0 / (p.pitch_decay * sr)).exp(),
+            amp_env: 0.0,
+            amp_coef: (-4.6 / (p.decay * sr)).exp(),
+            click_env: 0.0,
+            click_coef: (-1.0 / (0.0018 * sr)).exp(),
         }
     }
 
@@ -63,6 +75,9 @@ impl Kick {
         self.osc.phase = 0.0;
         self.active = true;
         self.vel = vel;
+        self.pitch_env = 1.0;
+        self.amp_env = 1.0;
+        self.click_env = 1.0;
     }
 
     #[inline]
@@ -72,15 +87,25 @@ impl Kick {
         }
         let p = &self.p;
         let t = self.t;
-        let f = p.tune_hz + (p.pitch_start_hz - p.tune_hz) * (-t / p.pitch_decay).exp();
+        // Envelopes are recursive multiplications (same curves as exp(), far cheaper).
+        let f = p.tune_hz + (p.pitch_start_hz - p.tune_hz) * self.pitch_env;
+        self.pitch_env *= self.pitch_coef;
         let body = self.osc.sine(f, self.sr);
         // Short hold keeps the punch, then an exponential tail.
         let amp = if t < 0.012 {
             1.0
         } else {
-            (-(t - 0.012) * 4.6 / p.decay).exp()
+            let a = self.amp_env;
+            self.amp_env *= self.amp_coef;
+            a
         };
-        let click_env = (-t / 0.0018).exp();
+        let click_env = self.click_env;
+        // Flush tiny values: they would turn into slow denormal floats.
+        self.click_env = if click_env < 1e-6 {
+            0.0
+        } else {
+            click_env * self.click_coef
+        };
         let click = self.click_hp.hp(self.noise.next()) * click_env * p.click;
         let x = body * amp + click;
         let shaped = match p.style {
@@ -754,6 +779,7 @@ pub struct Pad {
     next: usize,
     detune: f32,
     lfo: Osc,
+    ctrl: u32,
 }
 
 impl Pad {
@@ -773,6 +799,7 @@ impl Pad {
             next: 0,
             detune: 2f32.powf(p.detune / 12.0),
             lfo: Osc::default(),
+            ctrl: 0,
         }
     }
 
@@ -798,14 +825,19 @@ impl Pad {
         let sr = self.sr;
         let lfo = self.lfo.sine(0.07, sr);
         let cutoff = self.p.cutoff_hz * (1.0 + 0.35 * lfo);
+        let update = self.ctrl == 0;
+        self.ctrl = (self.ctrl + 1) & 15;
         let (mut l, mut r) = (0.0, 0.0);
         for v in self.voices.iter_mut() {
             if !v.env.is_active() {
                 continue;
             }
             let e = v.env.next();
-            v.filt_l.set(cutoff, 0.1, sr);
-            v.filt_r.set(cutoff, 0.1, sr);
+            // Slow LFO: coefficients every 16 samples are plenty.
+            if update {
+                v.filt_l.set(cutoff, 0.1, sr);
+                v.filt_r.set(cutoff, 0.1, sr);
+            }
             l += v.filt_l.lp(v.a.saw(v.freq * self.detune, sr)) * e;
             r += v.filt_r.lp(v.b.saw(v.freq / self.detune, sr)) * e;
         }
@@ -966,6 +998,8 @@ pub struct Drone {
     freq: f32,
     target: f32,
     glide: f32,
+    detune_ratio: f32,
+    ctrl: u32,
 }
 
 impl Drone {
@@ -980,6 +1014,8 @@ impl Drone {
             freq: 110.0,
             target: 110.0,
             glide: smooth_coef(0.4, sr),
+            detune_ratio: 2f32.powf(p.detune / 12.0),
+            ctrl: 0,
         }
     }
 
@@ -1002,7 +1038,7 @@ impl Drone {
         }
         let sr = self.sr;
         self.freq += (self.target - self.freq) * self.glide;
-        let d = 2f32.powf(self.p.detune / 12.0);
+        let d = self.detune_ratio;
         let f = self.freq;
         let x = self.osc[0].saw(f * d, sr)
             + self.osc[1].saw(f / d, sr)
@@ -1010,7 +1046,11 @@ impl Drone {
             + 0.7 * self.osc[3].saw(f * 1.5 / d, sr)
             + 0.8 * self.osc[4].sine(f * 0.5, sr);
         let lfo = self.lfo.sine(0.045, sr);
-        self.filt.set(self.p.cutoff_hz * (1.0 + 0.6 * lfo), 0.3, sr);
+        // The cutoff moves slowly: update the coefficients every 16 samples.
+        if self.ctrl == 0 {
+            self.filt.set(self.p.cutoff_hz * (1.0 + 0.6 * lfo), 0.3, sr);
+        }
+        self.ctrl = (self.ctrl + 1) & 15;
         saturate(self.filt.lp(x * 0.3) * self.env.next(), self.p.drive) * 0.6
     }
 }

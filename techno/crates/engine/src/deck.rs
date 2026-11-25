@@ -650,6 +650,11 @@ impl Deck {
         let amount = self.fx_amount.next();
         for (t, x) in mono {
             let i = t.index();
+            // Muted channels: their instrument still runs (state stays consistent), but the
+            // insert effect and channel strip are skipped. This saves most of the mixing cost.
+            if self.channels[i].is_silent() {
+                continue;
+            }
             if self.inserts[i].is_none() || self.bypass_fx {
                 add(self.channels[i].process(x, duck));
             } else {
@@ -660,12 +665,15 @@ impl Deck {
             }
         }
         let p = Track::Pad.index();
-        let (pad_l, pad_r) = if self.bypass_fx {
+        let pad_silent = self.channels[p].is_silent();
+        let (pad_l, pad_r) = if self.bypass_fx || pad_silent {
             (pad_l, pad_r)
         } else {
             self.inserts[p].process(pad_l, pad_r, self.insert_depth[p] * amount)
         };
-        add(self.channels[p].process_stereo(pad_l, pad_r, duck));
+        if !pad_silent {
+            add(self.channels[p].process_stereo(pad_l, pad_r, duck));
+        }
 
         let (dl, dr) = self.delay.process(sum.delay * fx_send);
         let (rl, rr) = self.reverb.process(sum.reverb * fx_send);

@@ -8,6 +8,14 @@ pub fn fast_tanh(x: f32) -> f32 {
     x * (27.0 + x * x) / (27.0 + 9.0 * x * x)
 }
 
+/// tan(x) for 0 <= x <= ~1.45 (continued-fraction approximation, relative error < 1e-4
+/// over the range used by filters). Much cheaper than `f32::tan`, especially in wasm.
+#[inline]
+pub fn fast_tan(x: f32) -> f32 {
+    let x2 = x * x;
+    x * (945.0 - 105.0 * x2 + x2 * x2) / (945.0 - 420.0 * x2 + 15.0 * x2 * x2)
+}
+
 /// Saturation with roughly unity peak level independent of `drive`.
 #[inline]
 pub fn saturate(x: f32, drive: f32) -> f32 {
@@ -226,7 +234,7 @@ impl Svf {
     #[inline]
     pub fn set(&mut self, cutoff: f32, resonance: f32, sr: f32) {
         let fc = cutoff.clamp(10.0, sr * 0.45);
-        self.g = (PI * fc / sr).tan();
+        self.g = fast_tan(PI * fc / sr);
         self.k = 2.0 - 1.96 * resonance.clamp(0.0, 1.0);
         self.a1 = 1.0 / (1.0 + self.g * (self.g + self.k));
         self.a2 = self.g * self.a1;
@@ -638,6 +646,10 @@ impl Reverb {
 }
 
 /// Stereo-linked feed-forward compressor.
+/// The compressor's gain computer runs once per block of this many samples (log/exp are
+/// expensive); the gain is ramped linearly in between, so there is no zipper noise.
+const COMP_BLOCK: u32 = 16;
+
 pub struct Compressor {
     threshold_db: f32,
     ratio: f32,
@@ -645,6 +657,10 @@ pub struct Compressor {
     att: f32,
     rel: f32,
     env_db: f32,
+    peak: f32,
+    count: u32,
+    gain: f32,
+    gain_step: f32,
 }
 
 impl Compressor {
@@ -660,28 +676,41 @@ impl Compressor {
             threshold_db,
             ratio,
             makeup: db_to_gain(makeup_db),
-            att: smooth_coef(attack, sr),
-            rel: smooth_coef(release, sr),
+            // Coefficients for one step per block.
+            att: 1.0 - (1.0 - smooth_coef(attack, sr)).powi(COMP_BLOCK as i32),
+            rel: 1.0 - (1.0 - smooth_coef(release, sr)).powi(COMP_BLOCK as i32),
             env_db: 0.0,
+            peak: 0.0,
+            count: 0,
+            gain: db_to_gain(makeup_db),
+            gain_step: 0.0,
         }
     }
 
     #[inline]
     pub fn process(&mut self, l: f32, r: f32) -> (f32, f32) {
-        let level_db = gain_to_db(l.abs().max(r.abs()));
-        let over = (level_db - self.threshold_db).max(0.0);
-        let target = over * (1.0 - 1.0 / self.ratio);
-        let c = if target > self.env_db {
-            self.att
-        } else {
-            self.rel
-        };
-        self.env_db += (target - self.env_db) * c;
-        if self.env_db < 1e-6 {
-            self.env_db = 0.0; // avoid denormals in quiet passages
+        self.peak = self.peak.max(l.abs()).max(r.abs());
+        self.count += 1;
+        if self.count == COMP_BLOCK {
+            self.count = 0;
+            let level_db = gain_to_db(self.peak);
+            self.peak = 0.0;
+            let over = (level_db - self.threshold_db).max(0.0);
+            let target = over * (1.0 - 1.0 / self.ratio);
+            let c = if target > self.env_db {
+                self.att
+            } else {
+                self.rel
+            };
+            self.env_db += (target - self.env_db) * c;
+            if self.env_db < 1e-6 {
+                self.env_db = 0.0; // avoid denormals in quiet passages
+            }
+            let next = db_to_gain(-self.env_db) * self.makeup;
+            self.gain_step = (next - self.gain) / COMP_BLOCK as f32;
         }
-        let g = db_to_gain(-self.env_db) * self.makeup;
-        (l * g, r * g)
+        self.gain += self.gain_step;
+        (l * self.gain, r * self.gain)
     }
 
     pub fn reduction_db(&self) -> f32 {
@@ -745,7 +774,10 @@ impl Limiter {
         let dr = self.buf_r[self.pos];
         self.buf_l[self.pos] = l;
         self.buf_r[self.pos] = r;
-        self.pos = (self.pos + 1) % self.buf_l.len();
+        self.pos += 1;
+        if self.pos == self.buf_l.len() {
+            self.pos = 0;
+        }
 
         let c = self.ceiling;
         ((dl * self.gain).clamp(-c, c), (dr * self.gain).clamp(-c, c))
@@ -777,6 +809,16 @@ mod tests {
             let x = n.next() * if i % 4000 < 200 { 6.0 } else { 0.5 };
             let (l, r) = lim.process(x, -x);
             assert!(l.abs() <= ceil + 1e-6 && r.abs() <= ceil + 1e-6);
+        }
+    }
+
+    #[test]
+    fn fast_tan_is_accurate() {
+        let mut x = 0.0f32;
+        while x < 1.42 {
+            let rel = (fast_tan(x) - x.tan()).abs() / x.tan().max(1e-6);
+            assert!(rel < 2e-3, "x {x}: {rel}");
+            x += 0.01;
         }
     }
 

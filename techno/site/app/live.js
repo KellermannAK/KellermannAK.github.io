@@ -124,7 +124,10 @@ async function startSetInner(newSeed) {
   });
   node.port.onmessage = (ev) => {
     const m = ev.data;
-    if (m.type === "status") showStatus(m.status);
+    if (m.type === "status") {
+      showStatus(m.status);
+      showDiag(m.load, m.sampleRate);
+    }
     else if (m.type === "ready") {
       playing = true;
       setPlayButton("playing");
@@ -139,6 +142,18 @@ async function startSetInner(newSeed) {
 function volume() {
   const v = parseFloat($("lv-vol").value);
   return v * v; // perceptual curve
+}
+
+// Smoothed engine load for the diagnostics line.
+let loadAvg = 0;
+function showDiag(load, rate) {
+  loadAvg = loadAvg ? loadAvg * 0.8 + load * 0.2 : load;
+  const ua = navigator.userAgent;
+  const browser = (/(Edg|Firefox|OPR|Chrome|Safari)\/(\d+)/.exec(ua) || [])
+    .slice(1, 3).join(" ").replace("Edg", "Edge").replace("OPR", "Opera");
+  const out = ctx ? Math.round(ctx.sampleRate) : rate;
+  $("lv-diag").textContent =
+    `Engine-Last ${Math.round(loadAvg * 100)} % · ${rate} Hz${out !== rate ? ` (Ausgabe ${out} Hz)` : ""} · ${browser || "Browser?"}`;
 }
 
 function showError(msg) {

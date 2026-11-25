@@ -2,6 +2,8 @@
 // The main thread passes the .wasm bytes and the set seed via processorOptions.
 
 const STATUS_LEN = 16;
+// Clock for load measurement (performance.now is not available in every worklet scope).
+const now = () => (globalThis.performance && performance.now ? performance.now() : Date.now());
 
 class TechnoProcessor extends AudioWorkletProcessor {
   constructor(options) {
@@ -10,6 +12,8 @@ class TechnoProcessor extends AudioWorkletProcessor {
     this.ready = false;
     this.blocksPerStatus = Math.max(1, Math.round(sampleRate / 128 / 8)); // ~8 updates/s
     this.blockCount = 0;
+    this.busyMs = 0;
+    this.audioMs = 0;
     this.mem = null;
     WebAssembly.instantiate(wasm, {})
       .then(({ instance }) => {
@@ -49,7 +53,10 @@ class TechnoProcessor extends AudioWorkletProcessor {
     const out = outputs[0];
     if (!this.ready || !out || out.length === 0) return true;
     const n = out[0].length;
+    const t0 = now();
     this.w.techno_render(this.e, n);
+    this.busyMs += now() - t0;
+    this.audioMs += (n / sampleRate) * 1000;
     this.views(n);
     out[0].set(this.left);
     if (out[1]) out[1].set(this.right);
@@ -57,7 +64,11 @@ class TechnoProcessor extends AudioWorkletProcessor {
       this.blockCount = 0;
       const ptr = this.w.techno_status(this.e);
       const st = new Float64Array(this.w.memory.buffer, ptr, STATUS_LEN).slice();
-      this.port.postMessage({ type: "status", status: st }, [st.buffer]);
+      // Share of the available real time the engine needed (100 % = dropouts).
+      const load = this.audioMs > 0 ? this.busyMs / this.audioMs : 0;
+      this.busyMs = 0;
+      this.audioMs = 0;
+      this.port.postMessage({ type: "status", status: st, load, sampleRate }, [st.buffer]);
     }
     return true;
   }
