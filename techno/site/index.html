@@ -117,7 +117,7 @@
   }
   .fb-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
   .fb-row .label { flex: 1; }
-  .thumb { font-size: 1.15rem; padding: 6px 14px; }
+  .thumb { font-size: 1.15rem; padding: 6px 12px; }
   dialog#fb-dialog {
     background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 14px;
     padding: 18px; width: min(460px, calc(100vw - 32px)); margin: auto;
@@ -189,6 +189,7 @@
         <span class="label">Feedback zu dieser Stelle</span>
         <button class="btn thumb" id="lv-up" aria-label="Daumen hoch">👍</button>
         <button class="btn thumb" id="lv-down" aria-label="Daumen runter">👎</button>
+        <button class="btn thumb" id="lv-idea" aria-label="Idee">💡</button>
       </div>
     </div>
     <div class="controls">
@@ -250,6 +251,7 @@
         <span class="label">Feedback zur aktuellen Stelle</span>
         <button class="btn thumb" data-r="up" aria-label="Daumen hoch">👍</button>
         <button class="btn thumb" data-r="down" aria-label="Daumen runter">👎</button>
+        <button class="btn thumb" data-r="idea" aria-label="Idee">💡</button>
       </div>
       <ol class="tracks">${songs.map((s, i) => `
         <li data-start="${s.start}" data-i="${i}">

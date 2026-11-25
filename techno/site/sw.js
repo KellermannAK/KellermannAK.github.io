@@ -1,6 +1,6 @@
 // Service worker: network first (always fresh after a deploy), cache as offline fallback.
 // MP3s are streamed and never cached (too large).
-const CACHE = "techno-v3";
+const CACHE = "techno-v4";
 const SHELL = ["./", "index.html", "app/live.js", "app/worklet.js", "app/feedback.js", "app/techno.wasm",
   "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/icon.svg"];
 

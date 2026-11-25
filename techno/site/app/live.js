@@ -215,6 +215,7 @@ function init() {
   });
   $("lv-up").addEventListener("click", () => feedback("up"));
   $("lv-down").addEventListener("click", () => feedback("down"));
+  $("lv-idea").addEventListener("click", () => feedback("idea"));
   $("lv-vol").addEventListener("input", () => {
     if (node) node.port.postMessage({ type: "gain", value: volume() });
   });

@@ -36,3 +36,7 @@ cargo run --release -p techno-cli -- analyze --input feedback.txt
 
 It rebuilds each song from its seed and lists what was playing (tracks, section and its
 style, sounds, structure), then counts every feature for 👍 vs 👎.
+
+Weighting: a 👎 counts half as much as a 👍 (score = 👍 − 0.5 × 👎), so a few complaints do
+not outweigh what was liked repeatedly. 💡 ideas are neutral suggestions: listed separately,
+never counted as good or bad.

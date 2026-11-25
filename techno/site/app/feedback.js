@@ -1,4 +1,4 @@
-// Listening feedback: thumbs up / down plus an optional comment.
+// Listening feedback: thumbs up / down or an idea (neutral), plus an optional comment.
 // Tapping a thumb captures the moment; "Speichern" stores it on this device right away
 // (no page change, nothing can be blocked). The collected list can later be copied,
 // shared (e.g. into the Claude chat) or sent as ONE pre-filled GitHub issue via a plain link.
@@ -13,6 +13,10 @@
     .then((r) => r.json())
     .then((j) => { build = { commit: j.commit || "", version: j.version || build.version }; })
     .catch(() => {});
+
+  const ICON = { up: "👍", down: "👎", idea: "💡" };
+  // Entries from before ratings existed only have `up`.
+  const ratingOf = (e) => e.rating || (e.up ? "up" : "down");
 
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
@@ -59,9 +63,10 @@
         <div class="fb-thumbs">
           <button type="button" class="fb-thumb" data-r="up" aria-label="Daumen hoch">👍</button>
           <button type="button" class="fb-thumb" data-r="down" aria-label="Daumen runter">👎</button>
+          <button type="button" class="fb-thumb" data-r="idea" aria-label="Idee">💡</button>
         </div>
         <p class="fb-where"></p>
-        <textarea rows="4" placeholder="Optional: Was genau? z.B. „klickendes Geräusch“, „Bass zu leise“, „super Drop“"></textarea>
+        <textarea rows="4" placeholder="Optional: Was genau? z.B. „klickendes Geräusch“, „super Drop“ – oder bei 💡 deine Idee"></textarea>
         <div class="fb-actions">
           <button type="button" class="btn fb-cancel">Abbrechen</button>
           <button type="button" class="play fb-save">Speichern</button>
@@ -74,6 +79,7 @@
       const list = load();
       list.push({
         at: new Date().toISOString(),
+        rating: d.dataset.rating,
         up: d.dataset.rating === "up",
         comment: d.querySelector("textarea").value.trim(),
         where: where(d.ctx),
@@ -110,7 +116,7 @@
     const v = list.length ? list[list.length - 1] : { engine: build.version.engine, profile: build.version.profile, build: "" };
     const lines = [`Techno-Feedback (${list.length}) – Engine ${v.engine} · Profil ${v.profile} · Build ${v.build || "?"}`, ""];
     list.forEach((e, i) => {
-      lines.push(`${i + 1}. ${e.up ? "👍" : "👎"} ${e.where}${e.build ? ` · Build ${e.build}` : ""}`);
+      lines.push(`${i + 1}. ${ICON[ratingOf(e)]} ${e.where}${e.build ? ` · Build ${e.build}` : ""}`);
       if (e.comment) lines.push(`   „${e.comment}“`);
     });
     return lines.join("\n");
@@ -118,7 +124,8 @@
 
   function issueUrl(list) {
     const text = exportText(list);
-    const title = `Feedback: ${list.filter((e) => e.up).length}× 👍, ${list.filter((e) => !e.up).length}× 👎`;
+    const n = (r) => list.filter((e) => ratingOf(e) === r).length;
+    const title = `Feedback: ${n("up")}× 👍, ${n("down")}× 👎, ${n("idea")}× 💡`;
     let body = `${text}\n\n<!-- techno-feedback v2 -->`;
     let url = `https://github.com/${OWNER}/${REPO}/issues/new?labels=feedback&title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
     if (url.length > MAX_URL) {
@@ -156,7 +163,7 @@
     }
     box.innerHTML = `
       <ol class="fb-list">${list.map((e, i) => `
-        <li><span class="fb-icon">${e.up ? "👍" : "👎"}</span>
+        <li><span class="fb-icon">${ICON[ratingOf(e)]}</span>
           <span><span class="fb-w">${esc(e.where)}</span>${e.comment ? `<br><span class="fb-c">„${esc(e.comment)}“</span>` : ""}</span>
           <button class="fb-del" data-i="${i}" aria-label="Eintrag löschen">✕</button></li>`).join("")}
       </ol>
