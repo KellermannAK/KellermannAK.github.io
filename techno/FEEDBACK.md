@@ -20,5 +20,19 @@ changing the profile or the arrangement, so earlier decisions are not undone by 
 
 ## Open observations
 
-- The favourite has no breakdown. If more favourites share that, lower `after_groove` /
-  `after_drop` weights for "breakdown" further.
+- The favourite has no breakdown, but breakdowns are liked in other songs ("almost like a
+  build-up"): keep them, do not lower their probability further.
+
+## How to analyse
+
+Copy the list from the site's "Dein Feedback" card into a file and run, **at the build the
+feedback was given with** (every entry carries its build; seeds sound different in other
+builds):
+
+```sh
+git checkout <build>            # from the entries
+cargo run --release -p techno-cli -- analyze --input feedback.txt
+```
+
+It rebuilds each song from its seed and lists what was playing (tracks, section and its
+style, sounds, structure), then counts every feature for 👍 vs 👎.

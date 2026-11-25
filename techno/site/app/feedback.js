@@ -110,7 +110,7 @@
     const v = list.length ? list[list.length - 1] : { engine: build.version.engine, profile: build.version.profile, build: "" };
     const lines = [`Techno-Feedback (${list.length}) – Engine ${v.engine} · Profil ${v.profile} · Build ${v.build || "?"}`, ""];
     list.forEach((e, i) => {
-      lines.push(`${i + 1}. ${e.up ? "👍" : "👎"} ${e.where}`);
+      lines.push(`${i + 1}. ${e.up ? "👍" : "👎"} ${e.where}${e.build ? ` · Build ${e.build}` : ""}`);
       if (e.comment) lines.push(`   „${e.comment}“`);
     });
     return lines.join("\n");

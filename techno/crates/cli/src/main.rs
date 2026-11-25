@@ -5,6 +5,8 @@
 //!   techno render --seed 42 --out song.wav [--bars N] [--start-bar 0] [--sr 44100]
 //!                 [--profile profiles/x.toml] [--solo bass,lead] [--mute rumble]
 
+mod analyze;
+
 use std::fs::File;
 use std::io::{BufWriter, Seek, SeekFrom, Write};
 use std::path::PathBuf;
@@ -27,9 +29,11 @@ struct Args {
     mute: TrackSet,
     songs: u32,
     tracklist: Option<PathBuf>,
+    input: Option<PathBuf>,
 }
 
 const USAGE: &str = "usage:
+  techno analyze --input FEEDBACK.txt  (patterns in exported listening feedback; - = stdin)
   techno version                       (engine version and profile id as JSON)
   techno mix    --seed N [--songs N] [--out FILE.wav] [--tracklist FILE.json] [--sr HZ]
   techno info   --seed N [--profile FILE]
@@ -61,6 +65,7 @@ fn parse() -> Result<Args, String> {
         mute: TrackSet::NONE,
         songs: 4,
         tracklist: None,
+        input: None,
     };
     while let Some(flag) = it.next() {
         let mut val = || it.next().ok_or_else(|| format!("{flag} needs a value"));
@@ -77,6 +82,7 @@ fn parse() -> Result<Args, String> {
             "--mute" => a.mute = parse_tracks(&val()?)?,
             "--songs" => a.songs = val()?.parse().map_err(|e| format!("--songs: {e}"))?,
             "--tracklist" => a.tracklist = Some(PathBuf::from(val()?)),
+            "--input" => a.input = Some(PathBuf::from(val()?)),
             "-h" | "--help" => return Err(String::new()),
             other => return Err(format!("unknown flag '{other}'")),
         }
@@ -319,6 +325,30 @@ fn cmd_mix(a: &Args, profile: &Profile) -> Result<(), String> {
     Ok(())
 }
 
+fn cmd_analyze(a: &Args, profile: &Profile) -> Result<(), String> {
+    use std::io::Read;
+    let text = match &a.input {
+        Some(p) if p.as_os_str() != "-" => {
+            std::fs::read_to_string(p).map_err(|e| format!("{}: {e}", p.display()))?
+        }
+        _ => {
+            let mut s = String::new();
+            std::io::stdin()
+                .read_to_string(&mut s)
+                .map_err(|e| e.to_string())?;
+            s
+        }
+    };
+    let build = std::process::Command::new("git")
+        .args(["rev-parse", "--short", "HEAD"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
+    print!("{}", analyze::run(&text, profile, build.as_deref()));
+    Ok(())
+}
+
 fn main() -> ExitCode {
     let args = match parse() {
         Ok(a) => a,
@@ -352,6 +382,7 @@ fn main() -> ExitCode {
         }
         "render" => cmd_render(&args, &profile),
         "mix" => cmd_mix(&args, &profile),
+        "analyze" => cmd_analyze(&args, &profile),
         other => Err(format!("unknown command '{other}'\n\n{USAGE}")),
     };
     match res {
