@@ -166,6 +166,15 @@ depth = [0.4, 0.9]
 # Effects open up in breakdowns and rise through builds.
 breakdown_boost = 1.5
 
+[naming]
+# Artists: songs with the same style fingerprint (kick, main synth / lead kind, layer)
+# share a small artist pool; the first weight is the pool's regular artist.
+new_artist_prob = 0.2
+pool_weights = [5.0, 2.0, 1.0, 0.5]
+collab_prob = 0.07
+# Fitting title suffix such as "(Dub)" or "(Tool)".
+suffix_prob = 0.35
+
 [mix]
 sidechain_depth = [0.6, 0.9]
 sidechain_release = [0.12, 0.22]

@@ -303,6 +303,11 @@ pub fn bass_base_midi(key: Key) -> i32 {
 }
 
 impl SongDna {
+    /// Title and artist (see `naming`).
+    pub fn name(&self, profile: &Profile) -> crate::naming::SongName {
+        crate::naming::name(self, &profile.naming)
+    }
+
     /// Progression root (scale degree) at a bar, honouring the harmony scope.
     #[inline]
     pub fn root_at(&self, bar: u32) -> i32 {

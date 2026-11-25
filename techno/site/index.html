@@ -181,7 +181,9 @@
     <p class="err" id="lv-error" hidden></p>
     <p class="label" id="lv-slow" hidden style="margin:8px 0 0;color:#ffb13d"></p>
     <div class="live-now" id="lv-info" hidden>
-      <div class="row"><span class="now-song" id="lv-song">–</span><span class="meta" id="lv-key"></span></div>
+      <div class="now-song" id="lv-song">–</div>
+      <div id="lv-artist" style="font-weight:500"></div>
+      <div class="meta" id="lv-key" style="font-size:.9rem;margin-top:2px"></div>
       <div class="row"><span class="section-name" id="lv-section">–</span><span class="label" id="lv-bars"></span></div>
       <div class="track"><div id="lv-progress"></div></div>
       <div class="row"><span class="label">Energie</span></div>
@@ -272,13 +274,13 @@
       <ol class="tracks">${songs.map((s, i) => `
         <li data-start="${s.start}" data-i="${i}">
           <span class="time">${mmss(s.start)}</span>
-          <span class="song-key">${esc(deKey(s.key))}</span>
+          <span class="song-key">${s.title ? esc(s.title) : esc(deKey(s.key))}</span>
           <span class="cam">${esc(s.camelot)}</span>
-          <span class="how">${s.transition ? esc(HOW[s.transition] || s.transition) : "Start"} · Seed ${s.seed}</span>
+          <span class="how">${s.artist ? esc(s.artist) + " · " : ""}${s.title ? esc(deKey(s.key)) + " · " : ""}${s.transition ? esc(HOW[s.transition] || s.transition) : "Start"} · Seed ${s.seed}</span>
         </li>`).join("")}
       </ol>
       <details><summary>Aufbau der Songs</summary><pre>${songs.map((s) =>
-        `#${s.index + 1}  Seed ${s.seed}  ${esc(deKey(s.key))} (${esc(s.camelot)})\n${esc(s.structure)}`).join("\n\n")}</pre></details>`;
+        `#${s.index + 1}  ${s.artist ? esc(s.artist) + " – " + esc(s.title) + "  " : ""}Seed ${s.seed}  ${esc(deKey(s.key))} (${esc(s.camelot)})\n${esc(s.structure)}`).join("\n\n")}</pre></details>`;
     const audio = el.querySelector("audio");
     const rows = [...el.querySelectorAll("li")];
     el.querySelectorAll(".fb-row .thumb").forEach((b) => b.addEventListener("click", () => {
@@ -289,6 +291,7 @@
       window.TechnoFeedback && window.TechnoFeedback.open({
         source: "Mix", mixSeed: seed, mixSongs: songs.length, songIndex: cur, songSeed: s.seed, build,
         key: deKey(s.key), camelot: s.camelot, bpm: set.bpm, time: mmss(t),
+        title: s.artist ? `${s.artist} – ${s.title}` : undefined,
       }, b.dataset.r);
     }));
     const mark = (cur) => rows.forEach((li, i) => li.classList.toggle("now", i === cur));

@@ -205,6 +205,38 @@ pub extern "C" fn techno_new(seed_lo: u32, seed_hi: u32, sample_rate: f32) -> *m
     Box::into_raw(Box::new(WebEngine::new(seed, sample_rate)))
 }
 
+static mut NAME_BUF: [u8; 256] = [0; 256];
+
+/// Writes "artist\ntitle" (UTF-8) of the song with this seed into a static buffer and
+/// returns its length; read it at `techno_name_ptr()`. Independent of any engine instance,
+/// so the main thread can name songs reported by the worklet's status.
+#[no_mangle]
+pub extern "C" fn techno_name(seed_lo: u32, seed_hi: u32) -> u32 {
+    let seed = (seed_hi as u64) << 32 | seed_lo as u64;
+    let profile = profile();
+    let n = techno_core::SongDna::generate(seed, profile).name(profile);
+    let text = format!("{}\n{}", n.artist, n.title);
+    let bytes = text.as_bytes();
+    let len = bytes.len().min(256);
+    // SAFETY: single-threaded wasm; the buffer is only read right after this call.
+    unsafe {
+        let buf = &mut *core::ptr::addr_of_mut!(NAME_BUF);
+        buf[..len].copy_from_slice(&bytes[..len]);
+    }
+    len as u32
+}
+
+#[no_mangle]
+pub extern "C" fn techno_name_ptr() -> *const u8 {
+    core::ptr::addr_of!(NAME_BUF) as *const u8
+}
+
+fn profile() -> &'static Profile {
+    use std::sync::OnceLock;
+    static P: OnceLock<Profile> = OnceLock::new();
+    P.get_or_init(Profile::hard_techno_simple)
+}
+
 /// Economy mode constructor: `factor` 2 renders at half the output rate (half the CPU).
 #[no_mangle]
 pub extern "C" fn techno_new_eco(

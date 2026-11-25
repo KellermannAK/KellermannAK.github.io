@@ -41,6 +41,7 @@ pub struct Profile {
     pub drone: DroneRules,
     pub synths: SynthRules,
     pub fx: FxRules,
+    pub naming: crate::naming::NamingRules,
     pub mix: MixRules,
     pub structure: StructureRules,
 }

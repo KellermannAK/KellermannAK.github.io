@@ -72,6 +72,15 @@ none) and maybe a high-pass sweep. Every drop picks a style (full, bass first, s
 filter opening) and an entry (impact + crash, crash, dry), sometimes after a one-bar pause. Every 8-bar phrase can vary the DNA
 (lead octave, thinned lead, dropped percussion) without re-inventing it.
 
+### Song names
+
+Every song gets a title and an artist (`crates/core/src/naming.rs`, word library in
+`profiles/words.toml`, probabilities in `[naming]`). Titles combine techno words by simple
+patterns, with a suffix only where it fits ("(Dub)", "(Tool)"). Artists come from a style
+fingerprint (kick style, main synth / lead kind, long layer): similar songs share a small
+artist pool and usually get its regular artist; 20 % get a new one-off artist, and now and
+then two artists collaborate. Deterministic per seed, no memory between songs.
+
 ### DJ sets
 
 `Set` runs two decks on one clock. The incoming song starts on a bar boundary of the running

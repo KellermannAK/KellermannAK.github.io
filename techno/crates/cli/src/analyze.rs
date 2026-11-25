@@ -103,6 +103,8 @@ fn features(dna: &SongDna, bar: Option<u32>) -> Vec<(String, String)> {
     let mut f: Vec<(String, String)> = Vec::new();
     let mut add = |k: &str, v: String| f.push((k.to_string(), v));
     let p = &dna.plan;
+    let name = techno_core::naming::name(dna, &Profile::hard_techno_simple().naming);
+    add("artist", name.artist);
     add("scale", dna.key.scale.name().to_string());
     add("roots", format!("{} root(s)", dna.progression.count));
     add("kick", format!("{:?}", dna.sound.kick.style).to_lowercase());

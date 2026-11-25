@@ -1,0 +1,67 @@
+# Word library for song titles and artist names. Data, not code: edit freely.
+# All names are invented combinations; the lists avoid real artist, label and club names.
+
+[title]
+nouns = [
+  "Void", "Pulse", "Concrete", "Tunnel", "Bunker", "Signal", "Ritual", "Machine", "Static",
+  "Voltage", "Circuit", "Shadow", "Abyss", "Engine", "Frequency", "Grid", "Nocturne", "Steel",
+  "Smoke", "Silence", "Pressure", "Horizon", "Reactor", "Core", "Vector", "Monolith", "Fog",
+  "Echo", "Drift", "Sector", "Warehouse", "Shift", "Phase", "Spiral", "Orbit", "Gravity",
+  "Obsidian", "Iron", "Ash", "Carbon", "Neon", "Chamber", "Corridor", "Hypnosis", "Mirage",
+  "Rust", "Basalt", "Cathedral", "Furnace", "Lattice", "Ion", "Particle", "Prism", "Shelter",
+  "Transmission", "Frontier", "Mechanism", "Protocol", "Sequence", "Fracture", "Undertow",
+  "Tide", "Current", "Dust", "Ember", "Glass", "Wire", "Cable", "Pylon", "Tower", "District",
+  "Subway", "Station", "Platform", "Terminal", "Silo", "Vault", "Archive", "Relay", "Beacon",
+  "Pendulum", "Rotor", "Turbine", "Piston", "Hammer", "Anvil", "Forge", "Crane", "Freight",
+  "Cargo", "Harbour", "Dock", "Bridge", "Overpass", "Underpass", "Basement", "Cellar",
+  "Labyrinth", "Maze", "Cipher", "Code", "Glitch", "Noise", "Hum", "Drone", "Sirens",
+  "Heartbeat", "Breath", "Trance", "Ritualist", "Monk", "Witness", "Stranger", "Ghost",
+  "Phantom", "Specter", "Visitor", "Nomad", "Exile", "Outpost", "Colony", "Satellite",
+  "Eclipse", "Solstice", "Midnight", "Dawn", "Dusk", "Night", "Hour", "Minute", "Moment",
+  "Passage", "Threshold", "Descent", "Ascent", "Collapse", "Erosion", "Decay", "Reset",
+  "Loop", "Cycle", "Rhythm", "Motion", "Momentum", "Velocity", "Distance", "Depth", "Mass",
+]
+adjectives = [
+  "Dark", "Cold", "Deep", "Hollow", "Endless", "Black", "Silent", "Raw", "Distant", "Broken",
+  "Infinite", "Lost", "Heavy", "Electric", "Industrial", "Hidden", "Burning", "Frozen",
+  "Analog", "Synthetic", "Inner", "Outer", "Lunar", "Toxic", "Grey", "Pale", "Rusted",
+  "Liquid", "Magnetic", "Mechanical", "Nocturnal", "Restless", "Sleepless", "Faceless",
+  "Nameless", "Weightless", "Bottomless", "Absolute", "Primal", "Ancient", "Final", "Lower",
+  "Upper", "Last", "First", "Second", "Third", "Parallel", "Hypnotic", "Subsonic", "Radiant",
+  "Static", "Severed", "Shattered", "Sunken", "Buried", "Forbidden", "Empty", "Vacant",
+  "Dense", "Slow", "Rapid", "Low", "High", "Narrow", "Wide", "Bleak", "Stark", "Bare",
+  "Concrete", "Steel", "Iron", "Neon", "Carbon", "Electric", "Phantom", "Midnight",
+]
+gerunds = [
+  "Falling", "Running", "Rising", "Breathing", "Dissolving", "Descending", "Waiting",
+  "Drifting", "Burning", "Turning", "Shifting", "Fading", "Pulsing", "Spinning", "Sinking",
+  "Floating", "Hunting", "Searching", "Leaving", "Returning", "Watching", "Calling",
+  "Crawling", "Rolling", "Grinding", "Melting", "Echoing", "Humming",
+]
+plurals = [
+  "Signals", "Machines", "Shadows", "Echoes", "Ghosts", "Circuits", "Lights", "Walls",
+  "Wires", "Voices", "Streets", "Tunnels", "Engines", "Waves", "Cities", "Frequencies",
+  "Hours", "Rituals", "Pillars", "Mirrors", "Doors", "Stairs", "Engines", "Sirens",
+]
+german = [
+  "Nacht", "Stahl", "Beton", "Schatten", "Tiefe", "Kälte", "Rauschen", "Strom", "Bunker",
+  "Nebel", "Asche", "Funke", "Puls", "Leere", "Stille", "Hallraum", "Tunnel", "Kern",
+  "Schacht", "Kreislauf", "Untergrund", "Zwielicht", "Maschinenraum", "Fernlicht",
+  "Hafen", "Frost", "Glut", "Sturm", "Ebene", "Abgrund",
+]
+numbers = ["7", "9", "13", "23", "33", "47", "99", "101", "137", "303", "404", "808", "909", "0400", "1984", "2049"]
+roman = ["II", "III", "IV", "V", "VII", "IX"]
+
+[artist]
+# Invented names are built from these syllables.
+starts = [
+  "Ka", "Ve", "Zo", "Ax", "Kr", "Mor", "Dra", "Sel", "Tor", "Vin", "Ny", "Os", "Ul", "Ra",
+  "Ke", "Lu", "Ma", "Ne", "Pe", "Sa", "Ta", "Vo", "Xe", "Ze", "Bry", "Cor", "Dal", "Fen",
+  "Gra", "Hal", "Ir", "Jor", "Kal", "Lor", "Mi", "Nor", "Or", "Qua", "Ren", "Sto", "Tal",
+]
+middles = ["", "", "", "ra", "lo", "ve", "ni", "ta", "ro", "me", "li", "ka", "ze", "do", "ri"]
+ends = [
+  "x", "r", "n", "s", "k", "th", "m", "l", "rn", "nd", "sk", "ks", "on", "en", "ar", "or",
+  "ix", "ax", "us", "is", "em", "ul", "yn", "ek", "ion", "ex", "an",
+]
+suffixes = ["Unit", "Collective", "Systems", "Project", "Signal", "Department", "Assembly", "Circuit", "Division", "Archive"]

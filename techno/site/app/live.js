@@ -31,10 +31,22 @@ function ecoPref() {
  * WebAssembly without their optimising compiler (e.g. Edge "enhanced security"), which
  * makes the engine 20-40x slower; the economy mode halves the load.
  */
+// Main-thread engine instance, kept for naming songs (title / artist).
+let mainWasm = null;
+
+function songName(songSeed) {
+  if (!mainWasm || !mainWasm.techno_name) return null;
+  const len = mainWasm.techno_name(songSeed >>> 0, Math.floor(songSeed / 2 ** 32));
+  const bytes = new Uint8Array(mainWasm.memory.buffer, mainWasm.techno_name_ptr(), len);
+  const [artist, title] = new TextDecoder().decode(bytes).split("\n");
+  return { artist, title };
+}
+
 async function speedTest(bytes) {
   try {
     const { instance } = await WebAssembly.instantiate(bytes, {});
     const w = instance.exports;
+    mainWasm = w;
     const e = w.techno_new(1, 0, 48000);
     for (let i = 0; i < 20; i++) w.techno_render(e, 128); // warm-up
     const frames = 12000;
@@ -207,6 +219,8 @@ function showError(msg) {
 
 let lastTitle = "";
 let lastStatus = null;
+let lastSongSeed = -1;
+let currentName = null;
 
 function feedback(rating) {
   if (!lastStatus || !window.TechnoFeedback) return;
@@ -217,6 +231,7 @@ function feedback(rating) {
     songIndex: song,
     songSeed,
     key: keyName(root, scale),
+    title: currentName ? `${currentName.artist} – ${currentName.title}` : undefined,
     camelot: `${camelot}A`,
     bpm,
     section: SECTIONS[section],
@@ -232,8 +247,13 @@ function showStatus(s) {
   const [song, songSeed, root, scale, camelot, bpm, section, bar, secBar, secBars, totalBars, energy,
     transition, barsTo, inTransition, seconds] = s;
   const key = keyName(root, scale);
-  $("lv-song").textContent = `Song ${song + 1}`;
-  $("lv-key").textContent = `${key} · ${bpm} BPM`;
+  if (songSeed !== lastSongSeed) {
+    lastSongSeed = songSeed;
+    currentName = songName(songSeed);
+  }
+  $("lv-song").textContent = currentName ? currentName.title : `Song ${song + 1}`;
+  $("lv-artist").textContent = currentName ? currentName.artist : "";
+  $("lv-key").textContent = `Song ${song + 1} · ${key} · ${bpm} BPM`;
   $("lv-cam").textContent = `${camelot}A`;
   $("lv-section").textContent = SECTIONS[section] || "–";
   $("lv-bars").textContent = `Takt ${secBar + 1}/${secBars}`;
@@ -245,10 +265,14 @@ function showStatus(s) {
   else if (transition >= 0) next = `Nächster Song: ${TRANSITIONS[transition]} in ${barsTo} Takten`;
   $("lv-next").textContent = next;
   $("lv-time").textContent = `Set #${seed} · ${mmss(seconds)}`;
-  const title = `Song ${song + 1} – ${key}`;
+  const title = currentName ? currentName.title : `Song ${song + 1} – ${key}`;
   if (title !== lastTitle && "mediaSession" in navigator) {
     lastTitle = title;
-    navigator.mediaSession.metadata = new MediaMetadata({ title, artist: "Techno Generator", album: `Live-Set #${seed}` });
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title,
+      artist: currentName ? currentName.artist : "Techno Generator",
+      album: `Techno Generator · Live-Set #${seed}`,
+    });
   }
 }
 

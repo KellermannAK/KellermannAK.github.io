@@ -207,6 +207,7 @@ fn json_str(s: &str) -> String {
 fn cmd_info(a: &Args, profile: &Profile) {
     let dna = SongDna::generate(a.seed, profile);
     println!("profile    {} ({})", profile.name, profile.id);
+    println!("song       {}", dna.name(profile).display());
     println!("{}", dna.describe());
     println!("\nstructure:\n{}", dna.plan.describe(dna.bpm));
 }
@@ -288,9 +289,11 @@ fn cmd_mix(a: &Args, profile: &Profile) -> Result<(), String> {
     for e in &set.log {
         let how = e.transition.map(|t| t.name()).unwrap_or("start");
         println!(
-            "  {:>6}  {:<12}  seed {:<7} {} ({})",
+            "  {:>6}  {:<12}  {} – {}  [seed {}, {} ({})]",
             mmss(e.start_seconds),
             how,
+            e.artist,
+            e.title,
             e.seed,
             e.key,
             e.camelot
@@ -305,9 +308,11 @@ fn cmd_mix(a: &Args, profile: &Profile) -> Result<(), String> {
             .iter()
             .map(|e| {
                 format!(
-                    "{{\"index\":{},\"seed\":{},\"key\":{},\"camelot\":{},\"bpm\":{},\"start\":{:.2},\"transition\":{},\"structure\":{}}}",
+                    "{{\"index\":{},\"seed\":{},\"title\":{},\"artist\":{},\"key\":{},\"camelot\":{},\"bpm\":{},\"start\":{:.2},\"transition\":{},\"structure\":{}}}",
                     e.index,
                     e.seed,
+                    json_str(&e.title),
+                    json_str(&e.artist),
                     json_str(&e.key),
                     json_str(&e.camelot),
                     e.bpm,

@@ -76,6 +76,8 @@ pub struct SetStatus {
 pub struct SetEntry {
     pub index: u32,
     pub seed: u64,
+    pub title: String,
+    pub artist: String,
     pub key: String,
     pub camelot: String,
     pub bpm: f32,
@@ -191,7 +193,8 @@ impl Set {
             log: Vec::new(),
             done: false,
         };
-        set.log.push(entry(0, &dna, 0.0, None));
+        let first = entry(0, &dna, &set.profile, 0.0, None);
+        set.log.push(first);
         set.slots[0] = Some(Slot {
             deck: Deck::new(dna, sample_rate),
             strip: DeckStrip::new(sample_rate, 1.0, 1.0),
@@ -366,8 +369,13 @@ impl Set {
         }
         let other = 1 - self.current;
         let seconds = self.frame as f64 / self.sr as f64;
-        self.log
-            .push(entry(self.next_index, &deck.dna, seconds, Some(t.kind)));
+        self.log.push(entry(
+            self.next_index,
+            &deck.dna,
+            &self.profile,
+            seconds,
+            Some(t.kind),
+        ));
         self.next_index += 1;
         self.slots[other] = Some(Slot { deck, strip });
         self.transition_start_frame = Some(self.frame);
@@ -496,12 +504,16 @@ impl Set {
 fn entry(
     index: u32,
     dna: &SongDna,
+    profile: &Profile,
     start_seconds: f64,
     transition: Option<TransitionKind>,
 ) -> SetEntry {
+    let name = dna.name(profile);
     SetEntry {
         index,
         seed: dna.seed,
+        title: name.title,
+        artist: name.artist,
         key: dna.key.name(),
         camelot: dna.key.camelot_code(),
         bpm: dna.bpm,
