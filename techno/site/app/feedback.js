@@ -145,7 +145,6 @@
             save(load().filter((x) => x.at !== entry.at));
             renderInbox();
             toast("Gespeichert ✓");
-            if (window.TechnoAccount) window.TechnoAccount.render();
           } else {
             toast("Lokal gespeichert – wird später übertragen");
           }
@@ -231,10 +230,14 @@
     const box = document.getElementById("fb-inbox");
     if (!box) return;
     const list = load();
+    // With the database the list is normally empty (entries are stored right away): hide the
+    // whole section then, so the page stays about the music.
+    const title = document.getElementById("fb-title");
+    const hide = !list.length && dbEnabled();
+    box.hidden = hide;
+    if (title) title.hidden = hide;
     if (!list.length) {
-      box.innerHTML = dbEnabled()
-        ? `<p class="meta">Tippe beim Hören auf 👍, 👎 oder 💡 – dein Feedback wird direkt in der Datenbank gespeichert.</p>`
-        : `<p class="meta">Noch nichts gesammelt. Tippe beim Hören auf 👍 oder 👎 – die Stelle wird sofort hier gespeichert.</p>`;
+      box.innerHTML = hide ? "" : `<p class="meta">Noch nichts gesammelt. Tippe beim Hören auf 👍 oder 👎 – die Stelle wird sofort hier gespeichert.</p>`;
       return;
     }
     const parts = issueParts(list);

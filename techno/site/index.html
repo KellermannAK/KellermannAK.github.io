@@ -28,7 +28,28 @@
     color: var(--text);
     font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   }
-  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; position: relative; }
+  h1 { padding-right: 56px; }
+  .acc-btn {
+    position: absolute; top: 34px; right: 16px; z-index: 21;
+    width: 40px; height: 40px; border-radius: 50%; padding: 0;
+    display: grid; place-items: center; cursor: pointer;
+    background: var(--panel); color: var(--muted); border: 1.5px solid var(--line);
+  }
+  .acc-btn:hover { color: var(--text); border-color: var(--muted); }
+  .acc-btn.in { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .acc-panel {
+    position: absolute; top: 82px; right: 16px; z-index: 20;
+    width: min(330px, calc(100vw - 32px)); padding: 14px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.55);
+  }
+  .acc-panel[hidden] { display: none; }
+  .acc-line { margin: 0 0 10px; line-height: 1.4; }
+  .acc-line small { color: var(--muted); }
+  .acc-opt { display: flex; gap: 8px; align-items: flex-start; margin-top: 14px; color: var(--muted); font-size: 0.85rem; cursor: pointer; }
+  .acc-opt input { margin-top: 3px; accent-color: var(--accent); }
+  .acc-opt small { display: block; font-size: 0.8rem; }
   h1 { font-size: 1.9rem; margin: 0 0 4px; letter-spacing: -0.02em; }
   h1 span { color: var(--accent); }
   h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin: 36px 0 12px; }
@@ -212,14 +233,11 @@
           <option value="off">Aus</option>
         </select>
       </div>
-      <p class="label" id="lv-diag" style="margin:10px 0 0">Diagnose erscheint nach dem Start.</p>
+      <p class="label" id="lv-diag" hidden style="margin:10px 0 0">Diagnose erscheint nach dem Start.</p>
     </details>
   </section>
 
-  <h2 id="account-title" hidden>Konto</h2>
-  <section class="card" id="account" hidden></section>
-
-  <h2>Dein Feedback</h2>
+  <h2 id="fb-title">Dein Feedback</h2>
   <section class="card" id="fb-inbox"></section>
 
   <h2>Mixes</h2>

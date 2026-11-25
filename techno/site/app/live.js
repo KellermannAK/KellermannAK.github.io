@@ -207,6 +207,8 @@ function showDiag(load, rate) {
   const browser = (/(Edg|Firefox|OPR|Chrome|Safari)\/(\d+)/.exec(ua) || [])
     .slice(1, 3).join(" ").replace("Edg", "Edge").replace("OPR", "Opera");
   const out = ctx ? Math.round(ctx.sampleRate) : rate;
+  // Technical diagnostics only on request (?debug); the page does not show statistics.
+  $("lv-diag").hidden = !new URLSearchParams(location.search).has("debug");
   $("lv-diag").textContent =
     `Engine-Last ${Math.round(loadAvg * 100)} % · ${rate} Hz${out !== rate ? ` (Ausgabe ${out} Hz)` : ""}`
     + `${eco ? " · Sparmodus (intern 24 kHz)" : ""} · Browser-Test ${speed ? speed.toFixed(0) + "×" : "?"} · ${browser || "Browser?"}`;

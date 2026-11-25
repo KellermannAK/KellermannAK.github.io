@@ -32,7 +32,7 @@ time on the page and listening time per song:
 The tables have no policies at all: the public key cannot read or write them. The site writes
 only through the function `track()`, which validates and rounds everything and only touches the
 caller's own rows. Values are cumulative per visit, so retries never double count. No IP
-address is stored in these tables. Visitors can switch the statistics off on the account card;
+address is stored in these tables. Visitors can switch the statistics off in the account panel (circle at the top right);
 the site also stays off if the browser sends Do Not Track / Global Privacy Control.
 
 Summary for analysis: `scripts/fetch_stats.py` (needs the service_role / secret key).

@@ -5,6 +5,9 @@ const SDK = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/+esm";
 let client = null;
 let ready = null;
 let token = null; // current access token, kept for requests that cannot await (page close)
+const listeners = [];
+/** Call `f` whenever the sign-in state changes (sign-in, sign-out, confirmed e-mail ...). */
+export const onAuth = (f) => listeners.push(f);
 
 export const enabled = !!(cfg.supabaseUrl && cfg.supabaseAnonKey);
 
@@ -19,6 +22,7 @@ export function db() {
       });
       client.auth.onAuthStateChange((_event, session) => {
         token = session ? session.access_token : null;
+        listeners.forEach((f) => f(session));
       });
       const { data } = await client.auth.getSession();
       token = data.session ? data.session.access_token : null;
@@ -60,20 +64,14 @@ export async function account() {
   if (!c) return null;
   const { data } = await c.auth.getUser();
   const user = data.user;
-  if (!user) return { signedIn: false };
-  const [{ data: profile }, { data: count }, { data: stats }] = await Promise.all([
-    c.from("profiles").select("display_name").eq("id", user.id).maybeSingle(),
-    c.rpc("my_feedback_count"),
-    c.rpc("my_stats"),
-  ]);
+  if (!user) return { signedIn: false, anonymous: true };
+  const { data: profile } = await c.from("profiles").select("display_name").eq("id", user.id).maybeSingle();
   return {
     signedIn: true,
     anonymous: !!user.is_anonymous,
     email: user.email || user.new_email || null,
     pendingEmail: user.new_email || null,
     displayName: profile ? profile.display_name : null,
-    feedbackCount: count || 0,
-    stats: stats || null,
   };
 }
 
@@ -117,4 +115,4 @@ export async function signOut() {
   await c.auth.signInAnonymously();
 }
 
-window.TechnoDB = { enabled, db, accessToken, saveFeedback, account, register, signIn, setDisplayName, signOut };
+window.TechnoDB = { enabled, db, onAuth, accessToken, saveFeedback, account, register, signIn, setDisplayName, signOut };

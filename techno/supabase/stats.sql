@@ -125,7 +125,7 @@ begin
 end;
 $$;
 
--- Totals of the current user (shown on the account card).
+-- Totals of the current user (not shown on the site any more; kept for later use).
 create or replace function public.my_stats()
 returns jsonb language sql stable security definer set search_path = public as $$
   select jsonb_build_object(
