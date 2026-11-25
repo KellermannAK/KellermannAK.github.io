@@ -98,3 +98,14 @@ create or replace function public.my_feedback_count()
 returns bigint language sql stable security invoker as $$
   select count(*) from public.feedback where user_id = auth.uid();
 $$;
+
+-- ---------------------------------------------------------------- grants
+-- Newer Supabase projects do not grant table privileges to the API roles automatically.
+-- RLS above still decides which rows each role may touch; these grants only open the tables.
+grant usage on schema public to anon, authenticated, service_role;
+grant select, insert, update on public.profiles to authenticated;
+grant all on public.profiles to service_role;
+grant insert on public.feedback to anon, authenticated;
+grant select on public.feedback to authenticated;
+grant all on public.feedback to service_role;
+grant execute on function public.my_feedback_count() to authenticated, service_role;
