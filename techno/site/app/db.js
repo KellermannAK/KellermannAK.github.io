@@ -4,6 +4,7 @@ const cfg = window.TECHNO_CONFIG || {};
 const SDK = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/+esm";
 let client = null;
 let ready = null;
+let token = null; // current access token, kept for requests that cannot await (page close)
 
 export const enabled = !!(cfg.supabaseUrl && cfg.supabaseAnonKey);
 
@@ -16,7 +17,11 @@ export function db() {
       client = createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, {
         auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
       });
+      client.auth.onAuthStateChange((_event, session) => {
+        token = session ? session.access_token : null;
+      });
       const { data } = await client.auth.getSession();
+      token = data.session ? data.session.access_token : null;
       if (!data.session) {
         const { error } = await client.auth.signInAnonymously();
         if (error) console.warn("anonymous sign-in failed:", error.message);
@@ -30,6 +35,8 @@ export function db() {
   }
   return ready;
 }
+
+export const accessToken = () => token;
 
 /** Store one feedback entry. Returns true on success. */
 export async function saveFeedback(e) {
@@ -54,9 +61,10 @@ export async function account() {
   const { data } = await c.auth.getUser();
   const user = data.user;
   if (!user) return { signedIn: false };
-  const [{ data: profile }, { data: count }] = await Promise.all([
+  const [{ data: profile }, { data: count }, { data: stats }] = await Promise.all([
     c.from("profiles").select("display_name").eq("id", user.id).maybeSingle(),
     c.rpc("my_feedback_count"),
+    c.rpc("my_stats"),
   ]);
   return {
     signedIn: true,
@@ -65,6 +73,7 @@ export async function account() {
     pendingEmail: user.new_email || null,
     displayName: profile ? profile.display_name : null,
     feedbackCount: count || 0,
+    stats: stats || null,
   };
 }
 
@@ -108,4 +117,4 @@ export async function signOut() {
   await c.auth.signInAnonymously();
 }
 
-window.TechnoDB = { enabled, db, saveFeedback, account, register, signIn, setDisplayName, signOut };
+window.TechnoDB = { enabled, db, accessToken, saveFeedback, account, register, signIn, setDisplayName, signOut };

@@ -229,6 +229,15 @@
   <div id="songs"></div>
 
   <footer id="foot"></footer>
+  <details style="margin-top:12px;color:var(--muted);font-size:.85rem">
+    <summary style="cursor:pointer">Datenschutz &amp; Statistik</summary>
+    <p>Beim Besuch bekommst du automatisch eine zufällige, anonyme Nutzer-ID (kein Name, keine E-Mail). Gespeichert werden
+    dein Feedback und eine Nutzungsstatistik: Seitenaufrufe, Zeit auf der Seite und Hörzeit pro Song (auf 10 Sekunden genau),
+    dazu Gerätetyp, Browser, Engine-Version und das Ergebnis eines Geschwindigkeitstests. In diesen Tabellen steht keine
+    IP-Adresse. Wenn du dich mit einer E-Mail registrierst, wird sie zusätzlich gespeichert. Die Daten liegen bei Supabase
+    (Datenbank-Anbieter). Die Statistik lässt sich im Bereich „Konto“ abschalten und bleibt aus, wenn dein Browser
+    „Do Not Track“ sendet.</p>
+  </details>
 </main>
 <script>
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -310,7 +319,16 @@
       const t = audio.currentTime;
       let cur = 0;
       rows.forEach((li, i) => { if (t >= parseFloat(li.dataset.start)) cur = i; });
-      if (!audio.paused) mark(cur);
+      if (!audio.paused) {
+        mark(cur);
+        const s = songs[cur];
+        if (s && window.TechnoStats) {
+          window.TechnoStats.setNow({
+            source: "mix", source_seed: seed, song_seed: s.seed, song_index: cur,
+            title: s.title || null, artist: s.artist || null,
+          });
+        }
+      }
     });
     return el;
   }
@@ -386,6 +404,7 @@
 <script src="app/config.js"></script>
 <script src="app/feedback.js"></script>
 <script type="module" src="app/db.js"></script>
+<script type="module" src="app/stats.js"></script>
 <script type="module" src="app/account.js"></script>
 <script type="module" src="app/live.js"></script>
 </body>

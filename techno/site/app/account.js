@@ -1,8 +1,15 @@
 // Account card: shows the session state, registration by e-mail link, display name.
 import * as DB from "./db.js";
+import * as Stats from "./stats.js";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+const dur = (s) => {
+  if (s >= 3600) return `${Math.floor(s / 3600)} h ${Math.round((s % 3600) / 60)} min`;
+  if (s >= 60) return `${Math.round(s / 60)} min`;
+  return `${s} s`;
+};
 
 async function render() {
   const box = $("account");
@@ -20,14 +27,21 @@ async function render() {
     : `Angemeldet als <b>${esc(a.displayName || a.email || "Nutzer")}</b>${a.displayName && a.email ? ` (${esc(a.email)})` : ""}.`;
   box.innerHTML = `
     <p style="margin:0 0 6px">${status}</p>
-    <p class="meta" style="margin:0 0 12px">${a.feedbackCount} Feedback${a.feedbackCount === 1 ? "" : "s"} gespeichert.</p>
+    <p class="meta" style="margin:0 0 12px">${a.feedbackCount} Feedback${a.feedbackCount === 1 ? "" : "s"} gespeichert${a.stats && a.stats.visits ? ` · ${a.stats.visits} Besuch${a.stats.visits === 1 ? "" : "e"} · ${dur(a.stats.listen_seconds)} gehört · ${a.stats.songs} Song${a.stats.songs === 1 ? "" : "s"}` : ""}.</p>
     ${a.anonymous ? `
       <div class="seed-row"><input id="acc-email" type="email" inputmode="email" autocomplete="email" placeholder="E-Mail" aria-label="E-Mail"><button class="btn" id="acc-register">Registrieren</button></div>
       <p class="label" style="margin:6px 0 0">Kein Passwort: du bekommst einen Link per E-Mail. Schon registriert? <button class="linkbtn" id="acc-signin">Auf diesem Gerät anmelden</button></p>`
     : `
       <div class="seed-row"><input id="acc-name" maxlength="40" placeholder="Anzeigename" aria-label="Anzeigename" value="${esc(a.displayName || "")}"><button class="btn" id="acc-save">Speichern</button></div>
       <p class="label" style="margin:6px 0 0"><button class="linkbtn" id="acc-signout">Abmelden</button></p>`}
+    <p class="label" style="margin:12px 0 0">Nutzungsstatistik: <b>${Stats.enabled() ? "an" : "aus"}</b>
+      – Seitenaufrufe, Zeit auf der Seite und Hörzeit pro Song (auf 10 s genau), ohne IP-Adresse.
+      <button class="linkbtn" id="acc-stats">${Stats.enabled() ? "Abschalten" : "Einschalten"}</button></p>
     <p class="label" id="acc-msg" style="margin:8px 0 0"></p>`;
+  $("acc-stats").addEventListener("click", () => {
+    Stats.setMode(Stats.enabled() ? "off" : "on");
+    render();
+  });
   const msg = (t) => { $("acc-msg").textContent = t; };
   const email = () => ($("acc-email").value || "").trim();
   if (a.anonymous) {

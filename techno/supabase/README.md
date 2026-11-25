@@ -18,6 +18,25 @@ Note: Supabase's built-in e-mail service is only for testing (very low hourly li
 may only deliver to members of the project's team). For real users configure your own SMTP
 under **Authentication → Emails → SMTP Settings**.
 
+## Usage statistics (second SQL file)
+
+Run `stats.sql` the same way as `schema.sql` (SQL Editor -> paste -> Run). It adds page views,
+time on the page and listening time per song:
+
+- `visits`: one row per page view (random visit id, anonymous or registered user, seconds on the
+  page and seconds listening in 10 s steps, device class, browser family, engine version, build,
+  browser speed test result, economy mode).
+- `listens`: one row per song heard in a visit (live set or mix seed, song seed, title, artist,
+  seconds heard in 10 s steps).
+
+The tables have no policies at all: the public key cannot read or write them. The site writes
+only through the function `track()`, which validates and rounds everything and only touches the
+caller's own rows. Values are cumulative per visit, so retries never double count. No IP
+address is stored in these tables. Visitors can switch the statistics off on the account card;
+the site also stays off if the browser sends Do Not Track / Global Privacy Control.
+
+Summary for analysis: `scripts/fetch_stats.py` (needs the service_role / secret key).
+
 ## What is stored
 
 - `profiles`: one row per user (anonymous or registered), optional display name.

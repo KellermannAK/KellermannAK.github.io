@@ -151,6 +151,7 @@ async function startSetInner(newSeed) {
   }
   const pref = ecoPref();
   eco = pref === "on" || (pref === "auto" && speed > 0 && speed < 8);
+  if (window.TechnoStats) window.TechnoStats.setMeta({ wasm_speed: speed || null, eco });
   const hint = $("lv-slow");
   if (speed > 0 && speed < 4) {
     hint.hidden = false;
@@ -250,6 +251,16 @@ function showStatus(s) {
   if (songSeed !== lastSongSeed) {
     lastSongSeed = songSeed;
     currentName = songName(songSeed);
+  }
+  if (window.TechnoStats) {
+    window.TechnoStats.setNow({
+      source: "live",
+      source_seed: seed,
+      song_seed: songSeed,
+      song_index: song,
+      title: currentName ? currentName.title : null,
+      artist: currentName ? currentName.artist : null,
+    });
   }
   $("lv-song").textContent = currentName ? currentName.title : `Song ${song + 1}`;
   $("lv-artist").textContent = currentName ? currentName.artist : "";
