@@ -80,6 +80,11 @@ impl Smoother {
     #[inline]
     pub fn next(&mut self) -> f32 {
         self.value += (self.target - self.value) * self.coef;
+        // Snap once close enough: an exponential approach to 0 would otherwise end in
+        // denormal floats, which are very slow on x86 (PCs), unlike on phone CPUs.
+        if (self.target - self.value).abs() < 1e-6 {
+            self.value = self.target;
+        }
         self.value
     }
 }
@@ -672,6 +677,9 @@ impl Compressor {
             self.rel
         };
         self.env_db += (target - self.env_db) * c;
+        if self.env_db < 1e-6 {
+            self.env_db = 0.0; // avoid denormals in quiet passages
+        }
         let g = db_to_gain(-self.env_db) * self.makeup;
         (l * g, r * g)
     }

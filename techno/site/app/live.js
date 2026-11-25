@@ -61,7 +61,14 @@ function setPlayButton(state) {
 
 async function ensureContext() {
   if (!ctx) {
-    ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "playback" });
+    // Always render at 48 kHz: the browser resamples to the sound card. PCs often run at
+    // 96 or 192 kHz, which would multiply the engine's CPU load by 2-4.
+    const AC = window.AudioContext || window.webkitAudioContext;
+    try {
+      ctx = new AC({ latencyHint: "playback", sampleRate: 48000 });
+    } catch (_) {
+      ctx = new AC({ latencyHint: "playback" });
+    }
     if (navigator.audioSession) {
       try { navigator.audioSession.type = "playback"; } catch (_) {}
     }
@@ -75,7 +82,19 @@ async function ensureContext() {
   silentAudio.play().catch(() => {});
 }
 
+let starting = false;
+
 async function startSet(newSeed) {
+  if (starting) return; // ignore double clicks while loading
+  starting = true;
+  try {
+    await startSetInner(newSeed);
+  } finally {
+    starting = false;
+  }
+}
+
+async function startSetInner(newSeed) {
   setPlayButton("loading");
   await ensureContext(); // must be called first inside the click handler (iOS)
   if (!wasmBytes) {
@@ -89,8 +108,11 @@ async function startSet(newSeed) {
     wasmBytes = bytes;
   }
   if (node) {
+    // Stop the old engine for good (a merely disconnected worklet keeps running).
+    node.port.postMessage({ type: "stop" });
     node.disconnect();
     node.port.onmessage = null;
+    node = null;
   }
   seed = newSeed;
   history.replaceState(null, "", `?set=${seed}`);

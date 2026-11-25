@@ -20,8 +20,12 @@ class TechnoProcessor extends AudioWorkletProcessor {
         this.port.postMessage({ type: "ready" });
       })
       .catch((err) => this.port.postMessage({ type: "error", message: String(err) }));
+    this.stopped = false;
     this.port.onmessage = (ev) => {
       if (ev.data.type === "gain" && this.ready) this.w.techno_set_gain(this.e, ev.data.value);
+      // Returning false from process() lets the browser destroy this processor; without
+      // it a disconnected node keeps rendering forever.
+      if (ev.data.type === "stop") this.stopped = true;
     };
   }
 
@@ -37,6 +41,11 @@ class TechnoProcessor extends AudioWorkletProcessor {
   }
 
   process(_inputs, outputs) {
+    if (this.stopped) {
+      if (this.ready) this.w.techno_free(this.e);
+      this.ready = false;
+      return false;
+    }
     const out = outputs[0];
     if (!this.ready || !out || out.length === 0) return true;
     const n = out[0].length;

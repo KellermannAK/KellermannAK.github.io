@@ -38,7 +38,8 @@
     return parts.join(" · ");
   }
 
-  function toast(msg) {
+  /** Short message at the bottom; optional action button (e.g. "Rückgängig"). */
+  function toast(msg, actionLabel, action) {
     let t = document.getElementById("fb-toast");
     if (!t) {
       t = document.createElement("div");
@@ -46,9 +47,31 @@
       document.body.appendChild(t);
     }
     t.textContent = msg;
+    if (actionLabel) {
+      const b = document.createElement("button");
+      b.className = "linkbtn fb-toast-action";
+      b.textContent = actionLabel;
+      b.addEventListener("click", () => {
+        t.classList.remove("show");
+        action();
+      });
+      t.appendChild(b);
+    }
     t.classList.add("show");
     clearTimeout(t._h);
-    t._h = setTimeout(() => t.classList.remove("show"), 2200);
+    t._h = setTimeout(() => t.classList.remove("show"), actionLabel ? 6000 : 2200);
+  }
+
+  /** Remove sent entries, with a few seconds to undo. */
+  function removeSent(sent) {
+    const keys = new Set(sent.map((e) => e.at));
+    const before = load();
+    save(before.filter((e) => !keys.has(e.at)));
+    renderInbox();
+    toast(`${sent.length} gesendete${sent.length === 1 ? "r Eintrag" : " Einträge"} entfernt`, "Rückgängig", () => {
+      save(before);
+      renderInbox();
+    });
   }
 
   // ------------------------------------------------------------------ capture dialog
@@ -122,17 +145,30 @@
     return lines.join("\n");
   }
 
-  function issueUrl(list) {
+  function issueUrl(list, part, parts) {
     const text = exportText(list);
     const n = (r) => list.filter((e) => ratingOf(e) === r).length;
-    const title = `Feedback: ${n("up")}× 👍, ${n("down")}× 👎, ${n("idea")}× 💡`;
-    let body = `${text}\n\n<!-- techno-feedback v2 -->`;
-    let url = `https://github.com/${OWNER}/${REPO}/issues/new?labels=feedback&title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
-    if (url.length > MAX_URL) {
-      body = `${text.slice(0, 4000)}\n…(gekürzt – Rest bitte über „Kopieren“ einfügen)`;
-      url = `https://github.com/${OWNER}/${REPO}/issues/new?labels=feedback&title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
+    const suffix = parts > 1 ? ` (Teil ${part}/${parts})` : "";
+    const title = `Feedback: ${n("up")}× 👍, ${n("down")}× 👎, ${n("idea")}× 💡${suffix}`;
+    const body = `${text}\n\n<!-- techno-feedback v2 -->`;
+    return `https://github.com/${OWNER}/${REPO}/issues/new?labels=feedback&title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
+  }
+
+  /** Split the list into chunks whose issue URL stays below GitHub's length limit. */
+  function issueParts(list) {
+    const parts = [];
+    let cur = [];
+    for (const e of list) {
+      const next = cur.concat([e]);
+      if (cur.length && issueUrl(next, 9, 9).length > MAX_URL) {
+        parts.push(cur);
+        cur = [e];
+      } else {
+        cur = next;
+      }
     }
-    return url;
+    if (cur.length) parts.push(cur);
+    return parts;
   }
 
   async function copy(text) {
@@ -161,6 +197,7 @@
       box.innerHTML = `<p class="meta">Noch nichts gesammelt. Tippe beim Hören auf 👍 oder 👎 – die Stelle wird sofort hier gespeichert.</p>`;
       return;
     }
+    const parts = issueParts(list);
     box.innerHTML = `
       <ol class="fb-list">${list.map((e, i) => `
         <li><span class="fb-icon">${ICON[ratingOf(e)]}</span>
@@ -170,9 +207,9 @@
       <div class="fb-actions fb-export">
         <button class="btn" id="fb-copy">Kopieren</button>
         ${navigator.share ? `<button class="btn" id="fb-share">Teilen</button>` : ""}
-        <a class="btn" id="fb-issue" href="${esc(issueUrl(list))}" target="_blank" rel="noopener">Als GitHub-Issue</a>
+        ${parts.map((p, i) => `<a class="btn fb-issue" data-part="${i}" href="${esc(issueUrl(p, i + 1, parts.length))}" target="_blank" rel="noopener">Als GitHub-Issue${parts.length > 1 ? ` (Teil ${i + 1}/${parts.length})` : ""}</a>`).join("")}
       </div>
-      <p class="fb-hint">Kopieren/Teilen und z.B. in den Chat mit Claude einfügen – oder als ein GitHub-Issue senden (dort „Create“ tippen). <button class="linkbtn" id="fb-clear">Liste leeren</button></p>`;
+      <p class="fb-hint">Kopieren/Teilen und z.B. in den Chat mit Claude einfügen – oder als GitHub-Issue senden (dort „Create“ tippen). Gesendete Einträge verschwinden danach aus der Liste. <button class="linkbtn" id="fb-clear">Liste leeren</button></p>`;
     box.querySelectorAll(".fb-del").forEach((b) => b.addEventListener("click", () => {
       const l = load();
       l.splice(parseInt(b.dataset.i, 10), 1);
@@ -180,10 +217,22 @@
       renderInbox();
     }));
     box.querySelector("#fb-copy").addEventListener("click", async () => {
-      toast((await copy(exportText(load()))) ? "Kopiert – jetzt im Chat einfügen" : "Kopieren nicht möglich");
+      const l = load();
+      if (await copy(exportText(l))) removeSent(l);
+      else toast("Kopieren nicht möglich");
     });
     const share = box.querySelector("#fb-share");
-    if (share) share.addEventListener("click", () => navigator.share({ title: "Techno-Feedback", text: exportText(load()) }).catch(() => {}));
+    if (share) {
+      share.addEventListener("click", () => {
+        const l = load();
+        navigator.share({ title: "Techno-Feedback", text: exportText(l) }).then(() => removeSent(l)).catch(() => {});
+      });
+    }
+    box.querySelectorAll(".fb-issue").forEach((a) => a.addEventListener("click", () => {
+      const sent = parts[parseInt(a.dataset.part, 10)];
+      // Let the link open first, then drop the sent entries.
+      setTimeout(() => removeSent(sent), 400);
+    }));
     box.querySelector("#fb-clear").addEventListener("click", () => {
       if (confirm("Alle gesammelten Feedbacks löschen?")) {
         save([]);
@@ -198,6 +247,8 @@
     if (old.length && !load().length) {
       save(old.reverse().map((e) => ({ at: e.at, up: e.up, comment: e.comment, where: where(e.ctx || {}), ctx: e.ctx, engine: "0.2.0", profile: "hard_techno_simple", build: "" })));
     }
+    // Migrate only once: otherwise clearing the list would bring the old entries back.
+    localStorage.removeItem("techno-feedback-history");
   } catch (_) {}
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", renderInbox);
