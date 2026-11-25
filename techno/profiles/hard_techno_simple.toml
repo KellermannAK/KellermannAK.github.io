@@ -11,7 +11,11 @@ swing = [0.0, 0.04]
 
 [harmony]
 scales = { values = ["natural_minor", "phrygian", "harmonic_minor"], weights = [5.0, 3.0, 1.0] }
-progression_length = { values = [1, 2, 4], weights = [5.0, 3.0, 1.5] }
+# Dark techno: as little harmonic movement as possible. drone = tonic only, two = 0-x,
+# return = 0-x-0-0 (one excursion, back home), turn = 0-0-0-x, four = four roots (rare).
+progression = { values = ["drone", "two", "return", "turn", "four"], weights = [5.0, 3.0, 2.0, 2.0, 0.4] }
+# Root movement everywhere, or only in breakdowns (tonic drone elsewhere).
+harmony_scope = { values = ["everywhere", "breakdown_only"], weights = [1.0, 1.0] }
 bars_per_root = { values = [2, 4, 8], weights = [1.0, 3.0, 1.0] }
 # Degrees after the tonic: 1 = bII (phrygian), 3 = iv, 5 = VI, 6 = VII
 progression_degrees = { values = [5, 6, 3, 1], weights = [3.0, 3.0, 2.0, 1.0] }
@@ -25,19 +29,21 @@ passing_tone_prob = 0.0
 backbeat = { values = ["clap", "snare", "clap_snare"], weights = [4.0, 1.5, 2.0] }
 
 [drums.kick]
-styles = { values = ["hard", "punch", "distorted"], weights = [4.0, 2.0, 2.5] }
-tune_hz = [43.0, 58.0]
+# Dark: hard and distorted kicks, rarely the clicky 909-like punch.
+styles = { values = ["hard", "punch", "distorted"], weights = [4.0, 0.5, 2.0] }
+tune_hz = [40.0, 50.0]
 tune_to_key = true
 pitch_start_hz = [240.0, 380.0]
 pitch_decay = [0.022, 0.040]
-decay = [0.30, 0.42]
+decay = [0.34, 0.50]
 drive = [2.5, 5.0]
-click = [0.25, 0.55]
+click = [0.10, 0.30]
 
 [drums.hats]
 styles = { values = ["sixteenths", "offbeat", "euclid"], weights = [4.0, 2.0, 2.0] }
 euclid_hits = [7, 11]
-open_hat_prob = 0.8
+# Offbeat open hats sound housey; mostly left out (feedback: 1x up, 5x down).
+open_hat_prob = 0.25
 tone_hz = [7000.0, 9500.0]
 closed_decay = [0.025, 0.055]
 open_decay = [0.16, 0.30]
@@ -67,7 +73,8 @@ tone_hz = [70.0, 110.0]
 decay = [0.15, 0.30]
 
 [drums.ride]
-styles = { values = ["offbeat", "eighths", "quarters"], weights = [3.0, 2.0, 1.0] }
+# Ride in 8ths sounded too melodic in builds.
+styles = { values = ["offbeat", "eighths", "quarters"], weights = [3.0, 0.5, 1.5] }
 tone_hz = [5500.0, 8000.0]
 decay = [0.35, 0.65]
 
@@ -100,7 +107,8 @@ decay = [0.15, 0.35]
 detune = [0.05, 0.18]
 
 [lead]
-kinds = { values = ["acid", "hoover", "supersaw", "pluck"], weights = [4.0, 2.0, 2.0, 2.0] }
+# Keep acid rare: dark techno, not acid techno.
+kinds = { values = ["acid", "hoover", "supersaw", "pluck"], weights = [1.0, 2.0, 2.0, 3.0] }
 motif_bars = { values = [1, 2], weights = [2.0, 3.0] }
 density = [0.35, 0.65]
 slide_prob = 0.2
@@ -168,4 +176,20 @@ roll = { values = ["snare", "clap", "kick", "none"], weights = [3.0, 2.0, 1.5, 1
 build_highpass_prob = 0.5
 drop_style = { values = ["full", "bass_first", "stripped", "filter_open"], weights = [2.0, 2.0, 1.2, 1.5] }
 drop_impact = { values = ["impact_crash", "crash", "none"], weights = [2.0, 2.0, 1.0] }
+# Slow synth filter movement over grooves, drops and breakdowns (not on the bass: no acid).
+synth_filter = { values = ["static", "rise", "fall", "swell", "breathe"], weights = [1.0, 2.0, 1.0, 2.0, 2.0] }
+synth_filter_depth = 0.35
 threshold_jitter = 0.08
+
+[structure.variation]
+# Per 8-bar phrase. Variations instead of chord changes.
+lead_up = 0.15
+lead_thin = 0.2
+drop_perc = 0.3
+no_open_hat = 0.12
+# Synth one octave up in the last bar of the phrase.
+end_octave = 0.25
+# Stab / pad chord thinned to root and fifth.
+thin_chord = 0.3
+# Delay throw on the synth in the last beat of the phrase.
+delay_throw = 0.3

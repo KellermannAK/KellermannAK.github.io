@@ -144,8 +144,10 @@ pub struct TempoRules {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HarmonyRules {
     pub scales: Weighted<ScaleKind>,
-    /// Number of roots in the progression (1 = drone on the tonic).
-    pub progression_length: Weighted<u8>,
+    /// Shape of the root movement (drone = tonic only).
+    pub progression: Weighted<ProgressionShape>,
+    /// Where root movement happens: everywhere, or only in breakdowns (tonic elsewhere).
+    pub harmony_scope: Weighted<HarmonyScope>,
     pub bars_per_root: Weighted<u8>,
     /// Scale degrees allowed for progression roots after the first (which is always 0).
     pub progression_degrees: Weighted<i32>,
@@ -155,6 +157,28 @@ pub struct HarmonyRules {
     pub bass_steps: Weighted<i32>,
     /// Probability that a passing (non-scale) tone is allowed. v1 profile: 0.
     pub passing_tone_prob: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProgressionShape {
+    /// Tonic only.
+    Drone,
+    /// Tonic and one other root, alternating.
+    Two,
+    /// One excursion, then home: 0 x 0 0.
+    Return,
+    /// Turn at the end of the phrase: 0 0 0 x.
+    Turn,
+    /// Four different roots (very melodic, rare in dark techno).
+    Four,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HarmonyScope {
+    Everywhere,
+    BreakdownOnly,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

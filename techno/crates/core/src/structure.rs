@@ -142,6 +142,7 @@ pub struct SectionStyle {
     pub impact: DropImpact,
     /// One-bar pause (only riser and roll) right before this drop.
     pub pause_before: bool,
+    pub filter_shape: FilterShape,
 }
 
 impl Default for SectionStyle {
@@ -153,6 +154,7 @@ impl Default for SectionStyle {
             drop: DropStyle::Full,
             impact: DropImpact::ImpactCrash,
             pause_before: false,
+            filter_shape: FilterShape::Static,
         }
     }
 }
@@ -168,6 +170,37 @@ pub struct Variation {
     pub drop_perc: Option<Track>,
     /// Open hat left out for this phrase.
     pub no_open_hat: bool,
+    /// Synth one octave up in the last bar of the phrase (instead of a chord change).
+    pub end_octave: bool,
+    /// Stab and pad chords thinned to root and fifth for this phrase.
+    pub thin_chord: bool,
+    /// Delay throw on the synth in the last beat of the phrase.
+    pub delay_throw: bool,
+}
+
+/// How the synth filters move over a section (slow, never acid-like).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FilterShape {
+    Static,
+    Rise,
+    Fall,
+    /// Up and back down.
+    Swell,
+    /// Slow sine with an 8-bar period.
+    Breathe,
+}
+
+/// Per-phrase variation probabilities.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct VariationRules {
+    pub lead_up: f32,
+    pub lead_thin: f32,
+    pub drop_perc: f32,
+    pub no_open_hat: f32,
+    pub end_octave: f32,
+    pub thin_chord: f32,
+    pub delay_throw: f32,
 }
 
 /// What happens in one bar.
@@ -208,6 +241,8 @@ pub struct Automation {
     pub riser_progress: f32,
     /// Deck low-pass 0..1 (0 = open, 1 = ~250 Hz), used for filter-open drops.
     pub lowpass: f32,
+    /// Multiplier on the stab / arp cutoff and offset on the lead filter (slow movement).
+    pub synth_filter: f32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -233,6 +268,11 @@ pub struct StructureRules {
     pub build_highpass_prob: f32,
     pub drop_style: Weighted<DropStyle>,
     pub drop_impact: Weighted<DropImpact>,
+    /// Slow synth filter movement per groove / drop / breakdown.
+    pub synth_filter: Weighted<FilterShape>,
+    /// Depth of that movement (0.3 = cutoff moves by about +-30 %).
+    pub synth_filter_depth: f32,
+    pub variation: VariationRules,
     /// Per-song jitter of the energy thresholds at which tracks join.
     pub threshold_jitter: f32,
 }
@@ -286,6 +326,7 @@ pub struct SongPlan {
     pub palette: TrackSet,
     /// The short synth that carries the song.
     pub main_synth: Track,
+    filter_depth: f32,
     /// Short synth that replaces the main one in breakdowns, if any.
     pub alt_synth: Option<Track>,
 }
@@ -447,11 +488,21 @@ impl SongPlan {
 
         let mut variations = [Variation::default(); MAX_PHRASES];
         const PERC: [Track; 3] = [Track::Rim, Track::Tom, Track::Ride];
+        let vr = &r.variation;
         for v in variations.iter_mut() {
-            v.lead_up = rng.chance(0.2);
-            v.lead_thin = rng.chance(0.2);
-            v.drop_perc = rng.chance(0.3).then(|| PERC[rng.range_i32(0, 2) as usize]);
-            v.no_open_hat = rng.chance(0.12);
+            v.lead_up = rng.chance(vr.lead_up);
+            v.lead_thin = rng.chance(vr.lead_thin);
+            v.drop_perc = rng
+                .chance(vr.drop_perc)
+                .then(|| PERC[rng.range_i32(0, 2) as usize]);
+            v.no_open_hat = rng.chance(vr.no_open_hat);
+        }
+        // Newer variations draw from their own stream (keeps the older ones stable).
+        let mut vrng = rng.fork("variation2");
+        for v in variations.iter_mut() {
+            v.end_octave = vrng.chance(vr.end_octave);
+            v.thin_chord = vrng.chance(vr.thin_chord);
+            v.delay_throw = vrng.chance(vr.delay_throw);
         }
 
         // Styles come from their own stream so they do not reshuffle the structure.
@@ -465,7 +516,12 @@ impl SongPlan {
                 drop: r.drop_style.pick(&mut st),
                 impact: r.drop_impact.pick(&mut st),
                 pause_before: st.chance(r.drop_pause_prob),
+                filter_shape: FilterShape::Static,
             };
+        }
+        let mut fst = rng.fork("filter-shapes");
+        for style in styles.iter_mut() {
+            style.filter_shape = r.synth_filter.pick(&mut fst);
         }
 
         SongPlan {
@@ -478,6 +534,7 @@ impl SongPlan {
             palette,
             main_synth,
             alt_synth,
+            filter_depth: r.synth_filter_depth,
         }
     }
 
@@ -587,7 +644,12 @@ impl SongPlan {
             }
             SectionKind::Build => {
                 build_progress = sb as f32 / s.bars as f32;
-                let mut a = by_energy(energy).minus(TrackSet::of(&[Pad, Tom]));
+                // Builds thin out instead of piling up: no ride, rim, open hat or pad;
+                // the last quarter also drops the clap so riser and roll carry the tension.
+                let mut a = by_energy(energy).minus(TrackSet::of(&[Pad, Tom, Ride, Rim, HatOpen]));
+                if left * 4 <= s.bars {
+                    a = a.without(Clap);
+                }
                 if style.riser != RiserKind::None {
                     a = a.with(Riser);
                 }
@@ -725,9 +787,25 @@ impl SongPlan {
             riser: 0.0,
             riser_progress: 0.0,
             lowpass: 0.0,
+            synth_filter: 1.0,
         };
         let style = self.styles[idx];
         let into_drop = self.next_kind(idx) == Some(SectionKind::Drop);
+        if matches!(
+            s.kind,
+            SectionKind::Groove | SectionKind::Drop | SectionKind::Breakdown
+        ) {
+            let d = self.filter_depth;
+            let sb = pos_bars - s.start as f32;
+            let m = match style.filter_shape {
+                FilterShape::Static => 0.0,
+                FilterShape::Rise => 2.0 * x - 1.0,
+                FilterShape::Fall => 1.0 - 2.0 * x,
+                FilterShape::Swell => (x * core::f32::consts::PI).sin() * 2.0 - 1.0,
+                FilterShape::Breathe => (sb / 8.0 * core::f32::consts::TAU).sin(),
+            };
+            a.synth_filter = 1.0 + d * m;
+        }
         match s.kind {
             SectionKind::Intro => {
                 a.bass_filter = lerp(0.35, 0.6);
@@ -740,7 +818,8 @@ impl SongPlan {
                 a.bass_filter = (0.75 + x * 2.0).min(1.0);
             }
             SectionKind::Build => {
-                a.lead_filter = lerp(0.35, 1.0);
+                // Gentle opening only: a full sweep on a resonant lead sounds like acid.
+                a.lead_filter = lerp(0.6, 0.85);
                 a.fx_send = lerp(1.0, 1.8);
                 if style.riser != RiserKind::None {
                     a.riser = x * x;

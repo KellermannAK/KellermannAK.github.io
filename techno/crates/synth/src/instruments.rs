@@ -208,7 +208,7 @@ pub struct Cymbal {
 
 impl Cymbal {
     pub fn ride(p: ToneParams, sr: f32) -> Cymbal {
-        Cymbal::new(p.tone_hz, p.decay, 0.25, 0x51DE, sr)
+        Cymbal::new(p.tone_hz, p.decay, 0.6, 0x51DE, sr)
     }
 
     pub fn crash(sr: f32) -> Cymbal {
@@ -668,6 +668,8 @@ pub struct Stab {
     voices: [StabVoice; STAB_VOICES],
     next: usize,
     detune: f32,
+    /// External cutoff multiplier (slow filter movement from the arrangement).
+    pub filter_mul: f32,
 }
 
 impl Stab {
@@ -693,6 +695,7 @@ impl Stab {
             voices,
             next: 0,
             detune: 2f32.powf(p.detune / 12.0),
+            filter_mul: 1.0,
         }
     }
 
@@ -716,7 +719,8 @@ impl Stab {
                 continue;
             }
             let x = v.a.saw(v.freq * self.detune, sr) + v.b.saw(v.freq / self.detune, sr);
-            let cutoff = self.p.cutoff_hz * (1.0 + self.p.env_mod * v.fenv.next());
+            let cutoff =
+                self.p.cutoff_hz * self.filter_mul * (1.0 + self.p.env_mod * v.fenv.next());
             v.filt.set(cutoff, 0.3, sr);
             out += v.filt.lp(x) * v.amp.next() * v.vel;
         }

@@ -17,6 +17,8 @@ pub struct ChannelSettings {
 /// Mono-in channel strip with click-free on/off (smoothed level) and sends.
 pub struct Channel {
     pub settings: ChannelSettings,
+    /// Extra delay send on top of the setting (delay throws).
+    pub delay_boost: f32,
     level: Smoother,
     hp: Option<Svf>,
     hp_r: Option<Svf>,
@@ -39,6 +41,7 @@ impl Channel {
         let hp_r = hp.clone();
         Channel {
             settings,
+            delay_boost: 0.0,
             level: Smoother::new(0.0, 0.008, sr),
             hp,
             hp_r,
@@ -65,7 +68,7 @@ impl Channel {
         ChannelOut {
             l: y * self.pan_l,
             r: y * self.pan_r,
-            delay: y * s.delay_send,
+            delay: y * (s.delay_send + self.delay_boost),
             reverb: y * s.reverb_send,
         }
     }
@@ -85,7 +88,7 @@ impl Channel {
         ChannelOut {
             l: yl * self.pan_l * core::f32::consts::SQRT_2,
             r: yr * self.pan_r * core::f32::consts::SQRT_2,
-            delay: m * s.delay_send,
+            delay: m * (s.delay_send + self.delay_boost),
             reverb: m * s.reverb_send,
         }
     }

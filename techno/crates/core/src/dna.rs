@@ -8,11 +8,11 @@
 use crate::euclid::{euclid, Pattern};
 use crate::markov::next_degree;
 use crate::profile::{
-    ArpPattern, Backbeat, BassRhythm, ChordShape, HatStyle, KickStyle, LeadKind, LongLayer,
-    Profile, RideStyle, ShortSynth,
+    ArpPattern, Backbeat, BassRhythm, ChordShape, HarmonyScope, HatStyle, KickStyle, LeadKind,
+    LongLayer, Profile, ProgressionShape, RideStyle, ShortSynth,
 };
 use crate::rng::Rng;
-use crate::structure::{SongPlan, SHORT_SYNTHS};
+use crate::structure::{SectionKind, SongPlan, SHORT_SYNTHS};
 use crate::theory::{is_harsh_interval, midi_to_hz, Key, ScaleKind};
 use crate::time::STEPS_PER_BAR;
 use crate::tracks::{Track, TrackSet};
@@ -101,6 +101,8 @@ pub struct Progression {
     pub roots: [i8; MAX_PROGRESSION],
     pub count: u8,
     pub bars_per_root: u8,
+    /// Roots only move in breakdowns; everywhere else the tonic is held.
+    pub breakdown_only: bool,
 }
 
 impl Progression {
@@ -282,6 +284,17 @@ pub fn bass_base_midi(key: Key) -> i32 {
 }
 
 impl SongDna {
+    /// Progression root (scale degree) at a bar, honouring the harmony scope.
+    #[inline]
+    pub fn root_at(&self, bar: u32) -> i32 {
+        if self.progression.breakdown_only
+            && self.plan.section_at(bar).kind != SectionKind::Breakdown
+        {
+            return 0;
+        }
+        self.progression.root_at_bar(bar)
+    }
+
     pub fn generate(seed: u64, profile: &Profile) -> SongDna {
         SongDna::generate_with(seed, profile, Constraints::default())
     }
@@ -403,7 +416,7 @@ impl SongDna {
             "seed       {}\n\
              tempo      {} BPM, swing {:.2}\n\
              key        {} ({})\n\
-             roots      [{}] x {} bars\n\
+             roots      [{}] x {} bars{}\n\
              kick       {}   tune {:.1} Hz, drive {:.1}\n\
              hat closed {}   style {:?}\n\
              hat open   {}\n\
@@ -427,6 +440,11 @@ impl SongDna {
             self.key.camelot_code(),
             roots.join(", "),
             self.progression.bars_per_root,
+            if self.progression.breakdown_only {
+                " (breakdowns only)"
+            } else {
+                ""
+            },
             d.kick.to_string_grid(),
             self.sound.kick.tune_hz,
             self.sound.kick.drive,
@@ -467,7 +485,14 @@ impl SongDna {
 
 fn gen_progression(rng: &mut Rng, p: &Profile, key: Key) -> Progression {
     let h = &p.harmony;
-    let count = (h.progression_length.pick(rng) as usize).clamp(1, MAX_PROGRESSION);
+    let mut shape_rng = rng.fork("shape");
+    let shape = h.progression.pick(&mut shape_rng);
+    let breakdown_only = h.harmony_scope.pick(&mut shape_rng) == HarmonyScope::BreakdownOnly;
+    let count = match shape {
+        ProgressionShape::Drone => 1,
+        ProgressionShape::Two => 2,
+        _ => 4,
+    };
     let bars_per_root = h.bars_per_root.pick(rng).max(1);
     let mut roots = [0i8; MAX_PROGRESSION];
 
@@ -500,10 +525,24 @@ fn gen_progression(rng: &mut Rng, p: &Profile, key: Key) -> Progression {
             0
         };
     }
+    // Shapes with a single excursion keep the tonic in the other slots.
+    match shape {
+        ProgressionShape::Return => {
+            roots[2] = 0;
+            roots[3] = 0;
+        }
+        ProgressionShape::Turn => {
+            roots[3] = roots[1];
+            roots[1] = 0;
+            roots[2] = 0;
+        }
+        _ => {}
+    }
     Progression {
         roots,
         count: count as u8,
         bars_per_root,
+        breakdown_only: breakdown_only && count > 1,
     }
 }
 
@@ -1089,6 +1128,40 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn harmony_is_sparse() {
+        // Dark techno: four distinct roots are rare, and breakdown-only harmony holds the tonic
+        // outside breakdowns.
+        let p = Profile::hard_techno_simple();
+        let mut four = 0;
+        let mut moving_bars = 0;
+        let mut bars = 0;
+        let n = 500;
+        for seed in 0..n {
+            let dna = SongDna::generate(seed, &p);
+            let distinct: std::collections::HashSet<i8> =
+                dna.progression.roots().iter().copied().collect();
+            four += (distinct.len() >= 4) as u32;
+            for bar in 0..dna.plan.total_bars {
+                bars += 1;
+                moving_bars += (dna.root_at(bar) != 0) as u32;
+                if dna.progression.breakdown_only
+                    && dna.plan.section_at(bar).kind != SectionKind::Breakdown
+                {
+                    assert_eq!(dna.root_at(bar), 0);
+                }
+            }
+        }
+        assert!(
+            four * 20 < n as u32,
+            "four-root progressions should be rare: {four}/{n}"
+        );
+        assert!(
+            moving_bars * 4 < bars,
+            "the tonic should dominate: {moving_bars}/{bars}"
+        );
     }
 
     #[test]

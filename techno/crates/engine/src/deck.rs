@@ -38,19 +38,19 @@ fn channel_settings(t: Track, dna: &SongDna) -> ChannelSettings {
         //                       gain   pan   sc    dly   rev   hp
         Track::Kick => settings(0.95, 0.0, 0.0, 0.0, 0.0, 0.0),
         Track::Rumble => settings(0.30 * dna.sound.rumble.amount, 0.0, 1.0, 0.0, 0.0, 0.0),
-        Track::Bass => settings(0.40, 0.0, sc, 0.0, 0.0, 30.0),
+        Track::Bass => settings(0.35, 0.0, sc, 0.0, 0.0, 30.0),
         Track::HatClosed => settings(0.24, 0.15, 0.15, 0.0, 0.04, 0.0),
         Track::HatOpen => settings(0.20, -0.12, 0.3, 0.0, 0.06, 0.0),
         Track::Clap => settings(0.30, 0.0, 0.0, 0.04, 0.16, 180.0),
         Track::Snare => settings(0.30, 0.0, 0.0, 0.0, 0.14, 120.0),
         Track::Rim => settings(0.10, -0.35, 0.2, 0.04, 0.08, 250.0),
         Track::Tom => settings(0.15, 0.25, 0.3, 0.0, 0.08, 50.0),
-        Track::Ride => settings(0.12, 0.3, 0.2, 0.0, 0.06, 0.0),
+        Track::Ride => settings(0.09, 0.3, 0.2, 0.0, 0.06, 0.0),
         Track::Crash => settings(0.16, -0.2, 0.2, 0.0, 0.08, 0.0),
         Track::Stab => settings(0.22, 0.0, sc * 0.8, 0.28, 0.22, 250.0),
         Track::Lead => settings(0.14, 0.0, sc * 0.7, 0.16, 0.10, 180.0),
         Track::Pad => settings(0.18, 0.0, sc * 0.9, 0.0, 0.30, 200.0),
-        Track::Arp => settings(0.38, 0.2, sc * 0.8, 0.35, 0.15, 250.0),
+        Track::Arp => settings(0.6, 0.2, sc * 0.8, 0.18, 0.08, 250.0),
         Track::Drone => settings(0.08, 0.0, sc, 0.05, 0.25, 90.0),
         Track::Riser => settings(0.20, 0.0, 0.0, 0.10, 0.25, 150.0),
         Track::Impact => settings(0.45, 0.0, 0.0, 0.0, 0.35, 0.0),
@@ -116,6 +116,7 @@ pub struct Deck {
 
     // Automation, smoothed per sample.
     lead_filter: Smoother,
+    synth_filter: Smoother,
     bass_filter: Smoother,
     highpass: Smoother,
     fx_send: Smoother,
@@ -124,6 +125,7 @@ pub struct Deck {
     lowpass: Smoother,
     lp_l: Svf,
     lp_r: Svf,
+    throw_active: bool,
     hp_l: Svf,
     hp_r: Svf,
     sr: f32,
@@ -215,11 +217,13 @@ impl Deck {
             prev_lead_slide: false,
             pad_root: None,
             lead_filter: Smoother::new(0.0, 0.3, sr),
+            synth_filter: Smoother::new(1.0, 0.5, sr),
             bass_filter: Smoother::new(0.5, 0.3, sr),
             highpass: Smoother::new(0.0, 0.1, sr),
             fx_send: Smoother::new(1.0, 0.5, sr),
             riser_level: Smoother::new(0.0, 0.05, sr),
             riser_progress: 0.0,
+            throw_active: false,
             hp_l: Svf::new(20.0, 0.0, sr),
             hp_r: Svf::new(20.0, 0.0, sr),
             lowpass: Smoother::new(0.0, 0.1, sr),
@@ -273,6 +277,7 @@ impl Deck {
 
     fn apply_automation(&mut self, a: Automation) {
         self.lead_filter.target = a.lead_filter;
+        self.synth_filter.target = a.synth_filter;
         self.bass_filter.target = a.bass_filter;
         self.highpass.target = a.highpass;
         self.fx_send.target = a.fx_send;
@@ -291,7 +296,7 @@ impl Deck {
 
         // Pad follows the progression root, one chord per root change.
         if self.plan.active.contains(Track::Pad) {
-            let root = fold_root(self.dna.progression.root_at_bar(bar));
+            let root = fold_root(self.dna.root_at(bar));
             if self.pad_root != Some(root) {
                 let mut buf = [0.0f32; 4];
                 let n = self.chord_freqs(
@@ -309,7 +314,7 @@ impl Deck {
         }
 
         if self.plan.active.contains(Track::Drone) {
-            let root = fold_root(self.dna.progression.root_at_bar(bar));
+            let root = fold_root(self.dna.root_at(bar));
             let midi = self.bass_base + 12 + self.dna.key.degree_to_semitone(root);
             self.drone.play(midi_to_hz(midi as f32));
         } else {
@@ -324,12 +329,20 @@ impl Deck {
         base_midi: i32,
         out: &mut [f32; 4],
     ) -> usize {
-        let degs = shape.degrees();
-        for (i, d) in degs.iter().enumerate().take(4) {
+        // Thinned chords keep only root, fifth and octave.
+        let thin = self.plan.variation.thin_chord;
+        let mut n = 0;
+        for d in shape
+            .degrees()
+            .iter()
+            .filter(|d| !thin || matches!(**d, 0 | 4 | 7))
+            .take(4)
+        {
             let midi = base_midi + self.dna.key.degree_to_semitone(root + d);
-            out[i] = midi_to_hz(midi as f32);
+            out[n] = midi_to_hz(midi as f32);
+            n += 1;
         }
-        degs.len().min(4)
+        n
     }
 
     fn note_freq(&self, base_midi: i32, root: i32, n: &Note) -> f32 {
@@ -342,7 +355,7 @@ impl Deck {
         let d = self.dna.drums;
         let abs = bar as u64 * 16 + step as u64;
         let abs32 = abs as u32;
-        let root = fold_root(self.dna.progression.root_at_bar(bar));
+        let root = fold_root(self.dna.root_at(bar));
         let in_fill = step >= plan.fill.starts_at();
         let rolling = plan.roll_every > 0 || (plan.fill == Fill::Roll && in_fill);
 
@@ -454,7 +467,7 @@ impl Deck {
                 let k = self.chord_freqs(
                     root,
                     self.dna.sound.stab.chord,
-                    self.bass_base + 24,
+                    self.bass_base + 24 + self.end_octave(bar),
                     &mut buf,
                 );
                 let k = k.min(self.dna.sound.stab.notes.max(1) as usize);
@@ -471,7 +484,7 @@ impl Deck {
                 .at(abs32)
                 .filter(|_| !(v.lead_thin && step % 2 == 1));
             if let Some(n) = note {
-                let octave = if v.lead_up { 12 } else { 0 };
+                let octave = if v.lead_up { 12 } else { 0 } + self.end_octave(bar);
                 let f = self.note_freq(self.bass_base + 24 + octave, root, &n);
                 let len = n.len as f32 * self.step_samples;
                 let hold = match self.dna.sound.lead.kind {
@@ -489,14 +502,23 @@ impl Deck {
         }
     }
 
+    /// +12 semitones in the last bar of a phrase that has the end-octave variation.
+    fn end_octave(&self, bar: u32) -> i32 {
+        if self.plan.variation.end_octave && bar % 8 == 7 {
+            12
+        } else {
+            0
+        }
+    }
+
     fn on_arp(&mut self, bar: u32, step: u32) {
         if !self.plan.active.contains(Track::Arp) {
             return;
         }
         let abs = bar * 16 + step;
         if let Some(n) = self.dna.arp.at(abs) {
-            let root = fold_root(self.dna.progression.root_at_bar(bar));
-            let f = self.note_freq(self.bass_base + 36, root, &n);
+            let root = fold_root(self.dna.root_at(bar));
+            let f = self.note_freq(self.bass_base + 36 + self.end_octave(bar), root, &n);
             self.arp.trigger_chord(&[f], n.velocity);
         }
     }
@@ -515,6 +537,7 @@ impl Deck {
         }
         let trigger_at = if step % 2 == 1 { self.swing_ticks } else { 0 };
         if tis == trigger_at {
+            self.throw_active = self.plan.variation.delay_throw && t.bar() % 8 == 7 && step >= 12;
             self.on_step(t.bar(), step);
             self.on_arp(t.bar(), step);
         }
@@ -531,7 +554,15 @@ impl Deck {
         self.until_tick -= 1.0;
 
         let duck = self.duck.next();
-        self.lead.filter_open = self.lead_filter.next();
+        let sf = self.synth_filter.next();
+        self.lead.filter_open = (self.lead_filter.next() * sf).clamp(0.0, 1.3);
+        self.stab.filter_mul = sf;
+        self.arp.filter_mul = sf;
+        // Delay throw: synth delay sends open up in the last beat of a phrase.
+        let throw = if self.throw_active { 0.45 } else { 0.0 };
+        for t in [Track::Lead, Track::Arp, Track::Stab] {
+            self.channels[t.index()].delay_boost = throw;
+        }
         self.bass.filter_mul = self.bass_filter.next();
         let fx_send = self.fx_send.next();
         let riser_level = self.riser_level.next();
