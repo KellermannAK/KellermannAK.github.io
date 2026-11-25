@@ -220,7 +220,7 @@
   <h2>Mixes</h2>
   <div id="mixes"><p class="meta">Lade…</p></div>
 
-  <h2>Einzelne Songs</h2>
+  <h2 id="songs-title">Einzelne Songs</h2>
   <div id="songs"></div>
 
   <footer id="foot"></footer>
@@ -249,15 +249,19 @@
     return r.json();
   }
 
-  function mixCard(seed, set) {
+  function mixCard(seed, set, meta, newest) {
     const el = document.createElement("section");
     el.className = "card";
     const songs = set.songs || [];
+    const build = (meta.commit || "").slice(0, 7);
+    const date = meta.built ? new Date(meta.built.replace("Z", ":00Z")).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
     el.innerHTML = `
       <div class="head">
         <span class="title">Mix #${seed}</span>
         <span class="meta">${songs.length} Songs · ${set.bpm} BPM · ${mmss(set.duration)}</span>
+        ${newest ? '<span class="pill">neu</span>' : ""}
       </div>
+      ${build ? `<p class="meta" style="margin:-6px 0 10px;font-size:.85rem">Build ${esc(build)}${date ? " · " + esc(date) : ""}</p>` : ""}
       <audio controls preload="none" src="audio/mix-${seed}.mp3"></audio>
       <div class="fb-row">
         <span class="label">Feedback zur aktuellen Stelle</span>
@@ -283,7 +287,7 @@
       songs.forEach((s, i) => { if (t >= s.start) cur = i; });
       const s = songs[cur] || {};
       window.TechnoFeedback && window.TechnoFeedback.open({
-        source: "Mix", mixSeed: seed, mixSongs: songs.length, songIndex: cur, songSeed: s.seed,
+        source: "Mix", mixSeed: seed, mixSongs: songs.length, songIndex: cur, songSeed: s.seed, build,
         key: deKey(s.key), camelot: s.camelot, bpm: set.bpm, time: mmss(t),
       }, b.dataset.r);
     }));
@@ -335,9 +339,13 @@
       return;
     }
     mixBox.innerHTML = "";
-    for (const seed of index.mixes || []) {
+    let first = true;
+    for (const m of index.mixes || []) {
+      const seed = typeof m === "object" ? m.seed : m;
+      const meta = typeof m === "object" ? m : {};
       try {
-        mixBox.appendChild(mixCard(seed, await getJson(`audio/mix-${seed}.json`)));
+        mixBox.appendChild(mixCard(seed, await getJson(`audio/mix-${seed}.json`), meta, first && !!meta.commit));
+        first = false;
       } catch (e) {
         mixBox.insertAdjacentHTML("beforeend", `<p class="err">Mix ${seed} fehlt.</p>`);
       }
@@ -356,6 +364,11 @@
       mixBox.insertAdjacentHTML("afterbegin", '<p class="meta" style="margin:0 0 12px">Die Mixes laufen nacheinander endlos durch – gut als Alternative, falls das Live-Set auf einem Gerät ruckelt.</p>');
     }
     for (const seed of index.seeds || []) songBox.appendChild(await songCard(seed));
+    // Single songs are no longer published; hide the section when empty.
+    if (!(index.seeds || []).length) {
+      songBox.hidden = true;
+      document.getElementById("songs-title").hidden = true;
+    }
 
     const sha = (index.commit || "").slice(0, 7);
     document.getElementById("foot").innerHTML =

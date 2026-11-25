@@ -29,7 +29,7 @@ cargo build --release
 ./target/release/techno render --seed 42 --start-bar 96 --bars 8 --solo bass,lead --out dbg.wav
 ./target/release/techno render --seed 42 --start-bar 96 --bars 8 --solo lead --no-fx   # A/B without inserts
 cargo test
-scripts/build_site.sh /tmp/site 1 7                      # preview site (needs ffmpeg)
+PREV_URL= MIX_SONGS=2 scripts/build_site.sh /tmp/site     # site with one new mix (needs ffmpeg)
 ```
 
 Listening feedback: the site has thumbs up / down buttons (live set and mixes). They capture
@@ -55,7 +55,7 @@ realtime on a desktop core (`node` benchmark, `cargo run --release -p techno-web
 
 ```sh
 cargo build --release -p techno-web --target wasm32-unknown-unknown   # -> techno_web.wasm
-MIXES=" " scripts/build_site.sh /tmp/site                             # site without mixes
+PREV_URL= MIX_SONGS=1 scripts/build_site.sh /tmp/site                # quick local site
 ```
 
 Known limit: browsers (iOS in particular) do not reliably keep Web Audio running with the

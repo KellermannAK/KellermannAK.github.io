@@ -109,7 +109,8 @@
         ctx: d.ctx,
         engine: build.version.engine,
         profile: build.version.profile,
-        build: (build.commit || "").slice(0, 7),
+        // Mixes from the archive carry the build they were rendered with.
+        build: d.ctx.build || (build.commit || "").slice(0, 7),
       });
       save(list);
       d.close();

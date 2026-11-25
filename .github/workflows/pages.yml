@@ -34,9 +34,11 @@ jobs:
       - run: cargo build --release
       - run: cargo build --release -p techno-web --target wasm32-unknown-unknown
       - run: sudo apt-get install -y -qq ffmpeg >/dev/null
-      - run: scripts/build_site.sh ../_site 1 7 42 2026
+      # One new 10-song mix per push; previous push mixes are taken over from the live site.
+      - run: scripts/build_site.sh ../_site
         env:
-          MIXES: "7:5 2026:4"
+          MIX_SONGS: "10"
+          KEEP: "6"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
