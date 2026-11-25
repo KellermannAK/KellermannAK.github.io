@@ -1,7 +1,7 @@
 // Supabase connection: anonymous session for every visitor, optional e-mail account,
 // feedback storage. Disabled (and the site works as before) while no anon key is configured.
 const cfg = window.TECHNO_CONFIG || {};
-const SDK = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
+const SDK = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/+esm";
 let client = null;
 let ready = null;
 
