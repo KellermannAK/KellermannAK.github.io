@@ -243,6 +243,8 @@ pub struct Automation {
     pub lowpass: f32,
     /// Multiplier on the stab / arp cutoff and offset on the lead filter (slow movement).
     pub synth_filter: f32,
+    /// Insert effect intensity multiplier.
+    pub fx_amount: f32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -327,6 +329,7 @@ pub struct SongPlan {
     /// The short synth that carries the song.
     pub main_synth: Track,
     filter_depth: f32,
+    fx_boost: f32,
     /// Short synth that replaces the main one in breakdowns, if any.
     pub alt_synth: Option<Track>,
 }
@@ -535,6 +538,7 @@ impl SongPlan {
             main_synth,
             alt_synth,
             filter_depth: r.synth_filter_depth,
+            fx_boost: profile.fx.breakdown_boost,
         }
     }
 
@@ -788,6 +792,7 @@ impl SongPlan {
             riser_progress: 0.0,
             lowpass: 0.0,
             synth_filter: 1.0,
+            fx_amount: 1.0,
         };
         let style = self.styles[idx];
         let into_drop = self.next_kind(idx) == Some(SectionKind::Drop);
@@ -820,6 +825,7 @@ impl SongPlan {
             SectionKind::Build => {
                 // Gentle opening only: a full sweep on a resonant lead sounds like acid.
                 a.lead_filter = lerp(0.6, 0.85);
+                a.fx_amount = lerp(1.0, 0.5 + 0.5 * self.fx_boost);
                 a.fx_send = lerp(1.0, 1.8);
                 if style.riser != RiserKind::None {
                     a.riser = x * x;
@@ -833,6 +839,7 @@ impl SongPlan {
             SectionKind::Breakdown => {
                 a.lead_filter = lerp(0.15, 0.55);
                 a.fx_send = 2.2;
+                a.fx_amount = self.fx_boost;
                 if into_drop {
                     // Short run-up over the last 4 bars.
                     let run = ((pos_bars - (s.end() as f32 - 4.0)) / 4.0).clamp(0.0, 1.0);

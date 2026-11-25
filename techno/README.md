@@ -27,6 +27,7 @@ cargo build --release
 ./target/release/techno info   --seed 42                 # song DNA and structure
 ./target/release/techno render --seed 42 --out 42.wav    # one song, ~5-7 min
 ./target/release/techno render --seed 42 --start-bar 96 --bars 8 --solo bass,lead --out dbg.wav
+./target/release/techno render --seed 42 --start-bar 96 --bars 8 --solo lead --no-fx   # A/B without inserts
 cargo test
 scripts/build_site.sh /tmp/site 1 7                      # preview site (needs ffmpeg)
 ```

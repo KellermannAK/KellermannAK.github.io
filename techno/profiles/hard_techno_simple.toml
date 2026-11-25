@@ -152,6 +152,17 @@ long_layer = { values = ["pad", "drone", "none"], weights = [3.0, 2.0, 1.0] }
 # Notes per stab hit: 1 = single tone, 4 = full chord.
 stab_notes = 4
 
+[fx]
+# Insert effects, chosen per song. "none" keeps it dry.
+synth_insert = { values = ["none", "chorus", "phaser", "crusher", "tremolo", "tape"], weights = [2.0, 2.0, 2.0, 0.8, 1.0, 2.0] }
+layer_insert = { values = ["none", "chorus", "phaser", "tape"], weights = [2.0, 3.0, 1.5, 1.5] }
+hat_phaser_prob = 0.25
+lfo_rate = [0.05, 0.4]
+tremolo_beats = { values = [0.5, 1.0, 2.0], weights = [1.0, 2.0, 1.0] }
+depth = [0.4, 0.9]
+# Effects open up in breakdowns and rise through builds.
+breakdown_boost = 1.5
+
 [mix]
 sidechain_depth = [0.6, 0.9]
 sidechain_release = [0.12, 0.22]

@@ -22,9 +22,11 @@ changing the profile or the arrangement, so earlier decisions are not undone by 
 
 ## Open observations
 
-- Sound design repertoire is still small (listener feedback). Candidates: chorus / phaser on
-  synths, tape saturation, bit crushing, stereo widening, reverb swells, filter LFOs, more
-  sidechain shapes, noise textures. See RULESETS.md for how new modules should be added
+- Sound design repertoire is still small (listener feedback). Done (0.2.0, round 3): insert
+  effects chorus, phaser, crusher, tremolo/autopan, tape on the short synths and the long
+  layer, phased hats, effect intensity up in breakdowns and builds, synth filter movement,
+  delay throws. Still open: stereo widening, reverb swells, more sidechain shapes, noise /
+  atmosphere textures, filter LFOs on percussion. See RULESETS.md for how new modules should be added
   (versioned, append-only once a genre is frozen).
 
 - The favourite has no breakdown, but breakdowns are liked in other songs ("almost like a

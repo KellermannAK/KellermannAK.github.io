@@ -8,8 +8,8 @@
 use crate::euclid::{euclid, Pattern};
 use crate::markov::next_degree;
 use crate::profile::{
-    ArpPattern, Backbeat, BassRhythm, ChordShape, HarmonyScope, HatStyle, KickStyle, LeadKind,
-    LongLayer, Profile, ProgressionShape, RideStyle, ShortSynth,
+    ArpPattern, Backbeat, BassRhythm, ChordShape, HarmonyScope, HatStyle, InsertKind, KickStyle,
+    LeadKind, LongLayer, Profile, ProgressionShape, RideStyle, ShortSynth,
 };
 use crate::rng::Rng;
 use crate::structure::{SectionKind, SongPlan, SHORT_SYNTHS};
@@ -232,8 +232,25 @@ pub struct DroneParams {
     pub detune: f32,
 }
 
+/// One insert effect as chosen for a song.
+#[derive(Clone, Copy, Debug)]
+pub struct InsertSpec {
+    pub kind: InsertKind,
+    /// LFO rate (Hz) or tremolo cycle (beats).
+    pub rate: f32,
+    pub depth: f32,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct FxParams {
+    pub synth: InsertSpec,
+    pub layer: InsertSpec,
+    pub hats: InsertSpec,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct SoundParams {
+    pub fx: FxParams,
     /// Arp voice reuses the stab synth; `chord` is the arpeggiated chord.
     pub arp: StabParams,
     pub drone: DroneParams,
@@ -371,6 +388,7 @@ impl SongDna {
             palette = palette.with(t);
         }
         sound.stab.notes = sr.stab_notes.max(1);
+        sound.fx = gen_fx(&mut root.fork("fx"), profile);
         let (arp, arp_sound) = gen_arp(&mut root.fork("arp"), profile);
         sound.arp = arp_sound;
         let mut r = root.fork("drone");
@@ -430,6 +448,7 @@ impl SongDna {
              pad        chord {:?}\n\
              arp        {}   chord {:?}\n\
              sounds     kick {:?}, lead {:?}, backbeat {:?}\n\
+             fx         synth {:?}, layer {:?}, hats {:?}\n\
              synths     main {}, breakdown {}\n\
              palette    {}\n\
              (motif digits = scale degree above root, a/b/c.. = 1/2/3.. below)",
@@ -467,6 +486,9 @@ impl SongDna {
             self.sound.kick.style,
             self.sound.lead.kind,
             self.drums.backbeat,
+            self.sound.fx.synth.kind,
+            self.sound.fx.layer.kind,
+            self.sound.fx.hats.kind,
             self.plan.main_synth.name(),
             self.plan.alt_synth.map(|t| t.name()).unwrap_or("same"),
             self.plan
@@ -849,6 +871,34 @@ fn gen_arp(rng: &mut Rng, p: &Profile) -> (Motif, StabParams) {
     (m, params)
 }
 
+fn gen_fx(rng: &mut Rng, p: &Profile) -> FxParams {
+    let f = &p.fx;
+    let spec = |rng: &mut Rng, kind: InsertKind| {
+        let rate = if kind == InsertKind::Tremolo {
+            f.tremolo_beats.pick(rng)
+        } else {
+            rng.in_range(f.lfo_rate)
+        };
+        InsertSpec {
+            kind,
+            rate,
+            depth: rng.in_range(f.depth),
+        }
+    };
+    let synth_kind = f.synth_insert.pick(rng);
+    let layer_kind = f.layer_insert.pick(rng);
+    let hats_kind = if rng.chance(f.hat_phaser_prob) {
+        InsertKind::Phaser
+    } else {
+        InsertKind::None
+    };
+    FxParams {
+        synth: spec(rng, synth_kind),
+        layer: spec(rng, layer_kind),
+        hats: spec(rng, hats_kind),
+    }
+}
+
 fn nearest_chord_tone(d: i32) -> i32 {
     const TONES: [i32; 6] = [-3, 0, 2, 4, 7, 9];
     *TONES.iter().min_by_key(|t| (d - **t).abs()).unwrap()
@@ -899,6 +949,23 @@ fn gen_sound(rng: &mut Rng, p: &Profile, key: Key) -> SoundParams {
         kick_tune = kick_tune_for_key(key, d.kick.tune_hz);
     }
     SoundParams {
+        fx: FxParams {
+            synth: InsertSpec {
+                kind: InsertKind::None,
+                rate: 0.0,
+                depth: 0.0,
+            },
+            layer: InsertSpec {
+                kind: InsertKind::None,
+                rate: 0.0,
+                depth: 0.0,
+            },
+            hats: InsertSpec {
+                kind: InsertKind::None,
+                rate: 0.0,
+                depth: 0.0,
+            },
+        },
         arp: StabParams {
             chord: ChordShape::Triad,
             notes: 1,

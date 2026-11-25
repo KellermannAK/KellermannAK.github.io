@@ -1,6 +1,13 @@
 # Genre rulesets, freezing and modifiers (concept)
 
-Status: proposal, not implemented yet. Today the style profile (`profiles/*.toml`) already
+Status: **deliberately deferred.** Decision (listener and Claude, 2026-11-25): the musical
+possibility space is not explored enough yet, so fixing rules now would be limiting, and a
+later change to the rule logic could break the determinism of an already frozen genre.
+Order: finalise genre 1 (keep exploring sounds and arrangement), possibly build a second genre
+with rulesets in mind, then design the catalog from both. Keep new choices data-driven in the
+profile and on their own random streams in the meantime, so the later migration is easy.
+
+Proposal, not implemented yet. Today the style profile (`profiles/*.toml`) already
 holds most rules as data; this document describes how to turn it into numbered, freezable
 genre rulesets with live modifiers.
 

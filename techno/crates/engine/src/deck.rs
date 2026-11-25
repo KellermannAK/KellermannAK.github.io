@@ -10,6 +10,7 @@ use techno_core::time::{
 };
 use techno_core::{Track, TrackSet};
 use techno_synth::dsp::{Duck, PingPongDelay, Reverb, Smoother, Svf};
+use techno_synth::fx::{Insert, InsertKind, InsertParams};
 use techno_synth::instruments::*;
 use techno_synth::mixer::{Channel, ChannelOut, ChannelSettings};
 
@@ -54,6 +55,25 @@ fn channel_settings(t: Track, dna: &SongDna) -> ChannelSettings {
         Track::Drone => settings(0.08, 0.0, sc, 0.05, 0.25, 90.0),
         Track::Riser => settings(0.20, 0.0, 0.0, 0.10, 0.25, 150.0),
         Track::Impact => settings(0.45, 0.0, 0.0, 0.0, 0.35, 0.0),
+    }
+}
+
+/// Which insert effect a track gets in this song.
+fn insert_params(t: Track, dna: &SongDna) -> InsertParams {
+    let fx = &dna.sound.fx;
+    let spec = match t {
+        Track::Lead | Track::Arp | Track::Stab => fx.synth,
+        Track::Pad | Track::Drone => fx.layer,
+        Track::HatClosed | Track::HatOpen => fx.hats,
+        _ => return InsertParams::NONE,
+    };
+    if spec.kind == InsertKind::None {
+        return InsertParams::NONE;
+    }
+    InsertParams {
+        kind: spec.kind,
+        rate: spec.rate,
+        depth: spec.depth,
     }
 }
 
@@ -125,11 +145,17 @@ pub struct Deck {
     lowpass: Smoother,
     lp_l: Svf,
     lp_r: Svf,
+    /// Insert effect per track (most are `Insert::None`) and its base depth.
+    inserts: [Insert; Track::COUNT],
+    insert_depth: [f32; Track::COUNT],
+    fx_amount: Smoother,
     throw_active: bool,
     hp_l: Svf,
     hp_r: Svf,
     sr: f32,
 
+    /// Debug: bypass all insert effects.
+    pub bypass_fx: bool,
     /// User/debug overrides applied on top of the arrangement.
     pub mute: TrackSet,
     pub solo: TrackSet,
@@ -224,12 +250,18 @@ impl Deck {
             riser_level: Smoother::new(0.0, 0.05, sr),
             riser_progress: 0.0,
             throw_active: false,
+            inserts: core::array::from_fn(|i| {
+                Insert::new(insert_params(Track::ALL[i], &dna), dna.bpm, sr)
+            }),
+            insert_depth: core::array::from_fn(|i| insert_params(Track::ALL[i], &dna).depth),
+            fx_amount: Smoother::new(1.0, 0.5, sr),
             hp_l: Svf::new(20.0, 0.0, sr),
             hp_r: Svf::new(20.0, 0.0, sr),
             lowpass: Smoother::new(0.0, 0.1, sr),
             lp_l: Svf::new(20000.0, 0.0, sr),
             lp_r: Svf::new(20000.0, 0.0, sr),
             sr,
+            bypass_fx: false,
             mute: TrackSet::NONE,
             solo: TrackSet::NONE,
             dna,
@@ -278,6 +310,7 @@ impl Deck {
     fn apply_automation(&mut self, a: Automation) {
         self.lead_filter.target = a.lead_filter;
         self.synth_filter.target = a.synth_filter;
+        self.fx_amount.target = a.fx_amount;
         self.bass_filter.target = a.bass_filter;
         self.highpass.target = a.highpass;
         self.fx_send.target = a.fx_send;
@@ -604,10 +637,25 @@ impl Deck {
             sum.delay += o.delay;
             sum.reverb += o.reverb;
         };
+        let amount = self.fx_amount.next();
         for (t, x) in mono {
-            add(self.channels[t.index()].process(x, duck));
+            let i = t.index();
+            if self.inserts[i].is_none() || self.bypass_fx {
+                add(self.channels[i].process(x, duck));
+            } else {
+                // Mono source into a stereo insert: -3 dB per side keeps the level equal.
+                let h = x * core::f32::consts::FRAC_1_SQRT_2;
+                let (l, r) = self.inserts[i].process(h, h, self.insert_depth[i] * amount);
+                add(self.channels[i].process_stereo(l, r, duck));
+            }
         }
-        add(self.channels[Track::Pad.index()].process_stereo(pad_l, pad_r, duck));
+        let p = Track::Pad.index();
+        let (pad_l, pad_r) = if self.bypass_fx {
+            (pad_l, pad_r)
+        } else {
+            self.inserts[p].process(pad_l, pad_r, self.insert_depth[p] * amount)
+        };
+        add(self.channels[p].process_stereo(pad_l, pad_r, duck));
 
         let (dl, dr) = self.delay.process(sum.delay * fx_send);
         let (rl, rr) = self.reverb.process(sum.reverb * fx_send);

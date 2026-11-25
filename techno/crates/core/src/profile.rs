@@ -40,6 +40,7 @@ pub struct Profile {
     pub arp: ArpRules,
     pub drone: DroneRules,
     pub synths: SynthRules,
+    pub fx: FxRules,
     pub mix: MixRules,
     pub structure: StructureRules,
 }
@@ -102,6 +103,36 @@ pub struct DroneRules {
     pub cutoff_hz: Range,
     pub drive: Range,
     pub detune: Range,
+}
+
+/// Insert effect on a track.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InsertKind {
+    None,
+    Chorus,
+    Phaser,
+    Crusher,
+    Tremolo,
+    Tape,
+}
+
+/// Which insert effects a song uses and how strongly.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct FxRules {
+    /// On the short synths (lead / arp / stab).
+    pub synth_insert: Weighted<InsertKind>,
+    /// On the long layer (pad / drone).
+    pub layer_insert: Weighted<InsertKind>,
+    /// Probability of phased hi-hats.
+    pub hat_phaser_prob: f32,
+    /// LFO rate for chorus / phaser in Hz.
+    pub lfo_rate: Range,
+    /// Tremolo cycle length in beats.
+    pub tremolo_beats: Weighted<f32>,
+    pub depth: Range,
+    /// Effect intensity multiplier in breakdowns.
+    pub breakdown_boost: f32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

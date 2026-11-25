@@ -30,6 +30,7 @@ struct Args {
     songs: u32,
     tracklist: Option<PathBuf>,
     input: Option<PathBuf>,
+    no_fx: bool,
 }
 
 const USAGE: &str = "usage:
@@ -38,7 +39,7 @@ const USAGE: &str = "usage:
   techno mix    --seed N [--songs N] [--out FILE.wav] [--tracklist FILE.json] [--sr HZ]
   techno info   --seed N [--profile FILE]
   techno render --seed N [--out FILE.wav] [--bars N] [--start-bar N] [--sr HZ]
-                [--profile FILE] [--solo t1,t2] [--mute t1,t2]
+                [--profile FILE] [--solo t1,t2] [--mute t1,t2] [--no-fx]
 tracks: kick rumble bass hat_closed hat_open clap snare rim tom ride crash stab lead pad
         arp drone riser impact";
 
@@ -66,6 +67,7 @@ fn parse() -> Result<Args, String> {
         songs: 4,
         tracklist: None,
         input: None,
+        no_fx: false,
     };
     while let Some(flag) = it.next() {
         let mut val = || it.next().ok_or_else(|| format!("{flag} needs a value"));
@@ -83,6 +85,7 @@ fn parse() -> Result<Args, String> {
             "--songs" => a.songs = val()?.parse().map_err(|e| format!("--songs: {e}"))?,
             "--tracklist" => a.tracklist = Some(PathBuf::from(val()?)),
             "--input" => a.input = Some(PathBuf::from(val()?)),
+            "--no-fx" => a.no_fx = true,
             "-h" | "--help" => return Err(String::new()),
             other => return Err(format!("unknown flag '{other}'")),
         }
@@ -213,6 +216,7 @@ fn cmd_render(a: &Args, profile: &Profile) -> Result<(), String> {
     let mut e = Engine::new(dna, a.sr as f32);
     e.deck.solo = a.solo;
     e.deck.mute = a.mute;
+    e.deck.bypass_fx = a.no_fx;
     if a.start_bar > 0 {
         e.deck.seek_bar(a.start_bar);
     }

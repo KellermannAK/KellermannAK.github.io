@@ -3,5 +3,6 @@
 //! Rule: nothing in a `process` method allocates, locks or does I/O.
 
 pub mod dsp;
+pub mod fx;
 pub mod instruments;
 pub mod mixer;
