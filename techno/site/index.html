@@ -216,6 +216,9 @@
     </details>
   </section>
 
+  <h2 id="account-title" hidden>Konto</h2>
+  <section class="card" id="account" hidden></section>
+
   <h2>Dein Feedback</h2>
   <section class="card" id="fb-inbox"></section>
 
@@ -380,7 +383,10 @@
   load();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 </script>
+<script src="app/config.js"></script>
 <script src="app/feedback.js"></script>
+<script type="module" src="app/db.js"></script>
+<script type="module" src="app/account.js"></script>
 <script type="module" src="app/live.js"></script>
 </body>
 </html>

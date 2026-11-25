@@ -38,6 +38,28 @@
     return parts.join(" · ");
   }
 
+  const dbEnabled = () => !!(window.TechnoDB && window.TechnoDB.enabled);
+
+  /** Retry entries that could not be stored in the database earlier. */
+  async function syncPending() {
+    if (!dbEnabled()) return;
+    const pending = load();
+    if (!pending.length) return;
+    let stored = 0;
+    for (const e of pending) {
+      if (await window.TechnoDB.saveFeedback(e)) {
+        save(load().filter((x) => x.at !== e.at));
+        stored++;
+      }
+    }
+    if (stored) {
+      renderInbox();
+      toast(`${stored} gespeicherte${stored === 1 ? "s Feedback" : " Feedbacks"} übertragen ✓`);
+    }
+  }
+  // The database module loads asynchronously; sync shortly after start.
+  setTimeout(syncPending, 2500);
+
   /** Short message at the bottom; optional action button (e.g. "Rückgängig"). */
   function toast(msg, actionLabel, action) {
     let t = document.getElementById("fb-toast");
@@ -115,7 +137,22 @@
       save(list);
       d.close();
       renderInbox();
-      toast(`Gespeichert – ${list.length} Feedback${list.length === 1 ? "" : "s"} gesammelt`);
+      const entry = list[list.length - 1];
+      if (dbEnabled()) {
+        // Stored in the database: drop the local copy. On failure it stays and is retried.
+        window.TechnoDB.saveFeedback(entry).then((ok) => {
+          if (ok) {
+            save(load().filter((x) => x.at !== entry.at));
+            renderInbox();
+            toast("Gespeichert ✓");
+            if (window.TechnoAccount) window.TechnoAccount.render();
+          } else {
+            toast("Lokal gespeichert – wird später übertragen");
+          }
+        });
+      } else {
+        toast(`Gespeichert – ${list.length} Feedback${list.length === 1 ? "" : "s"} gesammelt`);
+      }
     });
     return d;
   }
@@ -195,7 +232,9 @@
     if (!box) return;
     const list = load();
     if (!list.length) {
-      box.innerHTML = `<p class="meta">Noch nichts gesammelt. Tippe beim Hören auf 👍 oder 👎 – die Stelle wird sofort hier gespeichert.</p>`;
+      box.innerHTML = dbEnabled()
+        ? `<p class="meta">Tippe beim Hören auf 👍, 👎 oder 💡 – dein Feedback wird direkt in der Datenbank gespeichert.</p>`
+        : `<p class="meta">Noch nichts gesammelt. Tippe beim Hören auf 👍 oder 👎 – die Stelle wird sofort hier gespeichert.</p>`;
       return;
     }
     const parts = issueParts(list);

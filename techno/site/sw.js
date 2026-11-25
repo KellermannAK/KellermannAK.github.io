@@ -1,7 +1,7 @@
 // Service worker: network first (always fresh after a deploy), cache as offline fallback.
 // MP3s are streamed and never cached (too large).
-const CACHE = "techno-v11";
-const SHELL = ["./", "index.html", "app/live.js", "app/worklet.js", "app/feedback.js", "app/techno.wasm",
+const CACHE = "techno-v12";
+const SHELL = ["./", "index.html", "app/live.js", "app/worklet.js", "app/feedback.js", "app/config.js", "app/db.js", "app/account.js", "app/techno.wasm",
   "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/icon.svg"];
 
 self.addEventListener("install", (e) => {
