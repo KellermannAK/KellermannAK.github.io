@@ -72,6 +72,17 @@ none) and maybe a high-pass sweep. Every drop picks a style (full, bass first, s
 filter opening) and an entry (impact + crash, crash, dry), sometimes after a one-bar pause. Every 8-bar phrase can vary the DNA
 (lead octave, thinned lead, dropped percussion) without re-inventing it.
 
+### Instrument variants
+
+Every instrument has 3-4 sound variants (`[variants]` in the profile; synthesis in
+`crates/synth/src/instruments.rs`): clap classic / tight / wide / gritty, snare standard /
+tight / noisy / metallic, hats metal / noise / dark / shaker, ride standard / bell / washy,
+crash standard / dark / splash, rim click / wood block / clave, tom standard / noisy / boom,
+kick hard / punch / distorted / deep, bass saw+sub / reese / square / sine pluck, rumble
+standard / tight / deep wash, stab and arp saws / pulse / FM bell / organ, pad saws / hollow /
+sine choir / strings, drone saws / sub / noise. Each song draws its own set; levels are
+matched to variant 0 within about 1 dB (`cargo run --release -p techno-engine --example variants`).
+
 ### Song names
 
 Every song gets a title and an artist (`crates/core/src/naming.rs`, word library in

@@ -106,6 +106,22 @@ fn features(dna: &SongDna, bar: Option<u32>) -> Vec<(String, String)> {
     let name = techno_core::naming::name(dna, &Profile::hard_techno_simple().naming);
     add("artist", name.artist);
     add("scale", dna.key.scale.name().to_string());
+    let v = &dna.sound;
+    for (k, val) in [
+        ("clap variant", v.clap.variant),
+        ("snare variant", v.snare.variant),
+        ("hats variant", v.hats.variant),
+        ("ride variant", v.ride.variant),
+        ("rim variant", v.rim.variant),
+        ("bass variant", v.bass.variant),
+        ("rumble variant", v.rumble.variant),
+        ("stab variant", v.stab.variant),
+        ("arp variant", v.arp.variant),
+        ("pad variant", v.pad.variant),
+        ("drone variant", v.drone.variant),
+    ] {
+        add(k, val.to_string());
+    }
     add("roots", format!("{} root(s)", dna.progression.count));
     add("kick", format!("{:?}", dna.sound.kick.style).to_lowercase());
     add(

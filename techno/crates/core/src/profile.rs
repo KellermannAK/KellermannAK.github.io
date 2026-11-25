@@ -42,6 +42,7 @@ pub struct Profile {
     pub synths: SynthRules,
     pub fx: FxRules,
     pub naming: crate::naming::NamingRules,
+    pub variants: VariantRules,
     pub mix: MixRules,
     pub structure: StructureRules,
 }
@@ -53,6 +54,8 @@ pub enum KickStyle {
     Hard,
     /// 909-like: short, clicky, little drive.
     Punch,
+    /// Long, round, soft: more body, less click.
+    Deep,
     /// Hard-clipped and darkened: rave / industrial.
     Distorted,
 }
@@ -117,6 +120,25 @@ pub struct DroneRules {
     pub cutoff_hz: Range,
     pub drive: Range,
     pub detune: Range,
+}
+
+/// Sound variant per instrument (0 = original). Each instrument's synthesis code defines
+/// what its variants sound like; the profile only weights them.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct VariantRules {
+    pub clap: Weighted<u8>,
+    pub snare: Weighted<u8>,
+    pub hats: Weighted<u8>,
+    pub ride: Weighted<u8>,
+    pub crash: Weighted<u8>,
+    pub rim: Weighted<u8>,
+    pub tom: Weighted<u8>,
+    pub bass: Weighted<u8>,
+    pub rumble: Weighted<u8>,
+    pub stab: Weighted<u8>,
+    pub arp: Weighted<u8>,
+    pub pad: Weighted<u8>,
+    pub drone: Weighted<u8>,
 }
 
 /// Insert effect on a track.

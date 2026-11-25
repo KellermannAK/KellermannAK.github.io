@@ -152,6 +152,8 @@ pub struct KickParams {
 
 #[derive(Clone, Copy, Debug)]
 pub struct HatParams {
+    /// Sound variant (0 = original), see the instrument's docs.
+    pub variant: u8,
     pub tone_hz: f32,
     pub closed_decay: f32,
     pub open_decay: f32,
@@ -160,12 +162,16 @@ pub struct HatParams {
 
 #[derive(Clone, Copy, Debug)]
 pub struct ToneParams {
+    /// Sound variant (0 = original), see the instrument's docs.
+    pub variant: u8,
     pub tone_hz: f32,
     pub decay: f32,
 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct SnareParams {
+    /// Sound variant (0 = original), see the instrument's docs.
+    pub variant: u8,
     pub tone_hz: f32,
     pub decay: f32,
     pub snappy: f32,
@@ -173,6 +179,8 @@ pub struct SnareParams {
 
 #[derive(Clone, Copy, Debug)]
 pub struct BassParams {
+    /// Sound variant (0 = original), see the instrument's docs.
+    pub variant: u8,
     pub rhythm: BassRhythm,
     pub cutoff_hz: f32,
     pub env_mod: f32,
@@ -184,6 +192,8 @@ pub struct BassParams {
 
 #[derive(Clone, Copy, Debug)]
 pub struct RumbleParams {
+    /// Sound variant (0 = original), see the instrument's docs.
+    pub variant: u8,
     pub amount: f32,
     pub lowpass_hz: f32,
     pub drive: f32,
@@ -192,6 +202,8 @@ pub struct RumbleParams {
 
 #[derive(Clone, Copy, Debug)]
 pub struct StabParams {
+    /// Sound variant (0 = original), see the instrument's docs.
+    pub variant: u8,
     pub chord: ChordShape,
     /// Notes per hit (1 = single tone).
     pub notes: u8,
@@ -215,6 +227,8 @@ pub struct LeadParams {
 
 #[derive(Clone, Copy, Debug)]
 pub struct PadParams {
+    /// Sound variant (0 = original), see the instrument's docs.
+    pub variant: u8,
     pub chord: ChordShape,
     pub cutoff_hz: f32,
     pub detune: f32,
@@ -229,6 +243,8 @@ pub struct MixParams {
 
 #[derive(Clone, Copy, Debug)]
 pub struct DroneParams {
+    /// Sound variant (0 = original), see the instrument's docs.
+    pub variant: u8,
     pub cutoff_hz: f32,
     pub drive: f32,
     pub detune: f32,
@@ -253,6 +269,7 @@ pub struct FxParams {
 #[derive(Clone, Copy, Debug)]
 pub struct SoundParams {
     pub fx: FxParams,
+    pub crash_variant: u8,
     /// Arp voice reuses the stab synth; `chord` is the arpeggiated chord.
     pub arp: StabParams,
     pub drone: DroneParams,
@@ -403,10 +420,27 @@ impl SongDna {
         }
         sound.stab.notes = sr.stab_notes.max(1);
         sound.fx = gen_fx(&mut root.fork("fx"), profile);
+        // Instrument sound variants (own stream).
+        let vr = &profile.variants;
+        let mut vs = root.fork("variants");
+        sound.clap.variant = vr.clap.pick(&mut vs);
+        sound.snare.variant = vr.snare.pick(&mut vs);
+        sound.hats.variant = vr.hats.pick(&mut vs);
+        sound.ride.variant = vr.ride.pick(&mut vs);
+        sound.crash_variant = vr.crash.pick(&mut vs);
+        sound.rim.variant = vr.rim.pick(&mut vs);
+        sound.tom.variant = vr.tom.pick(&mut vs);
+        sound.bass.variant = vr.bass.pick(&mut vs);
+        sound.rumble.variant = vr.rumble.pick(&mut vs);
+        sound.stab.variant = vr.stab.pick(&mut vs);
+        sound.arp.variant = vr.arp.pick(&mut vs);
+        sound.pad.variant = vr.pad.pick(&mut vs);
+        sound.drone.variant = vr.drone.pick(&mut vs);
         let (arp, arp_sound) = gen_arp(&mut root.fork("arp"), profile);
         sound.arp = arp_sound;
         let mut r = root.fork("drone");
         sound.drone = DroneParams {
+            variant: 0,
             cutoff_hz: r.in_range(profile.drone.cutoff_hz),
             drive: r.in_range(profile.drone.drive),
             detune: r.in_range(profile.drone.detune),
@@ -463,6 +497,7 @@ impl SongDna {
              arp        {}   chord {:?}\n\
              sounds     kick {:?}, lead {:?} ({:?}), bass {:?}, backbeat {:?}\n\
              fx         synth {:?}, layer {:?}, hats {:?}\n\
+             variants   clap {} snare {} hats {} ride {} crash {} rim {} tom {} bass {} rumble {} stab {} arp {} pad {} drone {}\n\
              synths     main {}, breakdown {}\n\
              palette    {}\n\
              (motif digits = scale degree above root, a/b/c.. = 1/2/3.. below)",
@@ -505,6 +540,19 @@ impl SongDna {
             self.sound.fx.synth.kind,
             self.sound.fx.layer.kind,
             self.sound.fx.hats.kind,
+            self.sound.clap.variant,
+            self.sound.snare.variant,
+            self.sound.hats.variant,
+            self.sound.ride.variant,
+            self.sound.crash_variant,
+            self.sound.rim.variant,
+            self.sound.tom.variant,
+            self.sound.bass.variant,
+            self.sound.rumble.variant,
+            self.sound.stab.variant,
+            self.sound.arp.variant,
+            self.sound.pad.variant,
+            self.sound.drone.variant,
             self.plan.main_synth.name(),
             self.plan.alt_synth.map(|t| t.name()).unwrap_or("same"),
             self.plan
@@ -888,6 +936,7 @@ fn gen_arp(rng: &mut Rng, p: &Profile) -> (Motif, StabParams) {
         k += 1;
     }
     let params = StabParams {
+        variant: 0,
         chord,
         notes: 1,
         cutoff_hz: rng.in_range(a.cutoff_hz),
@@ -1057,6 +1106,7 @@ fn gen_sound(rng: &mut Rng, p: &Profile, key: Key) -> SoundParams {
         kick_tune = kick_tune_for_key(key, d.kick.tune_hz);
     }
     SoundParams {
+        crash_variant: 0,
         fx: FxParams {
             synth: InsertSpec {
                 kind: InsertKind::None,
@@ -1075,6 +1125,7 @@ fn gen_sound(rng: &mut Rng, p: &Profile, key: Key) -> SoundParams {
             },
         },
         arp: StabParams {
+            variant: 0,
             chord: ChordShape::Triad,
             notes: 1,
             cutoff_hz: 1000.0,
@@ -1083,6 +1134,7 @@ fn gen_sound(rng: &mut Rng, p: &Profile, key: Key) -> SoundParams {
             detune: 0.05,
         },
         drone: DroneParams {
+            variant: 0,
             cutoff_hz: 400.0,
             drive: 2.0,
             detune: 0.1,
@@ -1097,33 +1149,40 @@ fn gen_sound(rng: &mut Rng, p: &Profile, key: Key) -> SoundParams {
             click: rng.in_range(d.kick.click),
         },
         hats: HatParams {
+            variant: 0,
             tone_hz: rng.in_range(d.hats.tone_hz),
             closed_decay: rng.in_range(d.hats.closed_decay),
             open_decay: rng.in_range(d.hats.open_decay),
             metal: rng.in_range(d.hats.metal),
         },
         clap: ToneParams {
+            variant: 0,
             tone_hz: rng.in_range(d.clap.tone_hz),
             decay: rng.in_range(d.clap.decay),
         },
         snare: SnareParams {
+            variant: 0,
             tone_hz: rng.in_range(d.snare.tone_hz),
             decay: rng.in_range(d.snare.decay),
             snappy: rng.in_range(d.snare.snappy),
         },
         rim: ToneParams {
+            variant: 0,
             tone_hz: rng.in_range(d.rim.tone_hz),
             decay: rng.in_range(d.rim.decay),
         },
         tom: ToneParams {
+            variant: 0,
             tone_hz: rng.in_range(d.tom.tone_hz),
             decay: rng.in_range(d.tom.decay),
         },
         ride: ToneParams {
+            variant: 0,
             tone_hz: rng.in_range(d.ride.tone_hz),
             decay: rng.in_range(d.ride.decay),
         },
         bass: BassParams {
+            variant: 0,
             rhythm: BassRhythm::Rolling,
             cutoff_hz: rng.in_range(p.bass.cutoff_hz),
             env_mod: rng.in_range(p.bass.env_mod),
@@ -1133,12 +1192,14 @@ fn gen_sound(rng: &mut Rng, p: &Profile, key: Key) -> SoundParams {
             sub_mix: rng.in_range(p.bass.sub_mix),
         },
         rumble: RumbleParams {
+            variant: 0,
             amount: rng.in_range(p.rumble.amount),
             lowpass_hz: rng.in_range(p.rumble.lowpass_hz),
             drive: rng.in_range(p.rumble.drive),
             size: rng.in_range(p.rumble.size),
         },
         stab: StabParams {
+            variant: 0,
             chord: p.stab.chords.pick(rng),
             notes: 1,
             cutoff_hz: rng.in_range(p.stab.cutoff_hz),
@@ -1157,6 +1218,7 @@ fn gen_sound(rng: &mut Rng, p: &Profile, key: Key) -> SoundParams {
             square: rng.in_range(p.lead.square),
         },
         pad: PadParams {
+            variant: 0,
             chord: p.pad.chords.pick(rng),
             cutoff_hz: rng.in_range(p.pad.cutoff_hz),
             detune: rng.in_range(p.pad.detune),

@@ -228,7 +228,7 @@ impl Deck {
             rim: Rim::new(s.rim, sr),
             tom: Tom::new(tom_p, sr),
             ride: Cymbal::ride(s.ride, sr),
-            crash: Cymbal::crash(sr),
+            crash: Cymbal::crash(dna.sound.crash_variant, sr),
             bass: Bass::new(s.bass, sr),
             stab: Stab::new(s.stab, sr),
             lead: Lead::new(s.lead, sr),

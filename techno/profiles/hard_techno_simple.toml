@@ -30,7 +30,7 @@ backbeat = { values = ["clap", "snare", "clap_snare"], weights = [4.0, 1.5, 2.0]
 
 [drums.kick]
 # Dark: hard and distorted kicks, rarely the clicky 909-like punch.
-styles = { values = ["hard", "punch", "distorted"], weights = [4.0, 0.5, 2.0] }
+styles = { values = ["hard", "punch", "distorted", "deep"], weights = [4.0, 0.5, 2.0, 2.0] }
 tune_hz = [40.0, 50.0]
 tune_to_key = true
 pitch_start_hz = [240.0, 380.0]
@@ -165,6 +165,31 @@ tremolo_beats = { values = [0.5, 1.0, 2.0], weights = [1.0, 2.0, 1.0] }
 depth = [0.4, 0.9]
 # Effects open up in breakdowns and rise through builds.
 breakdown_boost = 1.5
+
+[variants]
+# Sound variant per instrument; 0 is the original sound. Each song draws its own set.
+# clap: 0 classic, 1 tight, 2 wide/roomy, 3 gritty
+clap = { values = [0, 1, 2, 3], weights = [2.0, 1.5, 1.5, 1.0] }
+# snare: 0 standard, 1 tight, 2 noisy/industrial, 3 metallic ping
+snare = { values = [0, 1, 2, 3], weights = [2.0, 1.5, 1.5, 1.0] }
+# hats: 0 metal + noise, 1 pure noise, 2 dark metallic, 3 shaker
+hats = { values = [0, 1, 2, 3], weights = [2.0, 2.0, 1.0, 1.0] }
+# ride: 0 standard, 1 bell, 2 washy;  crash: 0 standard, 1 dark, 2 splash
+ride = { values = [0, 1, 2], weights = [2.0, 1.0, 1.5] }
+crash = { values = [0, 1, 2], weights = [2.0, 1.5, 1.0] }
+# rim: 0 click, 1 wood block, 2 clave;  tom: 0 standard, 1 noisy, 2 deep boom
+rim = { values = [0, 1, 2], weights = [2.0, 1.5, 1.0] }
+tom = { values = [0, 1, 2], weights = [2.0, 1.0, 1.5] }
+# bass: 0 saw + sub, 1 reese, 2 square + sub, 3 sine pluck
+bass = { values = [0, 1, 2, 3], weights = [2.0, 1.5, 1.5, 1.0] }
+# rumble: 0 standard, 1 tight, 2 deep wash
+rumble = { values = [0, 1, 2], weights = [2.0, 1.5, 1.5] }
+# stab / arp: 0 detuned saws, 1 pulse, 2 FM bell, 3 organ
+stab = { values = [0, 1, 2, 3], weights = [2.0, 1.5, 1.0, 1.0] }
+arp = { values = [0, 1, 2, 3], weights = [2.0, 1.5, 1.5, 1.0] }
+# pad: 0 saws, 1 hollow squares, 2 sine choir, 3 strings;  drone: 0 saws, 1 sub, 2 noise
+pad = { values = [0, 1, 2, 3], weights = [2.0, 1.0, 1.5, 1.5] }
+drone = { values = [0, 1, 2], weights = [2.0, 1.5, 1.0] }
 
 [naming]
 # Artists: songs with the same style fingerprint (kick, main synth / lead kind, layer)
