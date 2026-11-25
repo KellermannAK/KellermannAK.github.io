@@ -149,6 +149,7 @@ pub struct Deck {
     inserts: [Insert; Track::COUNT],
     insert_depth: [f32; Track::COUNT],
     fx_amount: Smoother,
+    drop_power: Smoother,
     throw_active: bool,
     hp_l: Svf,
     hp_r: Svf,
@@ -255,6 +256,7 @@ impl Deck {
             }),
             insert_depth: core::array::from_fn(|i| insert_params(Track::ALL[i], &dna).depth),
             fx_amount: Smoother::new(1.0, 0.5, sr),
+            drop_power: Smoother::new(0.0, 0.05, sr),
             hp_l: Svf::new(20.0, 0.0, sr),
             hp_r: Svf::new(20.0, 0.0, sr),
             lowpass: Smoother::new(0.0, 0.1, sr),
@@ -311,6 +313,7 @@ impl Deck {
         self.lead_filter.target = a.lead_filter;
         self.synth_filter.target = a.synth_filter;
         self.fx_amount.target = a.fx_amount;
+        self.drop_power.target = a.drop_power;
         self.bass_filter.target = a.bass_filter;
         self.highpass.target = a.highpass;
         self.fx_send.target = a.fx_send;
@@ -548,6 +551,10 @@ impl Deck {
         if !self.plan.active.contains(Track::Arp) {
             return;
         }
+        // 16th arps only in breakdowns; elsewhere they read as too much movement.
+        if step % 2 == 1 && self.plan.section != techno_core::structure::SectionKind::Breakdown {
+            return;
+        }
         let abs = bar * 16 + step;
         if let Some(n) = self.dna.arp.at(abs) {
             let root = fold_root(self.dna.root_at(bar));
@@ -587,6 +594,9 @@ impl Deck {
         self.until_tick -= 1.0;
 
         let duck = self.duck.next();
+        let power = self.drop_power.next();
+        self.kick.drive_mul = 1.0 + 0.35 * power;
+        self.channels[Track::Rumble.index()].gain_mul = 1.0 + 0.4 * power;
         let sf = self.synth_filter.next();
         self.lead.filter_open = (self.lead_filter.next() * sf).clamp(0.0, 1.3);
         self.stab.filter_mul = sf;

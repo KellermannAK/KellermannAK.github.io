@@ -22,6 +22,8 @@ pub struct Kick {
     noise: Noise,
     click_hp: Svf,
     tone_lp: Svf,
+    /// External drive multiplier (harder kick in drops).
+    pub drive_mul: f32,
 }
 
 impl Kick {
@@ -52,6 +54,7 @@ impl Kick {
             noise: Noise::new(0x4B1C),
             click_hp: Svf::new(2500.0, 0.2, sr),
             tone_lp: Svf::new(tone, 0.0, sr),
+            drive_mul: 1.0,
         }
     }
 
@@ -82,8 +85,10 @@ impl Kick {
         let x = body * amp + click;
         let shaped = match p.style {
             // Hard clip after the soft stage: square-ish, aggressive.
-            KickStyle::Distorted => (saturate(x, p.drive) * 1.4).clamp(-1.0, 1.0) * 0.78,
-            _ => saturate(x, p.drive),
+            KickStyle::Distorted => {
+                (saturate(x, p.drive * self.drive_mul) * 1.4).clamp(-1.0, 1.0) * 0.78
+            }
+            _ => saturate(x, p.drive * self.drive_mul),
         };
         let y = self.tone_lp.lp(shaped);
         self.t += 1.0 / self.sr;

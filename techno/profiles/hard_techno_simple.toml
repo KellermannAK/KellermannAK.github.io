@@ -79,7 +79,8 @@ tone_hz = [5500.0, 8000.0]
 decay = [0.35, 0.65]
 
 [bass]
-rhythms = { values = ["rolling", "offbeat", "gallop", "skippy"], weights = [5.0, 2.0, 2.0, 1.0] }
+# More variety between songs (feedback: songs too similar).
+rhythms = { values = ["rolling", "offbeat", "gallop", "skippy", "syncopated", "sparse"], weights = [3.0, 2.0, 2.0, 1.5, 2.0, 1.5] }
 motif_bars = { values = [1, 2], weights = [3.0, 2.0] }
 allow_on_kick = false
 movement = [0.10, 0.35]
@@ -108,7 +109,9 @@ detune = [0.05, 0.18]
 
 [lead]
 # Keep acid rare: dark techno, not acid techno.
-kinds = { values = ["acid", "hoover", "supersaw", "pluck"], weights = [1.0, 2.0, 2.0, 3.0] }
+kinds = { values = ["acid", "hoover", "supersaw", "pluck"], weights = [0.3, 2.0, 2.0, 3.0] }
+# Sparse leads with few pitches were liked; busy riffs read as "too melodic".
+styles = { values = ["riff", "sparse", "pulse", "long"], weights = [1.0, 4.0, 2.5, 2.0] }
 motif_bars = { values = [1, 2], weights = [2.0, 3.0] }
 density = [0.35, 0.65]
 slide_prob = 0.2
@@ -174,7 +177,7 @@ intro_bars = 32
 outro_bars = 32
 groove_bars = { values = [16, 32], weights = [2.0, 1.0] }
 build_bars = { values = [8, 16], weights = [1.0, 2.0] }
-breakdown_bars = { values = [8, 16, 32], weights = [2.0, 4.0, 0.5] }
+breakdown_bars = { values = [8, 16, 32], weights = [2.0, 4.0, 0.15] }
 drop_bars = { values = [32, 48], weights = [3.0, 1.0] }
 after_intro = { values = ["groove", "build"], weights = [4.0, 1.0] }
 after_groove = { values = ["build", "breakdown", "groove"], weights = [3.0, 2.0, 0.5] }
@@ -182,8 +185,9 @@ after_drop = { values = ["groove", "breakdown", "drop"], weights = [3.0, 1.5, 0.
 drop_pause_prob = 0.45
 breakdown_to_build_prob = 0.3
 # Every build and drop picks its own flavour.
-riser = { values = ["noise", "gated", "swell", "pitched", "none"], weights = [3.0, 2.5, 2.0, 0.5, 1.5] }
-roll = { values = ["snare", "clap", "kick", "none"], weights = [3.0, 2.0, 1.5, 1.0] }
+# The pitched "fairground" riser was criticised twice: off.
+riser = { values = ["noise", "gated", "swell", "pitched", "none"], weights = [3.0, 2.5, 2.0, 0.0, 1.5] }
+roll = { values = ["snare", "clap", "kick", "none"], weights = [3.0, 2.0, 0.6, 1.0] }
 build_highpass_prob = 0.5
 drop_style = { values = ["full", "bass_first", "stripped", "filter_open"], weights = [2.0, 2.0, 1.2, 1.5] }
 drop_impact = { values = ["impact_crash", "crash", "none"], weights = [2.0, 2.0, 1.0] }

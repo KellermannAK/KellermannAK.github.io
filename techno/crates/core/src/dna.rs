@@ -9,7 +9,7 @@ use crate::euclid::{euclid, Pattern};
 use crate::markov::next_degree;
 use crate::profile::{
     ArpPattern, Backbeat, BassRhythm, ChordShape, HarmonyScope, HatStyle, InsertKind, KickStyle,
-    LeadKind, LongLayer, Profile, ProgressionShape, RideStyle, ShortSynth,
+    LeadKind, LeadStyle, LongLayer, Profile, ProgressionShape, RideStyle, ShortSynth,
 };
 use crate::rng::Rng;
 use crate::structure::{SectionKind, SongPlan, SHORT_SYNTHS};
@@ -173,6 +173,7 @@ pub struct SnareParams {
 
 #[derive(Clone, Copy, Debug)]
 pub struct BassParams {
+    pub rhythm: BassRhythm,
     pub cutoff_hz: f32,
     pub env_mod: f32,
     pub resonance: f32,
@@ -203,6 +204,7 @@ pub struct StabParams {
 #[derive(Clone, Copy, Debug)]
 pub struct LeadParams {
     pub kind: LeadKind,
+    pub style: LeadStyle,
     pub cutoff_hz: f32,
     pub resonance: f32,
     pub env_mod: f32,
@@ -337,12 +339,19 @@ impl SongDna {
 
         let progression = gen_progression(&mut root.fork("progression"), profile, key);
         let drums = gen_drums(&mut root.fork("drums"), profile);
-        let sound = gen_sound(&mut root.fork("sound"), profile, key);
+        let mut sound = gen_sound(&mut root.fork("sound"), profile, key);
         let stab = gen_stab(&mut root.fork("stab"), profile);
-        let mut bass = gen_bass(&mut root.fork("bass"), profile);
+        let (mut bass, bass_rhythm) = gen_bass(&mut root.fork("bass"), profile);
         fit_bass_to_stabs(&mut bass, &stab, sound.stab.chord);
-        let lead = gen_lead(&mut root.fork("lead"), profile, key, &bass, &progression);
-        let mut sound = sound;
+        let mut lead = gen_lead(&mut root.fork("lead"), profile, key, &bass, &progression);
+        let mut ls = root.fork("lead-style");
+        let lead_style = profile.lead.styles.pick(&mut ls);
+        sound.lead.style = lead_style;
+        sound.bass.rhythm = bass_rhythm;
+        if lead_style != LeadStyle::Riff {
+            lead = gen_lead_styled(&mut ls, lead_style, key, &bass, &progression);
+        }
+
         let mut drums = drums;
         // Sound variety and the instrument palette come from their own streams, so
         // adding them did not change the core sound of existing seeds.
@@ -447,7 +456,7 @@ impl SongDna {
              lead       {}\n\
              pad        chord {:?}\n\
              arp        {}   chord {:?}\n\
-             sounds     kick {:?}, lead {:?}, backbeat {:?}\n\
+             sounds     kick {:?}, lead {:?} ({:?}), bass {:?}, backbeat {:?}\n\
              fx         synth {:?}, layer {:?}, hats {:?}\n\
              synths     main {}, breakdown {}\n\
              palette    {}\n\
@@ -485,6 +494,8 @@ impl SongDna {
             self.sound.arp.chord,
             self.sound.kick.style,
             self.sound.lead.kind,
+            self.sound.lead.style,
+            self.sound.bass.rhythm,
             self.drums.backbeat,
             self.sound.fx.synth.kind,
             self.sound.fx.layer.kind,
@@ -639,25 +650,33 @@ fn gen_drums(rng: &mut Rng, p: &Profile) -> DrumPatterns {
     }
 }
 
-fn bass_positions(r: BassRhythm) -> &'static [u32] {
+/// 16th positions (0..4) inside beat `beat` (0..4) where the bass plays.
+fn bass_positions(r: BassRhythm, beat: u32) -> &'static [u32] {
     match r {
         BassRhythm::Rolling => &[1, 2, 3],
         BassRhythm::Offbeat => &[2],
         BassRhythm::Gallop => &[2, 3],
         BassRhythm::Skippy => &[1, 3],
+        BassRhythm::Syncopated => {
+            if beat % 2 == 0 {
+                &[2, 3]
+            } else {
+                &[1]
+            }
+        }
+        BassRhythm::Sparse => match beat {
+            0 | 2 => &[2],
+            3 => &[2, 3],
+            _ => &[],
+        },
     }
 }
 
-fn gen_bass(rng: &mut Rng, p: &Profile) -> Motif {
+fn gen_bass(rng: &mut Rng, p: &Profile) -> (Motif, BassRhythm) {
     let b = &p.bass;
     let bars = b.motif_bars.pick(rng).clamp(1, 2) as u32;
     let len = bars * STEPS_PER_BAR;
     let rhythm = b.rhythms.pick(rng);
-    let mut positions: Vec<u32> = bass_positions(rhythm).to_vec();
-    if b.allow_on_kick {
-        positions.insert(0, 0);
-    }
-    let first_pos = positions[0];
     let movement = rng.in_range(b.movement);
     let [lo, hi] = b.degree_range;
 
@@ -666,10 +685,13 @@ fn gen_bass(rng: &mut Rng, p: &Profile) -> Motif {
     let mut last_idx = 0;
     for step in 0..len {
         let pos = step % 4;
-        if !positions.contains(&pos) {
+        let positions = bass_positions(rhythm, (step / 4) % 4);
+        let on = positions.contains(&pos) || (b.allow_on_kick && pos == 0);
+        if !on {
             continue;
         }
         // Strong positions (first note after the kick on beats 1 and 3) stay on the root.
+        let first_pos = positions.first().copied().unwrap_or(pos);
         let strong = pos == first_pos && (step % 8) < 4;
         let degree = if strong {
             0
@@ -689,7 +711,7 @@ fn gen_bass(rng: &mut Rng, p: &Profile) -> Motif {
     if let Some(n) = m.notes[last_idx].as_mut() {
         n.degree = if rng.chance(0.7) { 0 } else { 4 };
     }
-    m
+    (m, rhythm)
 }
 
 fn gen_stab(rng: &mut Rng, p: &Profile) -> Motif {
@@ -899,6 +921,87 @@ fn gen_fx(rng: &mut Rng, p: &Profile) -> FxParams {
     }
 }
 
+/// Leads that are less melodic than the riff: sparse, pulse or long notes.
+fn gen_lead_styled(
+    rng: &mut Rng,
+    style: LeadStyle,
+    key: Key,
+    bass: &Motif,
+    prog: &Progression,
+) -> Motif {
+    let len = if style == LeadStyle::Long || rng.chance(0.5) {
+        32
+    } else {
+        16
+    };
+    let mut m = Motif::empty(len as u8);
+    // A small pitch set: the root plus at most two chord tones.
+    const POOL: [i32; 4] = [2, 4, 7, -3];
+    let a = POOL[rng.range_i32(0, 3) as usize];
+    let mut b = POOL[rng.range_i32(0, 3) as usize];
+    if b == a {
+        b = 0;
+    }
+    let pitches = [0, a, b];
+    let pick = |rng: &mut Rng| pitches[rng.weighted_index(&[3.0, 2.0, 1.0])];
+    match style {
+        LeadStyle::Sparse => {
+            const SPOTS: [usize; 9] = [2, 3, 6, 7, 10, 11, 14, 15, 8];
+            for bar in 0..len / 16 {
+                let n = rng.range_i32(2, 4) as usize;
+                let mut placed = 0;
+                let mut guard = 0;
+                while placed < n && guard < 40 {
+                    guard += 1;
+                    let s = bar * 16 + SPOTS[rng.range_i32(0, SPOTS.len() as i32 - 1) as usize];
+                    if m.notes[s].is_none() {
+                        let mut note = Note::new(pick(rng), if s % 4 == 2 { 1.0 } else { 0.85 });
+                        note.len = if rng.chance(0.4) { 2 } else { 1 };
+                        m.notes[s] = Some(note);
+                        placed += 1;
+                    }
+                }
+            }
+        }
+        LeadStyle::Pulse => {
+            let k = rng.range_i32(5, 9) as u32;
+            let pat = euclid(k, 16, rng.range_i32(0, 15));
+            for s in 0..len {
+                if pat.hit(s as u32) {
+                    let mut note = Note::new(0, if s % 4 == 2 { 1.0 } else { 0.7 });
+                    note.accent = s % 4 == 2;
+                    m.notes[s] = Some(note);
+                }
+            }
+            // Optional octave answer at the very end.
+            if rng.chance(0.4) {
+                if let Some(last) = (0..len).rev().find(|&s| m.notes[s].is_some()) {
+                    m.notes[last].as_mut().unwrap().degree = 7;
+                }
+            }
+        }
+        LeadStyle::Long => {
+            let mut s = rng.range_i32(0, 2) as usize * 2;
+            let mut first = true;
+            while s < len {
+                let l = [4usize, 6, 8][rng.range_i32(0, 2) as usize].min(len - s);
+                let d = if first { 0 } else { pick(rng) };
+                first = false;
+                let mut note = Note::new(d, 0.9);
+                note.len = l as u8;
+                m.notes[s] = Some(note);
+                s += l + [0usize, 2, 4][rng.range_i32(0, 2) as usize];
+            }
+        }
+        LeadStyle::Riff => {}
+    }
+    if m.note_count() == 0 {
+        m.notes[2] = Some(Note::new(0, 1.0));
+    }
+    avoid_friction_with_bass(&mut m, key, bass, prog);
+    m
+}
+
 fn nearest_chord_tone(d: i32) -> i32 {
     const TONES: [i32; 6] = [-3, 0, 2, 4, 7, 9];
     *TONES.iter().min_by_key(|t| (d - **t).abs()).unwrap()
@@ -1016,6 +1119,7 @@ fn gen_sound(rng: &mut Rng, p: &Profile, key: Key) -> SoundParams {
             decay: rng.in_range(d.ride.decay),
         },
         bass: BassParams {
+            rhythm: BassRhythm::Rolling,
             cutoff_hz: rng.in_range(p.bass.cutoff_hz),
             env_mod: rng.in_range(p.bass.env_mod),
             resonance: rng.in_range(p.bass.resonance),
@@ -1039,6 +1143,7 @@ fn gen_sound(rng: &mut Rng, p: &Profile, key: Key) -> SoundParams {
         },
         lead: LeadParams {
             kind: LeadKind::Acid,
+            style: LeadStyle::Riff,
             cutoff_hz: rng.in_range(p.lead.cutoff_hz),
             resonance: rng.in_range(p.lead.resonance),
             env_mod: rng.in_range(p.lead.env_mod),

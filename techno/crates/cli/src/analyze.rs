@@ -111,6 +111,10 @@ fn features(dna: &SongDna, bar: Option<u32>) -> Vec<(String, String)> {
         format!("{:?}", dna.drums.backbeat).to_lowercase(),
     );
     add("hats", format!("{:?}", dna.drums.hat_style).to_lowercase());
+    add(
+        "bass rhythm",
+        format!("{:?}", dna.sound.bass.rhythm).to_lowercase(),
+    );
     add("open hat", (dna.drums.hat_open.count() > 0).to_string());
     add("main synth", p.main_synth.name().to_string());
     add(
@@ -128,6 +132,10 @@ fn features(dna: &SongDna, bar: Option<u32>) -> Vec<(String, String)> {
         add(
             "lead kind",
             format!("{:?}", dna.sound.lead.kind).to_lowercase(),
+        );
+        add(
+            "lead style",
+            format!("{:?}", dna.sound.lead.style).to_lowercase(),
         );
     }
     let kinds: Vec<&str> = p.sections().iter().map(|s| s.kind.name()).collect();

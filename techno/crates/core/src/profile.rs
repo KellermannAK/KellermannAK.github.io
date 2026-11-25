@@ -79,6 +79,19 @@ pub enum LeadKind {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+pub enum LeadStyle {
+    /// Busy riff from a half-bar cell with variation (many notes, Markov melody).
+    Riff,
+    /// 2-4 notes per bar, at most 3 pitches.
+    Sparse,
+    /// One pitch, rhythmic (euclidean), accents.
+    Pulse,
+    /// Few long held notes.
+    Long,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ArpPattern {
     Up,
     Down,
@@ -309,6 +322,10 @@ pub enum BassRhythm {
     Gallop,
     /// Second and fourth 16th of each beat.
     Skippy,
+    /// Alternates per beat: last two 16ths, then only the second 16th.
+    Syncopated,
+    /// Few notes: offbeat on beats 1 and 3, two 16ths before the next bar.
+    Sparse,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -374,6 +391,8 @@ pub struct StabRules {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LeadRules {
     pub kinds: Weighted<LeadKind>,
+    /// Melodic style of the lead motif.
+    pub styles: Weighted<LeadStyle>,
     pub motif_bars: Weighted<u8>,
     pub density: Range,
     pub slide_prob: f32,

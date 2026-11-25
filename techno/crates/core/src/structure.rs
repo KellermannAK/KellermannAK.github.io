@@ -245,6 +245,9 @@ pub struct Automation {
     pub synth_filter: f32,
     /// Insert effect intensity multiplier.
     pub fx_amount: f32,
+    /// 0..1: extra weight in drops (harder kick, louder rumble) so they hit harder than
+    /// the groove before them.
+    pub drop_power: f32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -793,6 +796,7 @@ impl SongPlan {
             lowpass: 0.0,
             synth_filter: 1.0,
             fx_amount: 1.0,
+            drop_power: 0.0,
         };
         let style = self.styles[idx];
         let into_drop = self.next_kind(idx) == Some(SectionKind::Drop);
@@ -819,8 +823,9 @@ impl SongPlan {
                 a.bass_filter = lerp(0.6, 0.3);
             }
             SectionKind::Groove => {
+                // Grooves hold something back so the drop can open up.
                 a.lead_filter = lerp(0.45, 0.8);
-                a.bass_filter = (0.75 + x * 2.0).min(1.0);
+                a.bass_filter = lerp(0.72, 0.88);
             }
             SectionKind::Build => {
                 // Gentle opening only: a full sweep on a resonant lead sounds like acid.
@@ -849,6 +854,7 @@ impl SongPlan {
             }
             SectionKind::Drop => {
                 a.lead_filter = 1.0;
+                a.drop_power = 1.0;
                 if style.drop == DropStyle::FilterOpen {
                     let open = ((pos_bars - s.start as f32) / 8.0).clamp(0.0, 1.0);
                     a.lowpass = (1.0 - open) * (1.0 - open);

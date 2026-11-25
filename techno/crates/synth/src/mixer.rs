@@ -19,6 +19,8 @@ pub struct Channel {
     pub settings: ChannelSettings,
     /// Extra delay send on top of the setting (delay throws).
     pub delay_boost: f32,
+    /// Extra gain factor on top of the setting (arrangement automation).
+    pub gain_mul: f32,
     level: Smoother,
     hp: Option<Svf>,
     hp_r: Option<Svf>,
@@ -42,6 +44,7 @@ impl Channel {
         Channel {
             settings,
             delay_boost: 0.0,
+            gain_mul: 1.0,
             level: Smoother::new(0.0, 0.008, sr),
             hp,
             hp_r,
@@ -59,7 +62,7 @@ impl Channel {
     pub fn process(&mut self, x: f32, duck: f32) -> ChannelOut {
         let s = &self.settings;
         let lvl = self.level.next();
-        let g = s.gain * lvl * (1.0 - s.sidechain * duck);
+        let g = s.gain * self.gain_mul * lvl * (1.0 - s.sidechain * duck);
         let x = match self.hp.as_mut() {
             Some(f) => f.hp(x),
             None => x,
@@ -78,7 +81,7 @@ impl Channel {
     pub fn process_stereo(&mut self, l: f32, r: f32, duck: f32) -> ChannelOut {
         let s = &self.settings;
         let lvl = self.level.next();
-        let g = s.gain * lvl * (1.0 - s.sidechain * duck);
+        let g = s.gain * self.gain_mul * lvl * (1.0 - s.sidechain * duck);
         let (l, r) = match (self.hp.as_mut(), self.hp_r.as_mut()) {
             (Some(fl), Some(fr)) => (fl.hp(l), fr.hp(r)),
             _ => (l, r),
