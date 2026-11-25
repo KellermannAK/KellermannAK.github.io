@@ -343,6 +343,18 @@
       }
     }
     if (!(index.mixes || []).length) mixBox.innerHTML = '<p class="meta">Noch keine Mixes.</p>';
+    // Endless radio: when a mix ends, the next one starts (and after the last, the first).
+    const mixAudios = [...mixBox.querySelectorAll("audio")];
+    mixAudios.forEach((au, i) => au.addEventListener("ended", () => {
+      const next = mixAudios[(i + 1) % mixAudios.length];
+      if (!next) return;
+      next.currentTime = 0;
+      next.play().catch(() => {});
+      next.closest(".card").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }));
+    if (mixAudios.length > 1) {
+      mixBox.insertAdjacentHTML("afterbegin", '<p class="meta" style="margin:0 0 12px">Die Mixes laufen nacheinander endlos durch – gut als Alternative, falls das Live-Set auf einem Gerät ruckelt.</p>');
+    }
     for (const seed of index.seeds || []) songBox.appendChild(await songCard(seed));
 
     const sha = (index.commit || "").slice(0, 7);
