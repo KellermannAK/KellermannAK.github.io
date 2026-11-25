@@ -179,6 +179,7 @@
       <span>Live starten</span>
     </button>
     <p class="err" id="lv-error" hidden></p>
+    <p class="label" id="lv-slow" hidden style="margin:8px 0 0;color:#ffb13d"></p>
     <div class="live-now" id="lv-info" hidden>
       <div class="row"><span class="now-song" id="lv-song">–</span><span class="meta" id="lv-key"></span></div>
       <div class="row"><span class="section-name" id="lv-section">–</span><span class="label" id="lv-bars"></span></div>
@@ -201,6 +202,14 @@
     <details>
       <summary>Set-Seed (gleicher Seed = gleiches Set)</summary>
       <div class="seed-row"><input id="lv-seed" inputmode="numeric" aria-label="Set-Seed"><button class="btn" id="lv-seed-go">Starten</button></div>
+      <div class="seed-row" style="align-items:center">
+        <label class="label" for="lv-eco" style="flex:1">Sparmodus (halbe Rechenlast, ohne höchste Höhen)</label>
+        <select id="lv-eco" class="btn">
+          <option value="auto">Auto</option>
+          <option value="on">An</option>
+          <option value="off">Aus</option>
+        </select>
+      </div>
       <p class="label" id="lv-diag" style="margin:10px 0 0">Diagnose erscheint nach dem Start.</p>
     </details>
   </section>

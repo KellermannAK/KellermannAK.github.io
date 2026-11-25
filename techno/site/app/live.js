@@ -18,6 +18,35 @@ let wakeLock = null;
 let seed = 0;
 let playing = false;
 let silentAudio = null;
+let eco = false;
+let speed = 0; // browser speed test result (x realtime)
+const ECO_KEY = "techno-eco"; // "auto" | "on" | "off"
+
+function ecoPref() {
+  try { return localStorage.getItem(ECO_KEY) || "auto"; } catch (_) { return "auto"; }
+}
+
+/**
+ * Quarter-second benchmark of the engine on the main thread. Some browsers run
+ * WebAssembly without their optimising compiler (e.g. Edge "enhanced security"), which
+ * makes the engine 20-40x slower; the economy mode halves the load.
+ */
+async function speedTest(bytes) {
+  try {
+    const { instance } = await WebAssembly.instantiate(bytes, {});
+    const w = instance.exports;
+    const e = w.techno_new(1, 0, 48000);
+    for (let i = 0; i < 20; i++) w.techno_render(e, 128); // warm-up
+    const frames = 12000;
+    const t0 = performance.now();
+    for (let i = 0; i < frames / 128; i++) w.techno_render(e, 128);
+    const ms = performance.now() - t0;
+    w.techno_free(e);
+    return (frames / 48000) * 1000 / Math.max(ms, 0.01);
+  } catch (_) {
+    return 0;
+  }
+}
 
 const mmss = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
 
@@ -106,6 +135,19 @@ async function startSetInner(newSeed) {
       ctx.audioWorklet.addModule("app/worklet.js"),
     ]);
     wasmBytes = bytes;
+    speed = await speedTest(wasmBytes);
+  }
+  const pref = ecoPref();
+  eco = pref === "on" || (pref === "auto" && speed > 0 && speed < 8);
+  const hint = $("lv-slow");
+  if (speed > 0 && speed < 4) {
+    hint.hidden = false;
+    hint.textContent = `Dein Browser führt die Engine sehr langsam aus (${speed.toFixed(1)}× Echtzeit, normal sind 30–50×). `
+      + "Bei Microsoft Edge liegt das meist an „Verbesserte Sicherheit“: Einstellungen → Datenschutz, Suche und Dienste → "
+      + "„Sicherheit im Web verbessern“ → Ausnahme für diese Seite hinzufügen. Oder Chrome/Firefox nutzen. "
+      + (eco ? "Der Sparmodus ist eingeschaltet." : "");
+  } else {
+    hint.hidden = true;
   }
   if (node) {
     // Stop the old engine for good (a merely disconnected worklet keeps running).
@@ -120,7 +162,7 @@ async function startSetInner(newSeed) {
     numberOfInputs: 0,
     numberOfOutputs: 1,
     outputChannelCount: [2],
-    processorOptions: { wasm: wasmBytes, seedLo: seed, seedHi: 0, gain: volume() },
+    processorOptions: { wasm: wasmBytes, seedLo: seed, seedHi: 0, gain: volume(), eco },
   });
   node.port.onmessage = (ev) => {
     const m = ev.data;
@@ -153,7 +195,8 @@ function showDiag(load, rate) {
     .slice(1, 3).join(" ").replace("Edg", "Edge").replace("OPR", "Opera");
   const out = ctx ? Math.round(ctx.sampleRate) : rate;
   $("lv-diag").textContent =
-    `Engine-Last ${Math.round(loadAvg * 100)} % · ${rate} Hz${out !== rate ? ` (Ausgabe ${out} Hz)` : ""} · ${browser || "Browser?"}`;
+    `Engine-Last ${Math.round(loadAvg * 100)} % · ${rate} Hz${out !== rate ? ` (Ausgabe ${out} Hz)` : ""}`
+    + `${eco ? " · Sparmodus (intern 24 kHz)" : ""} · Browser-Test ${speed ? speed.toFixed(0) + "×" : "?"} · ${browser || "Browser?"}`;
 }
 
 function showError(msg) {
@@ -253,6 +296,12 @@ function init() {
   $("lv-up").addEventListener("click", () => feedback("up"));
   $("lv-down").addEventListener("click", () => feedback("down"));
   $("lv-idea").addEventListener("click", () => feedback("idea"));
+  const ecoSel = $("lv-eco");
+  ecoSel.value = ecoPref();
+  ecoSel.addEventListener("change", () => {
+    try { localStorage.setItem(ECO_KEY, ecoSel.value); } catch (_) {}
+    if (node) startSet(seed).catch((e) => showError(e.message)); // restart with the new mode
+  });
   $("lv-vol").addEventListener("input", () => {
     if (node) node.port.postMessage({ type: "gain", value: volume() });
   });

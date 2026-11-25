@@ -8,7 +8,7 @@ const now = () => (globalThis.performance && performance.now ? performance.now()
 class TechnoProcessor extends AudioWorkletProcessor {
   constructor(options) {
     super();
-    const { wasm, seedLo, seedHi, gain } = options.processorOptions;
+    const { wasm, seedLo, seedHi, gain, eco } = options.processorOptions;
     this.ready = false;
     this.blocksPerStatus = Math.max(1, Math.round(sampleRate / 128 / 8)); // ~8 updates/s
     this.blockCount = 0;
@@ -18,7 +18,9 @@ class TechnoProcessor extends AudioWorkletProcessor {
     WebAssembly.instantiate(wasm, {})
       .then(({ instance }) => {
         this.w = instance.exports;
-        this.e = this.w.techno_new(seedLo >>> 0, seedHi >>> 0, sampleRate);
+        this.e = eco
+          ? this.w.techno_new_eco(seedLo >>> 0, seedHi >>> 0, sampleRate, 2)
+          : this.w.techno_new(seedLo >>> 0, seedHi >>> 0, sampleRate);
         this.w.techno_set_gain(this.e, gain);
         this.ready = true;
         this.port.postMessage({ type: "ready" });

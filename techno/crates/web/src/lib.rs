@@ -30,31 +30,120 @@ pub const STATUS_LEN: usize = 16;
 /// 10 song length in bars, 11 energy 0..1, 12 planned transition (-1 none, 0 cut,
 /// 1 fast blend, 2 slow blend, 3 filter blend), 13 bars until it starts,
 /// 14 transition running (0/1), 15 seconds since start.
+/// 2x upsampler (half-band windowed-sinc FIR, polyphase). Used by the economy mode,
+/// where the engine renders at half the output rate.
+pub struct Upsampler2x {
+    hist: [f32; UP_HIST],
+    pos: usize,
+    odd: [f32; UP_ODD],
+}
+
+const UP_ODD: usize = 12; // taps of the odd phase
+const UP_HIST: usize = UP_ODD + 1;
+const UP_CENTER: usize = UP_ODD / 2; // delay of the even phase
+
+impl Upsampler2x {
+    pub fn new() -> Upsampler2x {
+        // Full filter: L = 2 * UP_ODD + 1 taps at the doubled rate, centre tap = 1, the even
+        // taps are zero (half-band); only the odd taps need computing.
+        let l = 2 * UP_ODD + 1;
+        let m = (l - 1) as f32 / 2.0;
+        let mut odd = [0.0f32; UP_ODD];
+        for (j, c) in odd.iter_mut().enumerate() {
+            let i = (2 * j + 1) as f32;
+            let x = (i - m) / 2.0;
+            let sinc = (core::f32::consts::PI * x).sin() / (core::f32::consts::PI * x);
+            let w = 0.42 - 0.5 * (core::f32::consts::TAU * i / (l - 1) as f32).cos()
+                + 0.08 * (2.0 * core::f32::consts::TAU * i / (l - 1) as f32).cos();
+            *c = sinc * w;
+        }
+        let sum: f32 = odd.iter().sum();
+        for c in odd.iter_mut() {
+            *c /= sum; // odd phase has unity DC gain, like the even phase
+        }
+        Upsampler2x {
+            hist: [0.0; UP_HIST],
+            pos: 0,
+            odd,
+        }
+    }
+
+    /// One input sample in, two output samples out.
+    #[inline]
+    pub fn process(&mut self, x: f32) -> (f32, f32) {
+        self.pos = (self.pos + 1) % UP_HIST;
+        self.hist[self.pos] = x;
+        let at = |k: usize| self.hist[(self.pos + UP_HIST - k) % UP_HIST];
+        let even = at(UP_CENTER);
+        let mut odd = 0.0;
+        for (k, c) in self.odd.iter().enumerate() {
+            odd += c * at(k);
+        }
+        (even, odd)
+    }
+}
+
+impl Default for Upsampler2x {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub struct WebEngine {
     set: Set,
     left: Vec<f32>,
     right: Vec<f32>,
     status: [f64; STATUS_LEN],
     gain: f32,
+    /// 1 = full rate, 2 = economy mode (engine at half rate, upsampled).
+    factor: usize,
+    up: [Upsampler2x; 2],
 }
 
 impl WebEngine {
     pub fn new(seed: u64, sample_rate: f32) -> WebEngine {
+        WebEngine::with_factor(seed, sample_rate, 1)
+    }
+
+    /// `factor` 2 = economy mode: the engine runs at `sample_rate / 2` (half the CPU) and is
+    /// upsampled; content above a quarter of the output rate (12 kHz at 48 kHz) is lost.
+    pub fn with_factor(seed: u64, sample_rate: f32, factor: usize) -> WebEngine {
+        let factor = factor.clamp(1, 2);
         WebEngine {
-            set: Set::new(seed, Profile::hard_techno_simple(), u32::MAX, sample_rate),
+            set: Set::new(
+                seed,
+                Profile::hard_techno_simple(),
+                u32::MAX,
+                sample_rate / factor as f32,
+            ),
             left: vec![0.0; MAX_FRAMES],
             right: vec![0.0; MAX_FRAMES],
             status: [0.0; STATUS_LEN],
             gain: 1.0,
+            factor,
+            up: [Upsampler2x::new(), Upsampler2x::new()],
         }
     }
 
     pub fn render(&mut self, frames: usize) -> usize {
         let n = frames.min(MAX_FRAMES);
-        for i in 0..n {
+        if self.factor == 1 {
+            for i in 0..n {
+                let (l, r) = self.set.process();
+                self.left[i] = l * self.gain;
+                self.right[i] = r * self.gain;
+            }
+            return n;
+        }
+        let n = n & !1; // even number of output frames
+        for i in (0..n).step_by(2) {
             let (l, r) = self.set.process();
-            self.left[i] = l * self.gain;
-            self.right[i] = r * self.gain;
+            let (l0, l1) = self.up[0].process(l * self.gain);
+            let (r0, r1) = self.up[1].process(r * self.gain);
+            self.left[i] = l0;
+            self.left[i + 1] = l1;
+            self.right[i] = r0;
+            self.right[i + 1] = r1;
         }
         n
     }
@@ -116,6 +205,22 @@ pub extern "C" fn techno_new(seed_lo: u32, seed_hi: u32, sample_rate: f32) -> *m
     Box::into_raw(Box::new(WebEngine::new(seed, sample_rate)))
 }
 
+/// Economy mode constructor: `factor` 2 renders at half the output rate (half the CPU).
+#[no_mangle]
+pub extern "C" fn techno_new_eco(
+    seed_lo: u32,
+    seed_hi: u32,
+    sample_rate: f32,
+    factor: u32,
+) -> *mut WebEngine {
+    let seed = (seed_hi as u64) << 32 | seed_lo as u64;
+    Box::into_raw(Box::new(WebEngine::with_factor(
+        seed,
+        sample_rate,
+        factor as usize,
+    )))
+}
+
 /// # Safety
 /// `e` must come from `techno_new` and not be freed.
 #[no_mangle]
@@ -163,6 +268,34 @@ pub unsafe extern "C" fn techno_free(e: *mut WebEngine) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn upsampler_passes_low_frequencies() {
+        let mut up = Upsampler2x::new();
+        let sr = 48000.0;
+        let mut peak: f32 = 0.0;
+        // 1 kHz at the 24 kHz input rate -> should come out at full level.
+        for n in 0..4800 {
+            let x = (core::f32::consts::TAU * 1000.0 * n as f32 / (sr / 2.0)).sin();
+            let (a, b) = up.process(x);
+            if n > 100 {
+                peak = peak.max(a.abs()).max(b.abs());
+            }
+        }
+        assert!((peak - 1.0).abs() < 0.03, "peak {peak}");
+    }
+
+    #[test]
+    fn eco_mode_renders() {
+        let mut e = WebEngine::with_factor(5, 48000.0, 2);
+        for _ in 0..400 {
+            assert_eq!(e.render(128), 128);
+        }
+        assert!(e.left[..128].iter().any(|x| *x != 0.0));
+        assert!(e.left[..128]
+            .iter()
+            .all(|x| x.is_finite() && x.abs() <= 1.0));
+    }
 
     #[test]
     fn renders_and_reports() {
