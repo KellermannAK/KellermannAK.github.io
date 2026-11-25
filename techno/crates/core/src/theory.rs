@@ -9,20 +9,32 @@ pub enum ScaleKind {
     NaturalMinor,
     Phrygian,
     HarmonicMinor,
+    /// Minor with a major sixth: the soulful minor of house music.
+    Dorian,
+    Major,
 }
 
 impl ScaleKind {
-    pub const ALL: [ScaleKind; 3] = [
+    pub const ALL: [ScaleKind; 5] = [
         ScaleKind::NaturalMinor,
         ScaleKind::Phrygian,
         ScaleKind::HarmonicMinor,
+        ScaleKind::Dorian,
+        ScaleKind::Major,
     ];
+
+    /// True for scales with a major third (Camelot "B" ring).
+    pub const fn is_major(self) -> bool {
+        matches!(self, ScaleKind::Major)
+    }
 
     pub const fn intervals(self) -> [i32; 7] {
         match self {
             ScaleKind::NaturalMinor => [0, 2, 3, 5, 7, 8, 10],
             ScaleKind::Phrygian => [0, 1, 3, 5, 7, 8, 10],
             ScaleKind::HarmonicMinor => [0, 2, 3, 5, 7, 8, 11],
+            ScaleKind::Dorian => [0, 2, 3, 5, 7, 9, 10],
+            ScaleKind::Major => [0, 2, 4, 5, 7, 9, 11],
         }
     }
 
@@ -31,6 +43,8 @@ impl ScaleKind {
             ScaleKind::NaturalMinor => "minor",
             ScaleKind::Phrygian => "phrygian",
             ScaleKind::HarmonicMinor => "harmonic minor",
+            ScaleKind::Dorian => "dorian",
+            ScaleKind::Major => "major",
         }
     }
 }
@@ -61,8 +75,12 @@ impl Key {
         self.scale.intervals().contains(&rel)
     }
 
-    /// Camelot wheel code. All v1 scales are minor-type, so they map to the "A" ring.
+    /// Camelot wheel code: minor-type scales on the "A" ring, major on the "B" ring.
     pub fn camelot(self) -> (u8, char) {
+        if self.scale.is_major() {
+            let n = (self.root as i32 * 7).rem_euclid(12) + 8;
+            return (((n - 1) % 12 + 1) as u8, 'B');
+        }
         let n = ((self.root as i32 - 9) * 7).rem_euclid(12) + 8;
         (((n - 1) % 12 + 1) as u8, 'A')
     }
@@ -118,6 +136,18 @@ mod tests {
         assert_eq!(k(8).camelot_code(), "1A"); // G# / Ab minor
         assert_eq!(k(0).camelot_code(), "5A"); // C minor
         assert_eq!(k(6).camelot_code(), "11A"); // F# minor
+    }
+
+    #[test]
+    fn camelot_major_ring() {
+        let k = |root| Key {
+            root,
+            scale: ScaleKind::Major,
+        };
+        assert_eq!(k(0).camelot_code(), "8B"); // C major
+        assert_eq!(k(7).camelot_code(), "9B"); // G major
+        assert_eq!(k(5).camelot_code(), "7B"); // F major
+        assert_eq!(k(9).camelot_code(), "11B"); // A major
     }
 
     #[test]

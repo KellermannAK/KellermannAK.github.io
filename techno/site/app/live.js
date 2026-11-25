@@ -3,7 +3,11 @@
 const $ = (id) => document.getElementById(id);
 const NOTES = ["C", "Cis", "D", "Es", "E", "F", "Fis", "G", "Gis", "A", "B", "H"];
 const keyName = (root, scale) =>
-  [`${NOTES[root]}-Moll`, `${NOTES[root]} phrygisch`, `${NOTES[root]} harmonisch Moll`][scale] || NOTES[root];
+  [`${NOTES[root]}-Moll`, `${NOTES[root]} phrygisch`, `${NOTES[root]} harmonisch Moll`,
+    `${NOTES[root]} dorisch`, `${NOTES[root]}-Dur`][scale] || NOTES[root];
+const genre = () => (window.TechnoGenre ? window.TechnoGenre.current() : { id: "techno", name: "Techno", index: 0 });
+// Genre the running set was started with (the switcher may change it later).
+let setGenre = genre();
 const SECTIONS = ["Intro", "Groove", "Build-up", "Breakdown", "Drop", "Outro"];
 const TRANSITIONS = ["harter Cut", "schnelle Blende", "langsame Blende", "Filter-Blende"];
 // Short silent WAV: playing it through an <audio> element moves iOS into the
@@ -36,7 +40,11 @@ let mainWasm = null;
 
 function songName(songSeed) {
   if (!mainWasm || !mainWasm.techno_name) return null;
-  const len = mainWasm.techno_name(songSeed >>> 0, Math.floor(songSeed / 2 ** 32));
+  const lo = songSeed >>> 0;
+  const hi = Math.floor(songSeed / 2 ** 32);
+  const len = mainWasm.techno_name_genre
+    ? mainWasm.techno_name_genre(lo, hi, setGenre.index)
+    : mainWasm.techno_name(lo, hi);
   const bytes = new Uint8Array(mainWasm.memory.buffer, mainWasm.techno_name_ptr(), len);
   const [artist, title] = new TextDecoder().decode(bytes).split("\n");
   return { artist, title };
@@ -170,12 +178,16 @@ async function startSetInner(newSeed) {
     node = null;
   }
   seed = newSeed;
-  history.replaceState(null, "", `?set=${seed}`);
+  setGenre = genre();
+  lastSongSeed = -1;
+  const url = new URL(location.href);
+  url.searchParams.set("set", seed);
+  history.replaceState(null, "", url);
   node = new AudioWorkletNode(ctx, "techno", {
     numberOfInputs: 0,
     numberOfOutputs: 1,
     outputChannelCount: [2],
-    processorOptions: { wasm: wasmBytes, seedLo: seed, seedHi: 0, gain: volume(), eco },
+    processorOptions: { wasm: wasmBytes, seedLo: seed, seedHi: 0, gain: volume(), eco, genre: setGenre.index },
   });
   node.port.onmessage = (ev) => {
     const m = ev.data;
@@ -230,12 +242,13 @@ function feedback(rating) {
   const [song, songSeed, root, scale, camelot, bpm, section, bar, secBar, secBars, totalBars] = lastStatus;
   window.TechnoFeedback.open({
     source: "Live-Set",
+    genre: setGenre.id,
     setSeed: seed,
     songIndex: song,
     songSeed,
     key: keyName(root, scale),
     title: currentName ? `${currentName.artist} – ${currentName.title}` : undefined,
-    camelot: `${camelot}A`,
+    camelot: `${camelot}${ring()}`,
     bpm,
     section: SECTIONS[section],
     sectionBar: `${secBar + 1}/${secBars}`,
@@ -244,6 +257,9 @@ function feedback(rating) {
     time: mmss(lastStatus[15]),
   }, rating);
 }
+
+// Camelot ring from the status (index 16; older engines only had the minor "A" ring).
+const ring = () => (lastStatus && lastStatus[16] === 1 ? "B" : "A");
 
 function showStatus(s) {
   lastStatus = s;
@@ -257,6 +273,7 @@ function showStatus(s) {
   if (window.TechnoStats) {
     window.TechnoStats.setNow({
       source: "live",
+      genre: setGenre.id,
       source_seed: seed,
       song_seed: songSeed,
       song_index: song,
@@ -267,7 +284,7 @@ function showStatus(s) {
   $("lv-song").textContent = currentName ? currentName.title : `Song ${song + 1}`;
   $("lv-artist").textContent = currentName ? currentName.artist : "";
   $("lv-key").textContent = `Song ${song + 1} · ${key} · ${bpm} BPM`;
-  $("lv-cam").textContent = `${camelot}A`;
+  $("lv-cam").textContent = `${camelot}${ring()}`;
   $("lv-section").textContent = SECTIONS[section] || "–";
   $("lv-bars").textContent = `Takt ${secBar + 1}/${secBars}`;
   $("lv-progress").style.width = `${Math.min(100, ((secBar + 1) / Math.max(1, secBars)) * 100)}%`;
@@ -283,8 +300,8 @@ function showStatus(s) {
     lastTitle = title;
     navigator.mediaSession.metadata = new MediaMetadata({
       title,
-      artist: currentName ? currentName.artist : "Techno Generator",
-      album: `Techno Generator · Live-Set #${seed}`,
+      artist: currentName ? currentName.artist : `${setGenre.name} Generator`,
+      album: `${setGenre.name} Generator · Live-Set #${seed}`,
     });
   }
 }
@@ -344,6 +361,23 @@ function init() {
   });
   // Pause other players when the live set starts and vice versa.
   document.addEventListener("play", () => { if (playing) togglePlay(false); }, true);
+  // Genre switch: a running set continues in the new genre (same set seed); a paused or
+  // stopped one is reset so the next start plays the new genre.
+  window.addEventListener("genrechange", () => {
+    if (node && playing) {
+      startSet(seed).catch((e) => showError(e.message));
+    } else if (node) {
+      node.port.postMessage({ type: "stop" });
+      node.disconnect();
+      node.port.onmessage = null;
+      node = null;
+      playing = false;
+      lastStatus = null;
+      $("lv-info").hidden = true;
+      setPlayButton("idle");
+      if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
+    }
+  });
 }
 
 init();

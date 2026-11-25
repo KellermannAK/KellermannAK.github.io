@@ -1,14 +1,14 @@
 // AudioWorklet: runs the Rust engine (WebAssembly) on the audio thread.
 // The main thread passes the .wasm bytes and the set seed via processorOptions.
 
-const STATUS_LEN = 16;
+const STATUS_LEN = 17;
 // Clock for load measurement (performance.now is not available in every worklet scope).
 const now = () => (globalThis.performance && performance.now ? performance.now() : Date.now());
 
 class TechnoProcessor extends AudioWorkletProcessor {
   constructor(options) {
     super();
-    const { wasm, seedLo, seedHi, gain, eco } = options.processorOptions;
+    const { wasm, seedLo, seedHi, gain, eco, genre } = options.processorOptions;
     this.ready = false;
     this.blocksPerStatus = Math.max(1, Math.round(sampleRate / 128 / 8)); // ~8 updates/s
     this.blockCount = 0;
@@ -18,9 +18,13 @@ class TechnoProcessor extends AudioWorkletProcessor {
     WebAssembly.instantiate(wasm, {})
       .then(({ instance }) => {
         this.w = instance.exports;
-        this.e = eco
-          ? this.w.techno_new_eco(seedLo >>> 0, seedHi >>> 0, sampleRate, 2)
-          : this.w.techno_new(seedLo >>> 0, seedHi >>> 0, sampleRate);
+        if (this.w.techno_new_genre) {
+          this.e = this.w.techno_new_genre(seedLo >>> 0, seedHi >>> 0, sampleRate, eco ? 2 : 1, genre || 0);
+        } else {
+          this.e = eco
+            ? this.w.techno_new_eco(seedLo >>> 0, seedHi >>> 0, sampleRate, 2)
+            : this.w.techno_new(seedLo >>> 0, seedHi >>> 0, sampleRate);
+        }
         this.w.techno_set_gain(this.e, gain);
         this.ready = true;
         this.port.postMessage({ type: "ready" });

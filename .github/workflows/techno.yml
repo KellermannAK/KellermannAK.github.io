@@ -32,11 +32,14 @@ jobs:
           done
           ffmpeg -version | head -1
           mkdir -p preview
-          for seed in 1 7 2026; do
-            ./target/release/techno render --seed $seed --out preview/seed-$seed.wav
-            ffmpeg -loglevel error -y -i preview/seed-$seed.wav -b:a 192k preview/seed-$seed.mp3
-            ./target/release/techno info --seed $seed > preview/seed-$seed.txt
-            rm preview/seed-$seed.wav
+          for genre in techno house; do
+            for seed in 1 7 2026; do
+              f=preview/$genre-seed-$seed
+              ./target/release/techno render --genre $genre --seed $seed --out $f.wav
+              ffmpeg -loglevel error -y -i $f.wav -b:a 192k $f.mp3
+              ./target/release/techno info --genre $genre --seed $seed > $f.txt
+              rm $f.wav
+            done
           done
       - uses: actions/upload-artifact@v4
         with:

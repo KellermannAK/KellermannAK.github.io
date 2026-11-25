@@ -35,10 +35,12 @@ tracks! {
     Drone => "drone",
     Riser => "riser",
     Impact => "impact",
+    Piano => "piano",
+    Guitar => "guitar",
 }
 
 impl Track {
-    pub const COUNT: usize = 18;
+    pub const COUNT: usize = 20;
 
     pub const fn index(self) -> usize {
         self as usize

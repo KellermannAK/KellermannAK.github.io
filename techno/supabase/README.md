@@ -51,3 +51,11 @@ In the dashboard (Table Editor → feedback), or for analysis:
 ```sh
 SUPABASE_SERVICE_KEY=... scripts/fetch_feedback.py | target/release/techno analyze --input -
 ```
+
+## Genres
+
+Run `genre.sql` once (SQL Editor -> paste -> Run, safe to repeat). It adds a `genre` column to
+`feedback` (derived from `context.genre`, old rows read as techno) and to `listens` (part of
+the key: the same set seed is a different song in another genre), and updates `track()`.
+The site sends the genre already; before the script runs nothing breaks, the listens are just
+not split by genre yet.

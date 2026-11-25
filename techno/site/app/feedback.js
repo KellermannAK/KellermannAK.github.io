@@ -27,6 +27,12 @@
     try { localStorage.setItem(KEY, JSON.stringify(list)); } catch (_) { /* storage unavailable */ }
   }
 
+  const genres = () => (window.TechnoGenre ? window.TechnoGenre.list : [{ id: "techno", name: "Techno", profile: "hard_techno_simple" }]);
+  function genreOf(ctx) {
+    const id = (ctx && ctx.genre) || (window.TechnoGenre ? window.TechnoGenre.current().id : "techno");
+    return genres().find((g) => g.id === id) || null;
+  }
+
   function where(ctx) {
     const parts = [];
     if (ctx.mixSeed !== undefined) parts.push(`Mix ${ctx.mixSeed} @ ${ctx.time}`);
@@ -35,6 +41,9 @@
     if (ctx.section) parts.push(`${ctx.section}${ctx.sectionBar ? ` ${ctx.sectionBar}` : ""}`);
     if (ctx.songBar) parts.push(`Song-Takt ${ctx.songBar}`);
     if (ctx.key) parts.push(`${ctx.key}${ctx.camelot ? ` (${ctx.camelot})` : ""}`);
+    // The genre is always part of the position (the analysis rebuilds songs with it).
+    const g = genreOf(ctx);
+    if (g) parts.push(`Genre ${g.name}`);
     return parts.join(" · ");
   }
 
@@ -130,7 +139,8 @@
         where: where(d.ctx),
         ctx: d.ctx,
         engine: build.version.engine,
-        profile: build.version.profile,
+        genre: d.ctx.genre,
+        profile: (genreOf(d.ctx) || {}).profile || build.version.profile,
         // Mixes from the archive carry the build they were rendered with.
         build: d.ctx.build || (build.commit || "").slice(0, 7),
       });
@@ -163,10 +173,11 @@
 
   function open(ctx, rating) {
     const d = dialog();
-    d.ctx = ctx;
+    // Every feedback carries its genre.
+    d.ctx = { ...ctx, genre: (genreOf(ctx) || { id: "techno" }).id };
     setRating(d, rating);
     d.querySelector("textarea").value = "";
-    d.querySelector(".fb-where").textContent = where(ctx);
+    d.querySelector(".fb-where").textContent = where(d.ctx);
     d.showModal();
   }
 
@@ -174,7 +185,7 @@
 
   function exportText(list) {
     const v = list.length ? list[list.length - 1] : { engine: build.version.engine, profile: build.version.profile, build: "" };
-    const lines = [`Techno-Feedback (${list.length}) – Engine ${v.engine} · Profil ${v.profile} · Build ${v.build || "?"}`, ""];
+    const lines = [`Feedback (${list.length}) – Engine ${v.engine} · Profil ${v.profile} · Build ${v.build || "?"}`, ""];
     list.forEach((e, i) => {
       lines.push(`${i + 1}. ${ICON[ratingOf(e)]} ${e.where}${e.build ? ` · Build ${e.build}` : ""}`);
       if (e.comment) lines.push(`   „${e.comment}“`);
@@ -268,7 +279,7 @@
     if (share) {
       share.addEventListener("click", () => {
         const l = load();
-        navigator.share({ title: "Techno-Feedback", text: exportText(l) }).then(() => removeSent(l)).catch(() => {});
+        navigator.share({ title: "Generator-Feedback", text: exportText(l) }).then(() => removeSent(l)).catch(() => {});
       });
     }
     box.querySelectorAll(".fb-issue").forEach((a) => a.addEventListener("click", () => {

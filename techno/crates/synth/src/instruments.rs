@@ -3,8 +3,8 @@
 
 use crate::dsp::*;
 use techno_core::dna::{
-    BassParams, DroneParams, HatParams, KickParams, LeadParams, PadParams, RumbleParams,
-    SnareParams, StabParams, ToneParams,
+    BassParams, DroneParams, GuitarParams, HatParams, KeysParams, KickParams, LeadParams,
+    PadParams, RumbleParams, SnareParams, StabParams, ToneParams,
 };
 use techno_core::profile::{KickStyle, LeadKind};
 use techno_core::structure::RiserKind;
@@ -785,6 +785,10 @@ pub struct Lead {
     stack: [Osc; 7],
     modulator: Osc,
     dive: f32,
+    /// Samples since the last attack (glide vibrato fades in).
+    since: u32,
+    played: bool,
+    vib: Osc,
 }
 
 impl Lead {
@@ -809,7 +813,20 @@ impl Lead {
             stack: core::array::from_fn(|i| Osc::with_phase(i as f32 * 0.137 % 1.0)),
             modulator: Osc::default(),
             dive: 0.0,
+            since: 0,
+            played: false,
+            vib: Osc::default(),
         }
+        .configured()
+    }
+
+    fn configured(mut self) -> Lead {
+        if self.p.kind == LeadKind::Glide {
+            // Long portamento, soft attack, longer release: the house glide.
+            self.glide = smooth_coef(0.09, self.sr);
+            self.amp = Adsr::new(0.012, 0.3, 0.85, 0.12, self.sr);
+        }
+        self
     }
 
     /// `legato`: the previous note slides into this one (no envelope retrigger).
@@ -818,8 +835,14 @@ impl Lead {
         self.gate = gate_samples.max(1);
         self.vel = vel;
         self.accent = if accent { 1.0 } else { 0.0 };
+        let glide = self.p.kind == LeadKind::Glide;
         if !(legato && self.amp.is_active()) {
-            self.freq = freq;
+            // Glide leads always slide from the previous pitch (except the very first note).
+            if !glide || !self.played {
+                self.freq = freq;
+            }
+            self.played = true;
+            self.since = 0;
             self.fenv.trigger(1.0);
             self.amp.gate_on();
             self.dive = 1.0;
@@ -878,6 +901,20 @@ impl Lead {
                 let cutoff = p.cutoff_hz * 4.0 * open * (1.0 + 0.4 * fe);
                 self.f1.set(cutoff, 0.1, sr);
                 self.f1.lp(x * 0.3)
+            }
+            LeadKind::Glide => {
+                // Saw + square through a soft low-pass, a sine an octave below, delayed vibrato.
+                self.since = self.since.saturating_add(1);
+                let t = self.since as f32 / sr;
+                let depth = 0.007 * ((t - 0.25) * 2.5).clamp(0.0, 1.0);
+                let f = self.freq * (1.0 + depth * self.vib.sine(5.2, sr));
+                let x = self.osc.saw(f, sr) * (1.0 - 0.5 * p.square)
+                    + self.stack[0].square(f * 1.003, sr) * 0.35 * (0.3 + p.square)
+                    + self.modulator.sine(f * 0.5, sr) * 0.45;
+                let cutoff = p.cutoff_hz * 1.6 * open * (1.0 + 0.6 * p.env_mod * fe);
+                self.f1
+                    .set(cutoff.min(12000.0), 0.12 + 0.3 * p.resonance, sr);
+                self.f1.lp(x * 0.6)
             }
             LeadKind::Pluck => {
                 // 2-op FM: modulation index decays with the filter envelope -> bell pluck.
@@ -1337,5 +1374,551 @@ impl Drone {
         }
         self.ctrl = (self.ctrl + 1) & 15;
         saturate(self.filt.lp(x * 0.3) * self.env.next(), self.p.drive) * 0.6
+    }
+}
+
+// ----------------------------------------------------------------------------- piano
+
+const PIANO_VOICES: usize = 12;
+/// Partials per note; the lowest `PIANO_DOUBLED` have a second, slightly detuned string.
+const PIANO_PARTIALS: usize = 7;
+const PIANO_DOUBLED: usize = 3;
+const PIANO_MODES: usize = PIANO_PARTIALS + PIANO_DOUBLED;
+
+/// Damped sine resonator: y[n] = c1 y[n-1] - c2 y[n-2] rings at a fixed frequency with an
+/// exponential decay. Ten of them per note make a piano tone (modal synthesis).
+#[derive(Clone, Copy, Default)]
+struct Mode {
+    c1: f32,
+    c2: f32,
+    y1: f32,
+    y2: f32,
+    w: f32,
+}
+
+impl Mode {
+    fn strike(&mut self, w: f32, tau: f32, amp: f32, sr: f32) {
+        self.w = w;
+        self.set_decay(tau, sr);
+        let r = self.c2.sqrt().max(1e-6);
+        self.y1 = 0.0;
+        self.y2 = -amp * w.sin() / r;
+    }
+
+    fn set_decay(&mut self, tau: f32, sr: f32) {
+        let r = (-1.0 / (tau.max(0.005) * sr)).exp();
+        self.c1 = 2.0 * r * self.w.cos();
+        self.c2 = r * r;
+    }
+
+    #[inline]
+    fn next(&mut self) -> f32 {
+        let y = self.c1 * self.y1 - self.c2 * self.y2;
+        self.y2 = self.y1;
+        self.y1 = y;
+        y
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+struct PianoVoice {
+    modes: [Mode; PIANO_MODES],
+    /// Modes that are below Nyquist and audible.
+    count: usize,
+    /// Samples until the hammer hits (strummed / humanised chords).
+    start_in: u32,
+    gate: u32,
+    /// Rough envelope of the slowest mode, for voice stealing and switching off.
+    env: f32,
+    env_mul: f32,
+    hammer: f32,
+    hammer_mul: f32,
+    active: bool,
+    pending: bool,
+    freq: f32,
+    vel: f32,
+}
+
+/// Piano without samples: every note is a bank of damped resonators at the (slightly
+/// inharmonic) partials of a string, two detuned strings for the low partials (beating,
+/// double decay), a short filtered hammer noise and a damper on note-off.
+/// Variants: 0 grand, 1 felt (soft, dark), 2 electric (tine with bell partial),
+/// 3 bright house piano (short, wide detune).
+pub struct Piano {
+    sr: f32,
+    p: KeysParams,
+    voices: [PianoVoice; PIANO_VOICES],
+    next: usize,
+    noise: Noise,
+    hammer_bp: Svf,
+    tone: OnePole,
+    gain: f32,
+    ctrl: u32,
+    /// Brightness multiplier from the arrangement (slow filter movement).
+    pub filter_mul: f32,
+}
+
+impl Piano {
+    pub fn new(p: KeysParams, sr: f32) -> Piano {
+        let gain = match p.variant {
+            1 => 1.35,
+            2 => 0.9,
+            3 => 0.8,
+            _ => 1.0,
+        };
+        Piano {
+            sr,
+            p,
+            voices: [PianoVoice::default(); PIANO_VOICES],
+            next: 0,
+            noise: Noise::new(0x51A2_0F11),
+            hammer_bp: Svf::new(2500.0, 0.4, sr),
+            tone: OnePole::new(8000.0, sr),
+            gain,
+            ctrl: 0,
+            filter_mul: 1.0,
+        }
+    }
+
+    fn free_voice(&mut self) -> usize {
+        // Prefer a silent voice, else the quietest one.
+        let mut best = self.next;
+        let mut best_env = f32::MAX;
+        for k in 0..PIANO_VOICES {
+            let i = (self.next + k) % PIANO_VOICES;
+            let v = &self.voices[i];
+            let e = if v.active || v.pending { v.env } else { -1.0 };
+            if e < best_env {
+                best_env = e;
+                best = i;
+            }
+        }
+        self.next = (best + 1) % PIANO_VOICES;
+        best
+    }
+
+    /// Play a chord. `spread` = samples between the notes (0 = together).
+    pub fn trigger_chord(&mut self, freqs: &[f32], vel: f32, gate_samples: u32, spread: u32) {
+        for (k, &f) in freqs.iter().enumerate() {
+            let i = self.free_voice();
+            let v = &mut self.voices[i];
+            v.freq = f;
+            v.vel = vel;
+            v.start_in = spread * k as u32;
+            v.gate = gate_samples.max(1) + v.start_in;
+            v.pending = true;
+        }
+    }
+
+    fn strike(&mut self, i: usize) {
+        let sr = self.sr;
+        let p = self.p;
+        let v = &mut self.voices[i];
+        v.pending = false;
+        v.active = true;
+        let f = v.freq;
+        let vel = v.vel;
+        let bright = (p.brightness * if p.variant == 1 { 0.45 } else { 1.0 }).clamp(0.0, 1.0);
+        // Steeper partial roll-off for soft notes and dark pianos.
+        let rolloff = 2.0 - 0.9 * bright - 0.5 * vel;
+        let (inharm, detune_cents, decay_mul) = match p.variant {
+            1 => (0.0002, 0.6, 0.85),
+            2 => (0.0, 0.3, 1.2),
+            3 => (0.0003, 3.5, 0.55),
+            _ => (0.00035, 0.9, 1.0),
+        };
+        // Higher notes ring shorter.
+        let base_tau = p.decay * decay_mul * (261.6 / f).powf(0.45).clamp(0.25, 2.5);
+        let nyq = 0.45 * sr;
+        let mut n_modes = 0;
+        for n in 0..PIANO_PARTIALS {
+            let h = (n + 1) as f32;
+            let (fn_, amp, tau) = if p.variant == 2 && n == PIANO_PARTIALS - 1 {
+                // Tine: inharmonic bell partial with a fast decay.
+                (f * 7.1, 0.35 * vel * vel, 0.06)
+            } else if p.variant == 2 && n >= 3 {
+                (0.0, 0.0, 0.0)
+            } else {
+                let hammer_pos = (core::f32::consts::PI * h / 7.3).sin().abs();
+                (
+                    f * h * (1.0 + inharm * h * h).sqrt(),
+                    hammer_pos / h.powf(rolloff),
+                    base_tau / (1.0 + 0.55 * (h - 1.0)),
+                )
+            };
+            if fn_ <= 0.0 || fn_ >= nyq || amp < 1e-4 {
+                continue;
+            }
+            let w = core::f32::consts::TAU * fn_ / sr;
+            v.modes[n_modes].strike(w, tau, amp, sr);
+            n_modes += 1;
+            if n < PIANO_DOUBLED {
+                // Second string: detuned and decaying faster (the "prompt" sound).
+                let f2 = fn_ * (detune_cents / 1200.0 * core::f32::consts::LN_2).exp();
+                if f2 < nyq {
+                    let w2 = core::f32::consts::TAU * f2 / sr;
+                    v.modes[n_modes].strike(w2, tau * 0.45, amp * 0.8, sr);
+                    n_modes += 1;
+                }
+            }
+        }
+        v.count = n_modes;
+        v.env = 1.0;
+        v.env_mul = (-1.0 / (base_tau.max(0.01) * sr)).exp();
+        v.hammer = 0.12 * vel * (0.4 + bright) * if p.variant == 2 { 0.3 } else { 1.0 };
+        v.hammer_mul = (-1.0 / (0.004 * sr)).exp();
+    }
+
+    fn damp(v: &mut PianoVoice, sr: f32) {
+        for m in v.modes[..v.count].iter_mut() {
+            m.set_decay(0.07, sr);
+        }
+        v.env_mul = (-1.0 / (0.07 * sr)).exp();
+    }
+
+    #[inline]
+    pub fn process(&mut self) -> f32 {
+        if self.ctrl == 0 {
+            let c = (1200.0 + 9000.0 * self.p.brightness * self.filter_mul).clamp(400.0, 16000.0);
+            self.tone.set(c, self.sr);
+        }
+        self.ctrl = (self.ctrl + 1) & 31;
+        let sr = self.sr;
+        let mut out = 0.0;
+        let mut hammer = 0.0;
+        for i in 0..PIANO_VOICES {
+            if self.voices[i].pending {
+                if self.voices[i].start_in == 0 {
+                    self.strike(i);
+                } else {
+                    self.voices[i].start_in -= 1;
+                    continue;
+                }
+            }
+            let v = &mut self.voices[i];
+            if !v.active {
+                continue;
+            }
+            if v.gate > 0 {
+                v.gate -= 1;
+                if v.gate == 0 {
+                    Piano::damp(v, sr);
+                }
+            }
+            let mut s = 0.0;
+            for m in v.modes[..v.count].iter_mut() {
+                s += m.next();
+            }
+            out += s * v.vel;
+            if v.hammer > 1e-4 {
+                hammer += v.hammer;
+                v.hammer *= v.hammer_mul;
+            }
+            v.env *= v.env_mul;
+            if v.env < 2e-4 {
+                v.active = false;
+            }
+        }
+        if hammer > 0.0 {
+            out += self.hammer_bp.bp(self.noise.next() * hammer);
+        }
+        self.tone.lp(out) * 0.32 * self.gain
+    }
+}
+
+// ----------------------------------------------------------------------------- guitar
+
+const GTR_VOICES: usize = 6;
+const GTR_BUF: usize = 1024;
+
+#[derive(Clone, Copy)]
+struct GtrVoice {
+    buf: [f32; GTR_BUF],
+    w: usize,
+    delay: f32,
+    loop_gain: f32,
+    bright: f32,
+    lp: f32,
+    env: f32,
+    env_mul: f32,
+    start_in: u32,
+    gate: u32,
+    active: bool,
+    pending: bool,
+    freq: f32,
+    vel: f32,
+    pick: f32,
+}
+
+impl Default for GtrVoice {
+    fn default() -> Self {
+        GtrVoice {
+            buf: [0.0; GTR_BUF],
+            w: 0,
+            delay: 100.0,
+            loop_gain: 0.99,
+            bright: 0.5,
+            lp: 0.0,
+            env: 0.0,
+            env_mul: 0.0,
+            start_in: 0,
+            gate: 0,
+            active: false,
+            pending: false,
+            freq: 220.0,
+            vel: 0.0,
+            pick: 0.5,
+        }
+    }
+}
+
+/// Plucked guitar without samples: Karplus-Strong strings (a delay line one period long
+/// with a low-pass in the loop, excited by a filtered noise burst with a pick-position
+/// notch) and a simple two-band body resonance.
+/// Variants: 0 nylon (soft, warm body), 1 steel (bright), 2 clean electric (no body).
+pub struct Guitar {
+    sr: f32,
+    p: GuitarParams,
+    voices: [GtrVoice; GTR_VOICES],
+    next: usize,
+    noise: Noise,
+    body1: Svf,
+    body2: Svf,
+    /// Brightness multiplier from the arrangement.
+    pub filter_mul: f32,
+}
+
+impl Guitar {
+    pub fn new(p: GuitarParams, sr: f32) -> Guitar {
+        Guitar {
+            sr,
+            p,
+            voices: [GtrVoice::default(); GTR_VOICES],
+            next: 0,
+            noise: Noise::new(0x6A17_A2C3),
+            body1: Svf::new(105.0, 0.6, sr),
+            body2: Svf::new(240.0, 0.5, sr),
+            filter_mul: 1.0,
+        }
+    }
+
+    /// Pluck notes. `muted`: palm-muted short notes. `spread`: samples between strings
+    /// (strum); `down`: strum direction (low to high).
+    pub fn trigger_chord(
+        &mut self,
+        freqs: &[f32],
+        vel: f32,
+        gate_samples: u32,
+        spread: u32,
+        muted: bool,
+        down: bool,
+    ) {
+        let n = freqs.len();
+        for k in 0..n {
+            let f = if down { freqs[k] } else { freqs[n - 1 - k] };
+            let i = self.next;
+            self.next = (self.next + 1) % GTR_VOICES;
+            let v = &mut self.voices[i];
+            v.freq = f;
+            v.vel = vel * if k == 0 { 1.0 } else { 0.85 };
+            v.start_in = spread * k as u32;
+            v.gate = gate_samples.max(1) + v.start_in;
+            v.pending = true;
+            v.pick = if muted { 1.0 } else { 0.0 };
+        }
+    }
+
+    fn pluck(&mut self, i: usize) {
+        let sr = self.sr;
+        let p = self.p;
+        let muted = self.voices[i].pick > 0.5;
+        let mut f = self.voices[i].freq;
+        // Keep the period inside the buffer.
+        while sr / f > (GTR_BUF - 8) as f32 {
+            f *= 2.0;
+        }
+        let variant_bright = match p.variant {
+            0 => 0.6,
+            1 => 1.0,
+            _ => 0.85,
+        };
+        let bright = (p.brightness * variant_bright * self.filter_mul).clamp(0.05, 1.0);
+        let sustain = if muted {
+            0.25
+        } else {
+            p.sustain * if p.variant == 0 { 0.8 } else { 1.0 }
+        };
+        let noise_state = &mut self.noise;
+        let v = &mut self.voices[i];
+        v.pending = false;
+        v.active = true;
+        // Loop low-pass: brighter = less damping per pass.
+        v.bright = if muted { 0.4 } else { 0.45 + 0.5 * bright };
+        let lp_delay = (1.0 - v.bright) / v.bright;
+        v.delay = (sr / f - lp_delay).max(2.0);
+        let period = v.delay as usize;
+        v.loop_gain = (-6.9 / (sustain * f)).exp().min(0.9995);
+        // Excitation: low-passed noise, then a notch at the pick position.
+        let mut z = 0.0;
+        let a = 0.15 + 0.8 * bright * if muted { 0.4 } else { 1.0 };
+        // Raised-sine window: a softer pick attack and fewer stray peaks.
+        let win = core::f32::consts::PI / period as f32;
+        for k in 0..period {
+            z += (noise_state.next() - z) * a;
+            let w = (k as f32 * win).sin();
+            v.buf[(v.w + GTR_BUF - period + k) % GTR_BUF] = z * v.vel * w * 1.5;
+        }
+        let pick = ((period as f32) * 0.18) as usize;
+        if pick > 0 {
+            for k in (pick..period).rev() {
+                let i0 = (v.w + GTR_BUF - period + k) % GTR_BUF;
+                let i1 = (v.w + GTR_BUF - period + k - pick) % GTR_BUF;
+                v.buf[i0] -= v.buf[i1];
+            }
+        }
+        v.lp = 0.0;
+        v.env = 1.0;
+        v.env_mul = (-6.9 / (sustain * sr)).exp();
+    }
+
+    #[inline]
+    pub fn process(&mut self) -> f32 {
+        let mut out = 0.0;
+        let sr = self.sr;
+        for i in 0..GTR_VOICES {
+            if self.voices[i].pending {
+                if self.voices[i].start_in == 0 {
+                    self.pluck(i);
+                } else {
+                    self.voices[i].start_in -= 1;
+                    continue;
+                }
+            }
+            let v = &mut self.voices[i];
+            if !v.active {
+                continue;
+            }
+            if v.gate > 0 {
+                v.gate -= 1;
+                if v.gate == 0 {
+                    // Finger lifts: the string is damped within ~60 ms.
+                    v.loop_gain = (-6.9 / (0.06 * v.freq)).exp();
+                    v.env_mul = (-6.9 / (0.06 * sr)).exp();
+                }
+            }
+            // Fractional delay read (linear interpolation).
+            let rp = v.w as f32 + GTR_BUF as f32 - v.delay;
+            let i0 = rp as usize;
+            let frac = rp - i0 as f32;
+            let a = v.buf[i0 % GTR_BUF];
+            let b = v.buf[(i0 + 1) % GTR_BUF];
+            let y = a + (b - a) * frac;
+            v.lp += (y - v.lp) * v.bright;
+            let s = v.lp * v.loop_gain + ANTI_DENORMAL;
+            v.buf[v.w] = s;
+            v.w = (v.w + 1) % GTR_BUF;
+            out += y;
+            v.env *= v.env_mul;
+            if v.env < 1e-4 {
+                v.active = false;
+            }
+        }
+        let body = match self.p.variant {
+            2 => 0.0,
+            0 => 0.5,
+            _ => 0.3,
+        };
+        let y = if body > 0.0 {
+            out + body * (self.body1.bp(out) + 0.6 * self.body2.bp(out))
+        } else {
+            out
+        };
+        // Soft limit like a clip-on compressor: unity gain for normal levels, pick
+        // transients are rounded off instead of hitting the master limiter.
+        fast_tanh(y * 0.55) * 2.0
+    }
+}
+
+#[cfg(test)]
+mod keys_tests {
+    use super::*;
+    use techno_core::profile::{ChordShape, GuitarStyle, KeysStyle};
+
+    /// Frequency of the strongest spectral peak (naive DFT around the expected pitch).
+    fn pitch(x: &[f32], sr: f32, lo: f32, hi: f32) -> f32 {
+        let mut best = (0.0, 0.0);
+        let mut f = lo;
+        while f <= hi {
+            let w = core::f32::consts::TAU * f / sr;
+            let (mut re, mut im) = (0.0f32, 0.0f32);
+            for (n, v) in x.iter().enumerate() {
+                re += v * (w * n as f32).cos();
+                im += v * (w * n as f32).sin();
+            }
+            let m = re * re + im * im;
+            if m > best.1 {
+                best = (f, m);
+            }
+            f += 0.25;
+        }
+        best.0
+    }
+
+    fn cents(a: f32, b: f32) -> f32 {
+        1200.0 * (a / b).log2()
+    }
+
+    #[test]
+    fn piano_variants_in_tune_and_finite() {
+        let sr = 48000.0;
+        for variant in 0..4 {
+            let mut p = Piano::new(
+                KeysParams {
+                    variant,
+                    style: KeysStyle::Stabs,
+                    chord: ChordShape::Seventh,
+                    brightness: 0.7,
+                    decay: 1.8,
+                },
+                sr,
+            );
+            p.trigger_chord(&[220.0], 0.9, 24000, 0);
+            let x: Vec<f32> = (0..24000).map(|_| p.process()).collect();
+            assert!(
+                x.iter().all(|v| v.is_finite() && v.abs() < 2.0),
+                "variant {variant}"
+            );
+            let f = pitch(&x[2000..10000], sr, 200.0, 240.0);
+            assert!(cents(f, 220.0).abs() < 15.0, "variant {variant}: {f} Hz");
+            // Damper: after note-off the tone dies quickly.
+            let tail: Vec<f32> = (0..24000).map(|_| p.process()).collect();
+            let peak = tail[20000..].iter().fold(0.0f32, |m, v| m.max(v.abs()));
+            assert!(peak < 1e-3, "variant {variant}: still ringing {peak}");
+        }
+    }
+
+    #[test]
+    fn guitar_strings_in_tune_and_decay() {
+        let sr = 48000.0;
+        for variant in 0..3 {
+            let mut g = Guitar::new(
+                GuitarParams {
+                    variant,
+                    style: GuitarStyle::Picked,
+                    chord: ChordShape::Triad,
+                    brightness: 0.6,
+                    sustain: 1.5,
+                },
+                sr,
+            );
+            g.trigger_chord(&[196.0], 0.9, 30000, 0, false, true);
+            let x: Vec<f32> = (0..30000).map(|_| g.process()).collect();
+            assert!(x.iter().all(|v| v.is_finite()), "variant {variant}");
+            let f = pitch(&x[3000..15000], sr, 180.0, 215.0);
+            assert!(cents(f, 196.0).abs() < 20.0, "variant {variant}: {f} Hz");
+            let late: Vec<f32> = (0..48000).map(|_| g.process()).collect();
+            let peak = late[24000..].iter().fold(0.0f32, |m, v| m.max(v.abs()));
+            assert!(peak < 1e-3, "variant {variant}: string never stops {peak}");
+        }
     }
 }

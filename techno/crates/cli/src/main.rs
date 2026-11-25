@@ -25,6 +25,7 @@ struct Args {
     sr: u32,
     out: PathBuf,
     profile: Option<PathBuf>,
+    genre: Option<String>,
     solo: TrackSet,
     mute: TrackSet,
     songs: u32,
@@ -37,11 +38,12 @@ const USAGE: &str = "usage:
   techno analyze --input FEEDBACK.txt  (patterns in exported listening feedback; - = stdin)
   techno version                       (engine version and profile id as JSON)
   techno mix    --seed N [--songs N] [--out FILE.wav] [--tracklist FILE.json] [--sr HZ]
-  techno info   --seed N [--profile FILE]
+  techno info   --seed N [--profile FILE | --genre techno|house]
   techno render --seed N [--out FILE.wav] [--bars N] [--start-bar N] [--sr HZ]
-                [--profile FILE] [--solo t1,t2] [--mute t1,t2] [--no-fx]
+                [--profile FILE | --genre G] [--solo t1,t2] [--mute t1,t2] [--no-fx]
+  (mix also takes --genre)
 tracks: kick rumble bass hat_closed hat_open clap snare rim tom ride crash stab lead pad
-        arp drone riser impact";
+        arp drone riser impact piano guitar";
 
 fn parse_tracks(s: &str) -> Result<TrackSet, String> {
     let mut set = TrackSet::NONE;
@@ -62,6 +64,7 @@ fn parse() -> Result<Args, String> {
         sr: 44100,
         out: PathBuf::new(),
         profile: None,
+        genre: None,
         solo: TrackSet::NONE,
         mute: TrackSet::NONE,
         songs: 4,
@@ -80,6 +83,7 @@ fn parse() -> Result<Args, String> {
             "--sr" => a.sr = val()?.parse().map_err(|e| format!("--sr: {e}"))?,
             "--out" => a.out = PathBuf::from(val()?),
             "--profile" => a.profile = Some(PathBuf::from(val()?)),
+            "--genre" => a.genre = Some(val()?),
             "--solo" => a.solo = parse_tracks(&val()?)?,
             "--mute" => a.mute = parse_tracks(&val()?)?,
             "--songs" => a.songs = val()?.parse().map_err(|e| format!("--songs: {e}"))?,
@@ -97,7 +101,10 @@ fn parse() -> Result<Args, String> {
     Ok(a)
 }
 
-fn load_profile(path: &Option<PathBuf>) -> Result<Profile, String> {
+fn load_profile(path: &Option<PathBuf>, genre: &Option<String>) -> Result<Profile, String> {
+    if let Some(g) = genre {
+        return Profile::by_genre(g).ok_or_else(|| format!("unknown genre '{g}'"));
+    }
     match path {
         None => Ok(Profile::hard_techno_simple()),
         Some(p) => {
@@ -369,7 +376,7 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let profile = match load_profile(&args.profile) {
+    let profile = match load_profile(&args.profile, &args.genre) {
         Ok(p) => p,
         Err(e) => {
             eprintln!("error: {e}");

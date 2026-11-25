@@ -4,13 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Techno Generator</title>
-<meta name="description" content="Endloser, live im Browser erzeugter Techno. Dazu DJ-Mixes und einzelne Songs der aktuellen Engine-Version.">
+<meta name="description" content="Endlose, live im Browser erzeugte elektronische Musik – Techno und House, komplett algorithmisch synthetisiert, ohne Samples. Dazu DJ-Mixes der aktuellen Engine-Version.">
 <meta name="theme-color" content="#0d0d0f">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<script src="app/genre.js"></script>
 <style>
   :root {
     --bg: #0d0d0f;
@@ -20,16 +21,51 @@
     --muted: #8d8d99;
     --accent: #ff3d5a;
     --accent-dim: rgba(255, 61, 90, 0.12);
+    --accent-line: rgba(255, 61, 90, 0.35);
+    --accent2: #ffb13d;
+    --code: #c9c9d3;
   }
+  /* House: warm violet night with a sunset amber accent. */
+  html[data-genre="house"] {
+    --bg: #170d24;
+    --panel: #22143a;
+    --line: #3a2858;
+    --text: #f4ecfa;
+    --muted: #a995c2;
+    --accent: #ffb347;
+    --accent-dim: rgba(255, 179, 71, 0.13);
+    --accent-line: rgba(255, 179, 71, 0.4);
+    --accent2: #ff7ab8;
+    --code: #e2d6ee;
+  }
+  html[data-genre="house"] .play, html[data-genre="house"] .acc-btn.in { color: #2a1636; }
   * { box-sizing: border-box; }
   body {
     margin: 0;
     background: var(--bg);
     color: var(--text);
     font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    transition: background-color 0.35s ease;
+    overflow-x: hidden;
   }
-  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; position: relative; }
-  h1 { padding-right: 56px; }
+  #stage { overflow-x: clip; }
+  main { max-width: 760px; margin: 0 auto; padding: 28px 16px 64px; position: relative; background: var(--bg); transition: background-color 0.35s ease; }
+  .tagline { color: var(--muted); margin: 0; padding-right: 56px; min-height: 40px; display: flex; align-items: center; font-size: 0.95rem; }
+  .genre-nav { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 18px 0 4px; user-select: none; }
+  .genre-nav h1 { flex: 0 1 auto; min-width: 7ch; text-align: center; margin: 0; font-size: 2.1rem; }
+  .genre-nav h1::after { content: "."; color: var(--accent); }
+  .g-arrow {
+    width: 46px; height: 46px; border-radius: 50%; flex: none; cursor: pointer;
+    display: grid; place-items: center; padding: 0;
+    background: var(--panel); color: var(--text); border: 1.5px solid var(--line);
+    transition: border-color 0.2s, color 0.2s, transform 0.15s;
+  }
+  .g-arrow:hover { border-color: var(--accent); color: var(--accent); }
+  .g-arrow:active { transform: scale(0.92); }
+  .g-arrow svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+  .g-dots { display: flex; justify-content: center; gap: 6px; margin-bottom: 4px; }
+  .g-dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--line); transition: background 0.3s; }
+  .g-dots span.on { background: var(--accent); }
   .acc-btn {
     position: absolute; top: 34px; right: 16px; z-index: 21;
     width: 40px; height: 40px; border-radius: 50%; padding: 0;
@@ -51,7 +87,6 @@
   .acc-opt input { margin-top: 3px; accent-color: var(--accent); }
   .acc-opt small { display: block; font-size: 0.8rem; }
   h1 { font-size: 1.9rem; margin: 0 0 4px; letter-spacing: -0.02em; }
-  h1 span { color: var(--accent); }
   h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin: 36px 0 12px; }
   .sub { color: var(--muted); margin: 0 0 8px; }
   .card {
@@ -100,9 +135,9 @@
     border-radius: 8px;
     overflow-x: auto;
     font: 12.5px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    color: #c9c9d3;
+    color: var(--code);
   }
-  .live { border-color: rgba(255, 61, 90, 0.35); }
+  .live { border-color: var(--accent-line); }
   .play {
     display: flex; align-items: center; justify-content: center; gap: 10px;
     width: 100%; margin: 6px 0 4px; padding: 16px;
@@ -121,7 +156,7 @@
   .section-name { font-weight: 600; color: var(--accent); }
   .track { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 6px; }
   .track > div { height: 100%; width: 0; background: var(--accent); transition: width 0.3s linear; }
-  .track.energy > div { background: linear-gradient(90deg, #ffb13d, var(--accent)); }
+  .track.energy > div { background: linear-gradient(90deg, var(--accent2), var(--accent)); }
   .label { color: var(--muted); font-size: 0.85rem; }
   .controls { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; margin-top: 16px; }
   .controls label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.9rem; flex: 1 1 180px; }
@@ -171,7 +206,7 @@
   .linkbtn { background: none; border: 0; padding: 0; color: var(--muted); text-decoration: underline; font: inherit; cursor: pointer; }
   #fb-toast {
     position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px);
-    background: #2a2a31; color: var(--text); padding: 10px 16px; border-radius: 999px;
+    background: var(--line); color: var(--text); padding: 10px 16px; border-radius: 999px;
     font-size: 0.9rem; opacity: 0; transition: opacity 0.2s, transform 0.2s; pointer-events: none; z-index: 10;
     max-width: calc(100vw - 32px);
   }
@@ -184,9 +219,17 @@
 </style>
 </head>
 <body>
-<main>
-  <h1>Techno<span>.</span>Generator</h1>
-  <p class="sub">Komplett algorithmisch erzeugt und synthetisiert. Keine Samples. Jeder Song und jeder Mix ist aus seinem Seed exakt reproduzierbar.</p>
+<div id="stage">
+<main id="face">
+  <header id="g-head">
+    <p class="tagline">Komplett algorithmisch erzeugt und synthetisiert. Keine Samples.</p>
+    <nav class="genre-nav" aria-label="Genre">
+      <button class="g-arrow" id="g-prev" aria-label="Vorheriges Genre"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <h1 id="g-name" aria-live="polite">Techno</h1>
+      <button class="g-arrow" id="g-next" aria-label="Nächstes Genre"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+    </nav>
+    <div class="g-dots" id="g-dots" aria-hidden="true"></div>
+  </header>
 
   <h2>Live</h2>
   <section class="card live">
@@ -257,6 +300,7 @@
     „Do Not Track“ sendet.</p>
   </details>
 </main>
+</div>
 <script>
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
   const mmss = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
@@ -266,7 +310,7 @@
     const m = /^([A-G]#?) (.+)$/.exec(k || "");
     if (!m) return k;
     const n = DE_NOTE[m[1]] || m[1];
-    return { "minor": `${n}-Moll`, "phrygian": `${n} phrygisch`, "harmonic minor": `${n} harmonisch Moll` }[m[2]] || k;
+    return { "minor": `${n}-Moll`, "phrygian": `${n} phrygisch`, "harmonic minor": `${n} harmonisch Moll`, "dorian": `${n} dorisch`, "major": `${n}-Dur` }[m[2]] || k;
   };
   const HOW = { "cut": "harter Cut", "fast blend": "schnelle Blende", "slow blend": "langsame Blende", "filter blend": "Filter-Blende" };
 
@@ -281,7 +325,11 @@
     return r.json();
   }
 
-  function mixCard(seed, set, meta, newest) {
+  const genreNow = () => (window.TechnoGenre ? window.TechnoGenre.current() : { id: "techno", name: "Techno" });
+  // Mix files: techno keeps its original names, other genres get a prefix.
+  const mixFile = (genre, seed) => (genre === "techno" ? `audio/mix-${seed}` : `audio/${genre}-mix-${seed}`);
+
+  function mixCard(seed, set, meta, newest, genre) {
     const el = document.createElement("section");
     el.className = "card";
     const songs = set.songs || [];
@@ -294,7 +342,7 @@
         ${newest ? '<span class="pill">neu</span>' : ""}
       </div>
       ${build ? `<p class="meta" style="margin:-6px 0 10px;font-size:.85rem">Build ${esc(build)}${date ? " · " + esc(date) : ""}</p>` : ""}
-      <audio controls preload="none" src="audio/mix-${seed}.mp3"></audio>
+      <audio controls preload="none" src="${mixFile(genre, seed)}.mp3"></audio>
       <div class="fb-row">
         <span class="label">Feedback zur aktuellen Stelle</span>
         <button class="btn thumb" data-r="up" aria-label="Daumen hoch">👍</button>
@@ -319,7 +367,7 @@
       songs.forEach((s, i) => { if (t >= s.start) cur = i; });
       const s = songs[cur] || {};
       window.TechnoFeedback && window.TechnoFeedback.open({
-        source: "Mix", mixSeed: seed, mixSongs: songs.length, songIndex: cur, songSeed: s.seed, build,
+        source: "Mix", genre, mixSeed: seed, mixSongs: songs.length, songIndex: cur, songSeed: s.seed, build,
         key: deKey(s.key), camelot: s.camelot, bpm: set.bpm, time: mmss(t),
         title: s.artist ? `${s.artist} – ${s.title}` : undefined,
       }, b.dataset.r);
@@ -342,7 +390,7 @@
         const s = songs[cur];
         if (s && window.TechnoStats) {
           window.TechnoStats.setNow({
-            source: "mix", source_seed: seed, song_seed: s.seed, song_index: cur,
+            source: "mix", genre, source_seed: seed, song_seed: s.seed, song_index: cur,
             title: s.title || null, artist: s.artist || null,
           });
         }
@@ -370,29 +418,46 @@
     return el;
   }
 
+  let indexPromise = null;
+  let loadRun = 0;
   async function load() {
+    const run = ++loadRun;
+    const g = genreNow();
     const mixBox = document.getElementById("mixes");
     const songBox = document.getElementById("songs");
+    for (const a of mixBox.querySelectorAll("audio")) a.pause();
     let index;
     try {
-      index = await getJson("songs.json");
+      indexPromise = indexPromise || getJson("songs.json");
+      index = await indexPromise;
     } catch (e) {
+      indexPromise = null;
       mixBox.innerHTML = '<p class="err">songs.json fehlt – Seite wurde noch nicht gebaut.</p>';
       return;
     }
-    mixBox.innerHTML = "";
+    // Mixes from before the genre switcher have no genre: they are techno.
+    const mixes = (index.mixes || []).filter((m) => ((typeof m === "object" && m.genre) || "techno") === g.id);
+    const cards = [];
     let first = true;
-    for (const m of index.mixes || []) {
+    for (const m of mixes) {
       const seed = typeof m === "object" ? m.seed : m;
       const meta = typeof m === "object" ? m : {};
       try {
-        mixBox.appendChild(mixCard(seed, await getJson(`audio/mix-${seed}.json`), meta, first && !!meta.commit));
+        cards.push(mixCard(seed, await getJson(`${mixFile(g.id, seed)}.json`), meta, first && !!meta.commit, g.id));
         first = false;
       } catch (e) {
-        mixBox.insertAdjacentHTML("beforeend", `<p class="err">Mix ${seed} fehlt.</p>`);
+        const p = document.createElement("p");
+        p.className = "err";
+        p.textContent = `Mix ${seed} fehlt.`;
+        cards.push(p);
       }
     }
-    if (!(index.mixes || []).length) mixBox.innerHTML = '<p class="meta">Noch keine Mixes.</p>';
+    if (run !== loadRun) return; // the genre changed while loading
+    mixBox.innerHTML = "";
+    cards.forEach((c) => mixBox.appendChild(c));
+    if (!mixes.length) {
+      mixBox.innerHTML = `<p class="meta">Noch keine ${esc(g.name)}-Mixes – der erste entsteht beim nächsten Push. Das Live-Set oben läuft schon.</p>`;
+    }
     // Endless radio: when a mix ends, the next one starts (and after the last, the first).
     const mixAudios = [...mixBox.querySelectorAll("audio")];
     mixAudios.forEach((au, i) => au.addEventListener("ended", () => {
@@ -405,9 +470,10 @@
     if (mixAudios.length > 1) {
       mixBox.insertAdjacentHTML("afterbegin", '<p class="meta" style="margin:0 0 12px">Die Mixes laufen nacheinander endlos durch – gut als Alternative, falls das Live-Set auf einem Gerät ruckelt.</p>');
     }
-    for (const seed of index.seeds || []) songBox.appendChild(await songCard(seed));
+    songBox.innerHTML = "";
+    if (g.id === "techno") for (const seed of index.seeds || []) songBox.appendChild(await songCard(seed));
     // Single songs are no longer published; hide the section when empty.
-    if (!(index.seeds || []).length) {
+    if (!(index.seeds || []).length || g.id !== "techno") {
       songBox.hidden = true;
       document.getElementById("songs-title").hidden = true;
     }
@@ -417,6 +483,14 @@
       `Build <code>${esc(sha)}</code> · ${esc(index.built || "")} · Feedback-Format: „Mix X, Minute Y, Problem“ oder „Seed X, Takt Y, Problem“`;
   }
   load();
+  window.addEventListener("genrechange", () => { load(); dots(); });
+  function dots() {
+    const box = document.getElementById("g-dots");
+    if (!box || !window.TechnoGenre) return;
+    const cur = window.TechnoGenre.current().id;
+    box.innerHTML = window.TechnoGenre.list.map((x) => `<span class="${x.id === cur ? "on" : ""}"></span>`).join("");
+  }
+  dots();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 </script>
 <script src="app/config.js"></script>

@@ -30,6 +30,9 @@ pub struct NamingRules {
     pub collab_prob: f32,
     /// Probability of a fitting suffix such as "(Dub)" or "(Tool)".
     pub suffix_prob: f32,
+    /// Word library and genre: "" (techno, `words.toml`) or "house" (`words_house.toml`).
+    #[serde(default)]
+    pub library: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -58,11 +61,17 @@ struct Words {
 }
 
 const WORDS_TOML: &str = include_str!("../../../profiles/words.toml");
+const WORDS_HOUSE_TOML: &str = include_str!("../../../profiles/words_house.toml");
 
-fn words() -> &'static Words {
+fn words(library: &str) -> &'static Words {
     use std::sync::OnceLock;
-    static W: OnceLock<Words> = OnceLock::new();
-    W.get_or_init(|| toml::from_str(WORDS_TOML).expect("embedded word library must parse"))
+    static TECHNO: OnceLock<Words> = OnceLock::new();
+    static HOUSE: OnceLock<Words> = OnceLock::new();
+    let (cell, src) = match library {
+        "house" => (&HOUSE, WORDS_HOUSE_TOML),
+        _ => (&TECHNO, WORDS_TOML),
+    };
+    cell.get_or_init(|| toml::from_str(src).expect("embedded word library must parse"))
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -83,6 +92,11 @@ fn pick<'a>(rng: &mut Rng, list: &'a [String]) -> &'a str {
 
 /// Style fingerprint: the choices that shape a song's character most.
 pub fn fingerprint(dna: &SongDna) -> u64 {
+    fingerprint_in(dna, "")
+}
+
+/// Fingerprint within a genre (techno keeps its original hashes).
+fn fingerprint_in(dna: &SongDna, library: &str) -> u64 {
     let p = &dna.plan;
     let lead = if p.main_synth == Track::Lead {
         format!("{:?}", dna.sound.lead.kind)
@@ -94,18 +108,26 @@ pub fn fingerprint(dna: &SongDna) -> u64 {
         .find(|t| p.palette.contains(*t))
         .map(|t| t.name())
         .unwrap_or("none");
-    let key = format!(
+    let mut key = format!(
         "{:?}|{}|{}|{}",
         dna.sound.kick.style,
         p.main_synth.name(),
         lead,
         layer
     );
+    if !library.is_empty() {
+        key.push('|');
+        key.push_str(library);
+        if let Some(c) = p.companion {
+            key.push('|');
+            key.push_str(c.name());
+        }
+    }
     label_hash(&key)
 }
 
-fn invented(rng: &mut Rng) -> String {
-    let w = &words().artist;
+fn invented(rng: &mut Rng, lib: &str) -> String {
+    let w = &words(lib).artist;
     let mut s = String::new();
     s.push_str(pick(rng, &w.starts));
     s.push_str(pick(rng, &w.middles));
@@ -123,9 +145,10 @@ fn invented(rng: &mut Rng) -> String {
     s
 }
 
-fn artist_name(rng: &mut Rng) -> String {
-    let t = &words().title;
-    let w = &words().artist;
+fn artist_name(rng: &mut Rng, lib: &str) -> String {
+    let t = &words(lib).title;
+    let w = &words(lib).artist;
+    let invented = |rng: &mut Rng| invented(rng, lib);
     match rng.weighted_index(&[4.0, 2.0, 1.5, 1.0, 1.5]) {
         0 => invented(rng),
         1 => format!("{} {}", pick(rng, &t.adjectives), pick(rng, &t.nouns)),
@@ -142,7 +165,7 @@ fn artist_name(rng: &mut Rng) -> String {
 }
 
 fn title(dna: &SongDna, rules: &NamingRules, rng: &mut Rng) -> String {
-    let t = &words().title;
+    let t = &words(&rules.library).title;
     let mut s = match rng.weighted_index(&[4.0, 1.5, 1.0, 0.8, 0.8, 0.7, 0.5, 0.7]) {
         0 => format!("{} {}", pick(rng, &t.adjectives), pick(rng, &t.nouns)),
         1 => pick(rng, &t.nouns).to_string(),
@@ -171,7 +194,15 @@ fn title(dna: &SongDna, rules: &NamingRules, rng: &mut Rng) -> String {
         let melodic =
             p.main_synth == Track::Lead && !matches!(dna.sound.lead.style, LeadStyle::Pulse);
         let drone = p.palette.contains(Track::Drone);
-        let suffix = if drone && dna.sound.lead.style != LeadStyle::Riff {
+        let house = rules.library == "house";
+        let suffix = if house {
+            match p.main_synth {
+                Track::Piano => Some("(Piano Mix)"),
+                Track::Guitar => Some("(Club Mix)"),
+                _ if p.palette.contains(Track::Pad) => Some("(Extended Mix)"),
+                _ => Some("(Dub Mix)"),
+            }
+        } else if drone && dna.sound.lead.style != LeadStyle::Riff {
             Some("(Dub)")
         } else if !melodic && !p.palette.contains(Track::Pad) {
             Some("(Tool)")
@@ -191,14 +222,16 @@ fn title(dna: &SongDna, rules: &NamingRules, rng: &mut Rng) -> String {
 pub fn name(dna: &SongDna, rules: &NamingRules) -> SongName {
     let base = Rng::new(dna.seed);
     let mut r = base.fork("artist");
-    let fp = fingerprint(dna);
+    let lib = rules.library.as_str();
+    let fp = fingerprint_in(dna, lib);
     let pool_artist = |idx: usize| {
-        artist_name(&mut Rng::new(
-            fp ^ label_hash("pool").wrapping_mul(idx as u64 + 1),
-        ))
+        artist_name(
+            &mut Rng::new(fp ^ label_hash("pool").wrapping_mul(idx as u64 + 1)),
+            lib,
+        )
     };
     let main = if r.chance(rules.new_artist_prob) {
-        artist_name(&mut base.fork("new-artist"))
+        artist_name(&mut base.fork("new-artist"), lib)
     } else {
         pool_artist(r.weighted_index(&rules.pool_weights))
     };
@@ -208,7 +241,12 @@ pub fn name(dna: &SongDna, rules: &NamingRules) -> SongName {
         if other == main {
             other = pool_artist(rules.pool_weights.len());
         }
-        format!("{main} & {other}")
+        let join = if lib == "house" && r.chance(0.4) {
+            " feat. "
+        } else {
+            " & "
+        };
+        format!("{main}{join}{other}")
     } else {
         main
     };
@@ -263,5 +301,24 @@ mod tests {
         // But there are many distinct artists overall (one-offs).
         let distinct: HashSet<_> = all.iter().collect();
         assert!(distinct.len() > 100, "{}", distinct.len());
+    }
+
+    #[test]
+    fn house_names_come_from_their_own_library() {
+        let t = Profile::hard_techno_simple();
+        let h = Profile::house();
+        let techno: HashSet<String> = (0..300)
+            .map(|s| name(&SongDna::generate(s, &t), &t.naming).artist)
+            .collect();
+        let mut shared = 0;
+        for seed in 0..300 {
+            let n = name(&SongDna::generate(seed, &h), &h.naming);
+            assert!(!n.title.trim().is_empty() && !n.artist.trim().is_empty());
+            shared += techno.contains(&n.artist) as u32;
+        }
+        assert!(
+            shared < 10,
+            "house artists should differ from techno: {shared}"
+        );
     }
 }

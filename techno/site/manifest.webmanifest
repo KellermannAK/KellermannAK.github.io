@@ -1,7 +1,7 @@
 {
   "name": "Techno Generator",
   "short_name": "Techno",
-  "description": "Endloser, live erzeugter Techno.",
+  "description": "Endlose, live erzeugte elektronische Musik: Techno und House.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

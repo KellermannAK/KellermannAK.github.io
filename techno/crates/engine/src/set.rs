@@ -280,7 +280,13 @@ impl Set {
             TransitionKind::SlowBlend,
             TransitionKind::FilterBlend,
         ];
-        let kind = kinds[self.rng.weighted_index(&[1.0, 2.0, 2.5, 2.0])];
+        // Soft genres (house) never cut hard and prefer long blends.
+        let weights = if self.profile.structure.soft_transitions {
+            [0.0, 1.0, 4.0, 2.0]
+        } else {
+            [1.0, 2.0, 2.5, 2.0]
+        };
+        let kind = kinds[self.rng.weighted_index(&weights)];
         // Intro length of the incoming song is not known yet; profiles use 32-bar intros.
         let intro = self.profile.structure.intro_bars;
         let t = match kind {

@@ -1,0 +1,249 @@
+# Style profile: house. Its own rule tree, independent of the techno profile.
+# Softer, slower, warmer: swing, seventh and ninth chords, piano and guitar next to
+# electronic glides, strings and a round bass. Breakdowns lead back into the groove;
+# drops are rare and soft.
+# Ranges are [min, max]; weighted choices are { values = [...], weights = [...] }.
+
+id = "house"
+name = "House"
+
+[tempo]
+bpm = [120.0, 124.0]
+# Shuffled 16ths are the core of the house groove.
+swing = [0.25, 0.55]
+
+[harmony]
+# Dorian is the soulful minor of house; major for the sunny tracks.
+scales = { values = ["dorian", "natural_minor", "major"], weights = [4.0, 3.0, 2.5] }
+# Chord loops instead of a tonic drone: two- and four-chord progressions.
+progression = { values = ["drone", "two", "return", "turn", "four"], weights = [0.4, 3.0, 1.0, 1.0, 3.5] }
+harmony_scope = { values = ["everywhere", "breakdown_only"], weights = [6.0, 1.0] }
+bars_per_root = { values = [1, 2, 4], weights = [0.7, 3.0, 1.2] }
+# Degrees after the tonic: 5 = VI/vi, 3 = iv/IV, 4 = v/V, 1 = ii, 6 = VII, 2 = III/iii.
+progression_degrees = { values = [5, 3, 4, 1, 6, 2], weights = [3.0, 3.0, 2.0, 2.0, 2.0, 1.0] }
+melody_steps = { values = [0, 1, -1, 2, -2, 3, -3, 4, -4, 7, -7], weights = [1.0, 4.0, 4.0, 3.0, 3.0, 1.5, 1.5, 0.8, 0.8, 0.4, 0.4] }
+# The house bass moves: octaves, fifths and walking steps.
+bass_steps = { values = [0, 7, -7, 4, -3, 2, -2, 1, -1], weights = [4.0, 3.0, 3.0, 1.5, 1.5, 1.0, 1.0, 0.8, 0.8] }
+passing_tone_prob = 0.0
+
+[drums]
+backbeat = { values = ["clap", "snare", "clap_snare"], weights = [4.0, 1.0, 2.0] }
+
+[drums.kick]
+# Round and soft: deep and punchy kicks, little drive, no distortion.
+styles = { values = ["hard", "punch", "distorted", "deep"], weights = [0.8, 3.0, 0.0, 3.5] }
+tune_hz = [45.0, 58.0]
+tune_to_key = true
+pitch_start_hz = [170.0, 260.0]
+pitch_decay = [0.028, 0.048]
+decay = [0.30, 0.45]
+drive = [1.0, 1.8]
+click = [0.04, 0.14]
+
+[drums.hats]
+styles = { values = ["sixteenths", "offbeat", "euclid"], weights = [2.0, 4.0, 2.0] }
+euclid_hits = [6, 10]
+# The open offbeat hat is the signature of house.
+open_hat_prob = 0.85
+tone_hz = [8000.0, 11000.0]
+closed_decay = [0.02, 0.045]
+open_decay = [0.18, 0.32]
+metal = [0.2, 0.6]
+
+[drums.clap]
+ghost_prob = 0.4
+tone_hz = [900.0, 1400.0]
+decay = [0.15, 0.26]
+
+[drums.snare]
+tone_hz = [180.0, 240.0]
+decay = [0.10, 0.16]
+snappy = [0.4, 0.7]
+
+[drums.rim]
+hits = [3, 6]
+avoid_kick = true
+tone_hz = [1400.0, 2200.0]
+decay = [0.02, 0.05]
+
+[drums.tom]
+hits = [2, 4]
+avoid_kick = true
+tone_hz = [90.0, 140.0]
+decay = [0.15, 0.28]
+
+[drums.ride]
+styles = { values = ["offbeat", "eighths", "quarters"], weights = [2.0, 1.5, 1.0] }
+tone_hz = [5500.0, 8000.0]
+decay = [0.4, 0.7]
+
+[bass]
+rhythms = { values = ["rolling", "offbeat", "gallop", "skippy", "syncopated", "sparse", "funky"], weights = [0.3, 3.0, 1.0, 1.0, 2.0, 1.5, 3.0] }
+motif_bars = { values = [1, 2], weights = [1.0, 3.0] }
+allow_on_kick = false
+movement = [0.3, 0.6]
+degree_range = [0, 9]
+cutoff_hz = [260.0, 650.0]
+env_mod = [0.5, 1.5]
+resonance = [0.05, 0.3]
+decay = [0.15, 0.3]
+drive = [1.0, 1.8]
+sub_mix = [0.5, 0.9]
+
+[rumble]
+# No rumble in house.
+amount = [0.0, 0.0]
+lowpass_hz = [110.0, 170.0]
+drive = [1.0, 1.0]
+size = [0.75, 0.80]
+
+[stab]
+hits = [2, 5]
+chords = { values = ["ninth", "seventh", "triad"], weights = [3.0, 3.0, 1.0] }
+cutoff_hz = [900.0, 2500.0]
+env_mod = [1.0, 2.5]
+decay = [0.2, 0.45]
+detune = [0.04, 0.10]
+
+[lead]
+# Electronic glides first, then soft plucks.
+kinds = { values = ["acid", "hoover", "supersaw", "pluck", "glide"], weights = [0.0, 0.0, 0.4, 2.0, 4.0] }
+styles = { values = ["riff", "sparse", "pulse", "long"], weights = [1.0, 3.0, 0.4, 3.0] }
+motif_bars = { values = [1, 2], weights = [1.0, 3.0] }
+density = [0.3, 0.5]
+slide_prob = 0.4
+accent_prob = 0.2
+degree_range = [-2, 9]
+cutoff_hz = [500.0, 1200.0]
+resonance = [0.1, 0.35]
+env_mod = [0.5, 2.0]
+decay = [0.2, 0.5]
+drive = [1.0, 1.5]
+square = [0.0, 0.3]
+
+[pad]
+chords = { values = ["ninth", "seventh", "triad"], weights = [3.0, 3.0, 1.0] }
+cutoff_hz = [1200.0, 3000.0]
+detune = [0.06, 0.15]
+attack = [0.4, 1.5]
+
+[arp]
+patterns = { values = ["up", "down", "up_down", "random"], weights = [2.0, 1.0, 2.0, 1.0] }
+rate = { values = [1, 2], weights = [0.5, 3.0] }
+octaves = { values = [1, 2], weights = [2.0, 1.0] }
+chords = { values = ["triad", "seventh", "ninth"], weights = [1.0, 2.0, 2.0] }
+cutoff_hz = [1200.0, 3000.0]
+env_mod = [0.5, 1.5]
+decay = [0.12, 0.3]
+
+[drone]
+cutoff_hz = [400.0, 900.0]
+drive = [1.0, 1.5]
+detune = [0.06, 0.15]
+
+[piano]
+styles = { values = ["stabs", "offbeat", "held"], weights = [4.0, 1.5, 2.0] }
+chords = { values = ["seventh", "ninth", "triad"], weights = [3.0, 3.0, 1.0] }
+brightness = [0.35, 0.85]
+decay = [1.2, 2.6]
+# 0 grand, 1 felt, 2 electric (tine), 3 bright house piano
+variants = { values = [0, 1, 2, 3], weights = [2.0, 1.5, 2.0, 2.5] }
+
+[guitar]
+styles = { values = ["muted", "strum", "picked"], weights = [3.0, 2.0, 1.5] }
+chords = { values = ["triad", "seventh"], weights = [2.0, 1.0] }
+brightness = [0.3, 0.8]
+sustain = [0.6, 2.0]
+# 0 nylon, 1 steel, 2 clean electric
+variants = { values = [0, 1, 2], weights = [1.5, 1.0, 2.5] }
+
+[synths]
+# The main instrument carries the song; piano and guitar are as likely as synths.
+main = { values = ["piano", "guitar", "lead", "stab", "arp"], weights = [4.0, 1.5, 2.5, 1.5, 0.8] }
+breakdown_alt_prob = 0.5
+# Strings / pads are the house backdrop.
+long_layer = { values = ["pad", "drone", "none"], weights = [6.0, 0.3, 0.6] }
+stab_notes = 4
+# A second instrument (electronic + natural mixed) in the fuller parts.
+companion = { values = ["guitar", "piano", "lead"], weights = [3.0, 2.0, 1.5] }
+companion_prob = 0.6
+companion_energy = 0.6
+
+[fx]
+synth_insert = { values = ["none", "chorus", "phaser", "crusher", "tremolo", "tape"], weights = [3.0, 3.0, 1.5, 0.0, 1.0, 1.5] }
+layer_insert = { values = ["none", "chorus", "phaser", "tape"], weights = [2.0, 3.0, 1.0, 1.0] }
+hat_phaser_prob = 0.1
+lfo_rate = [0.1, 0.6]
+tremolo_beats = { values = [0.5, 1.0, 2.0], weights = [1.0, 2.0, 1.0] }
+depth = [0.3, 0.7]
+breakdown_boost = 1.3
+
+[variants]
+# clap: 0 classic, 1 tight, 2 wide/roomy, 3 gritty
+clap = { values = [0, 1, 2, 3], weights = [2.0, 1.0, 2.0, 0.2] }
+snare = { values = [0, 1, 2, 3], weights = [2.0, 2.0, 0.2, 0.5] }
+# hats: 0 metal + noise, 1 pure noise, 2 dark metallic, 3 shaker
+hats = { values = [0, 1, 2, 3], weights = [1.0, 2.0, 0.3, 2.0] }
+ride = { values = [0, 1, 2], weights = [2.0, 1.5, 1.0] }
+crash = { values = [0, 1, 2], weights = [2.0, 0.5, 1.5] }
+# rim: 0 click, 1 wood block, 2 clave
+rim = { values = [0, 1, 2], weights = [1.0, 2.0, 2.0] }
+tom = { values = [0, 1, 2], weights = [2.0, 0.3, 1.0] }
+# bass: 0 saw + sub, 1 reese, 2 square + sub, 3 sine pluck
+bass = { values = [0, 1, 2, 3], weights = [1.5, 0.2, 1.5, 3.0] }
+rumble = { values = [0], weights = [1.0] }
+# stab / arp: 0 detuned saws, 1 pulse, 2 FM bell, 3 organ
+stab = { values = [0, 1, 2, 3], weights = [1.0, 0.5, 2.0, 3.0] }
+arp = { values = [0, 1, 2, 3], weights = [1.0, 1.0, 2.5, 1.0] }
+# pad: 0 saws, 1 hollow squares, 2 sine choir, 3 strings
+pad = { values = [0, 1, 2, 3], weights = [1.0, 0.3, 2.0, 5.0] }
+drone = { values = [0, 1, 2], weights = [1.0, 2.0, 0.2] }
+
+[naming]
+library = "house"
+new_artist_prob = 0.2
+pool_weights = [5.0, 2.0, 1.0, 0.5]
+collab_prob = 0.12
+suffix_prob = 0.3
+
+[mix]
+sidechain_depth = [0.35, 0.6]
+sidechain_release = [0.15, 0.25]
+
+[structure]
+# ~5:20-7:00 at 122 BPM.
+target_bars = [160, 208]
+intro_bars = 32
+outro_bars = 32
+groove_bars = { values = [16, 32], weights = [1.0, 2.0] }
+build_bars = { values = [8], weights = [1.0] }
+breakdown_bars = { values = [8, 16, 32], weights = [2.0, 3.0, 0.5] }
+drop_bars = { values = [16, 32], weights = [1.0, 1.0] }
+after_intro = { values = ["groove"], weights = [1.0] }
+after_groove = { values = ["groove", "breakdown", "build"], weights = [1.5, 3.0, 0.1] }
+after_drop = { values = ["groove", "breakdown"], weights = [3.0, 1.0] }
+# Few to no drops: a breakdown usually flows back into the groove.
+after_breakdown = { values = ["groove", "drop"], weights = [4.0, 0.5] }
+require_drop = false
+groove_layers = true
+soft_transitions = true
+groove_energy_offset = 0.08
+drop_pause_prob = 0.1
+breakdown_to_build_prob = 0.2
+riser = { values = ["noise", "gated", "swell", "pitched", "none"], weights = [0.5, 0.0, 2.0, 0.0, 3.0] }
+roll = { values = ["snare", "clap", "kick", "none"], weights = [0.5, 0.5, 0.0, 3.0] }
+build_highpass_prob = 0.3
+drop_style = { values = ["full", "bass_first", "stripped", "filter_open"], weights = [2.0, 0.5, 1.0, 3.0] }
+drop_impact = { values = ["impact_crash", "crash", "none"], weights = [0.0, 2.0, 2.0] }
+synth_filter = { values = ["static", "rise", "fall", "swell", "breathe"], weights = [2.0, 1.0, 1.0, 1.5, 2.0] }
+synth_filter_depth = 0.25
+threshold_jitter = 0.08
+
+[structure.variation]
+lead_up = 0.1
+lead_thin = 0.15
+drop_perc = 0.3
+no_open_hat = 0.08
+end_octave = 0.1
+thin_chord = 0.15
+delay_throw = 0.25

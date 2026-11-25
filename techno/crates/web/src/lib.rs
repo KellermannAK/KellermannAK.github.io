@@ -21,15 +21,15 @@ use techno_core::theory::ScaleKind;
 use techno_engine::{Set, TransitionKind};
 
 pub const MAX_FRAMES: usize = 4096;
-pub const STATUS_LEN: usize = 16;
+pub const STATUS_LEN: usize = 17;
 
 /// Status array layout (all f64):
 /// 0 song index, 1 song seed, 2 key root (0 = C), 3 scale (0 minor, 1 phrygian,
-/// 2 harmonic minor), 4 Camelot number, 5 BPM, 6 section (0 intro, 1 groove, 2 build,
+/// 2 harmonic minor, 3 dorian, 4 major), 4 Camelot number (16: ring, 0 = A, 1 = B), 5 BPM, 6 section (0 intro, 1 groove, 2 build,
 /// 3 breakdown, 4 drop, 5 outro, -1 none), 7 bar, 8 bar in section, 9 section length,
 /// 10 song length in bars, 11 energy 0..1, 12 planned transition (-1 none, 0 cut,
 /// 1 fast blend, 2 slow blend, 3 filter blend), 13 bars until it starts,
-/// 14 transition running (0/1), 15 seconds since start.
+/// 14 transition running (0/1), 15 seconds since start, 16 Camelot ring (0 A, 1 B).
 /// 2x upsampler (half-band windowed-sinc FIR, polyphase). Used by the economy mode,
 /// where the engine renders at half the output rate.
 pub struct Upsampler2x {
@@ -105,14 +105,19 @@ impl WebEngine {
         WebEngine::with_factor(seed, sample_rate, 1)
     }
 
+    pub fn with_factor(seed: u64, sample_rate: f32, factor: usize) -> WebEngine {
+        WebEngine::with_genre(seed, sample_rate, factor, 0)
+    }
+
     /// `factor` 2 = economy mode: the engine runs at `sample_rate / 2` (half the CPU) and is
     /// upsampled; content above a quarter of the output rate (12 kHz at 48 kHz) is lost.
-    pub fn with_factor(seed: u64, sample_rate: f32, factor: usize) -> WebEngine {
+    /// `genre`: index into `GENRES` (0 techno, 1 house).
+    pub fn with_genre(seed: u64, sample_rate: f32, factor: usize, genre: u32) -> WebEngine {
         let factor = factor.clamp(1, 2);
         WebEngine {
             set: Set::new(
                 seed,
-                Profile::hard_techno_simple(),
+                profile(genre).clone(),
                 u32::MAX,
                 sample_rate / factor as f32,
             ),
@@ -158,6 +163,8 @@ impl WebEngine {
             ScaleKind::NaturalMinor => 0.0,
             ScaleKind::Phrygian => 1.0,
             ScaleKind::HarmonicMinor => 2.0,
+            ScaleKind::Dorian => 3.0,
+            ScaleKind::Major => 4.0,
         };
         let section = match s.section {
             Some(SectionKind::Intro) => 0.0,
@@ -192,6 +199,7 @@ impl WebEngine {
             s.bars_to_transition as f64,
             s.in_transition as u8 as f64,
             s.seconds,
+            if key.camelot().1 == 'B' { 1.0 } else { 0.0 },
         ];
         &self.status
     }
@@ -212,8 +220,14 @@ static mut NAME_BUF: [u8; 256] = [0; 256];
 /// so the main thread can name songs reported by the worklet's status.
 #[no_mangle]
 pub extern "C" fn techno_name(seed_lo: u32, seed_hi: u32) -> u32 {
+    techno_name_genre(seed_lo, seed_hi, 0)
+}
+
+/// Like `techno_name`, for a genre (0 techno, 1 house).
+#[no_mangle]
+pub extern "C" fn techno_name_genre(seed_lo: u32, seed_hi: u32, genre: u32) -> u32 {
     let seed = (seed_hi as u64) << 32 | seed_lo as u64;
-    let profile = profile();
+    let profile = profile(genre);
     let n = techno_core::SongDna::generate(seed, profile).name(profile);
     let text = format!("{}\n{}", n.artist, n.title);
     let bytes = text.as_bytes();
@@ -231,10 +245,32 @@ pub extern "C" fn techno_name_ptr() -> *const u8 {
     core::ptr::addr_of!(NAME_BUF) as *const u8
 }
 
-fn profile() -> &'static Profile {
+fn profile(genre: u32) -> &'static Profile {
     use std::sync::OnceLock;
-    static P: OnceLock<Profile> = OnceLock::new();
-    P.get_or_init(Profile::hard_techno_simple)
+    static TECHNO: OnceLock<Profile> = OnceLock::new();
+    static HOUSE: OnceLock<Profile> = OnceLock::new();
+    match genre {
+        1 => HOUSE.get_or_init(Profile::house),
+        _ => TECHNO.get_or_init(Profile::hard_techno_simple),
+    }
+}
+
+/// Constructor with genre: `factor` as in `techno_new_eco`, `genre` 0 techno, 1 house.
+#[no_mangle]
+pub extern "C" fn techno_new_genre(
+    seed_lo: u32,
+    seed_hi: u32,
+    sample_rate: f32,
+    factor: u32,
+    genre: u32,
+) -> *mut WebEngine {
+    let seed = (seed_hi as u64) << 32 | seed_lo as u64;
+    Box::into_raw(Box::new(WebEngine::with_genre(
+        seed,
+        sample_rate,
+        factor as usize,
+        genre,
+    )))
 }
 
 /// Economy mode constructor: `factor` 2 renders at half the output rate (half the CPU).
@@ -327,6 +363,19 @@ mod tests {
         assert!(e.left[..128]
             .iter()
             .all(|x| x.is_finite() && x.abs() <= 1.0));
+    }
+
+    #[test]
+    fn house_renders_slower() {
+        let mut e = WebEngine::with_genre(5, 48000.0, 1, 1);
+        for _ in 0..400 {
+            e.render(128);
+        }
+        assert!(e.left[..128].iter().any(|x| *x != 0.0));
+        let s = *e.update_status();
+        assert!(s[5] >= 118.0 && s[5] <= 126.0, "bpm {}", s[5]);
+        let len = techno_name_genre(5, 0, 1);
+        assert!(len > 3);
     }
 
     #[test]

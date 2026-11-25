@@ -42,6 +42,8 @@ pub struct Entry {
     pub bar: Option<u32>,
     pub build: Option<String>,
     pub comment: String,
+    /// Genre the feedback was given in ("techno", "house"); None = the default profile.
+    pub genre: Option<String>,
 }
 
 /// Parse the text produced by the site's "Kopieren" / "Teilen" button.
@@ -78,6 +80,7 @@ pub fn parse(text: &str) -> Vec<Entry> {
             bar: number_after(t, "Song-Takt ").map(|b| b as u32),
             build: word_after(t, "Build "),
             comment: String::new(),
+            genre: word_after(t, "Genre ").map(|g| g.to_lowercase()),
         });
     }
     out
@@ -99,11 +102,12 @@ fn word_after(s: &str, pat: &str) -> Option<String> {
 }
 
 /// Feature name -> value for one entry.
-fn features(dna: &SongDna, bar: Option<u32>) -> Vec<(String, String)> {
+fn features(dna: &SongDna, bar: Option<u32>, profile: &Profile) -> Vec<(String, String)> {
     let mut f: Vec<(String, String)> = Vec::new();
     let mut add = |k: &str, v: String| f.push((k.to_string(), v));
     let p = &dna.plan;
-    let name = techno_core::naming::name(dna, &Profile::hard_techno_simple().naming);
+    let name = techno_core::naming::name(dna, &profile.naming);
+    add("genre", profile.genre().to_string());
     add("artist", name.artist);
     add("scale", dna.key.scale.name().to_string());
     let v = &dna.sound;
@@ -230,8 +234,10 @@ pub fn run(text: &str, profile: &Profile, current_build: Option<&str>) -> String
     let mut counts: BTreeMap<(String, String), (u32, u32)> = BTreeMap::new();
     out.push_str("## Entries\n\n");
     for (i, e) in entries.iter().enumerate() {
+        let own = e.genre.as_deref().and_then(Profile::by_genre);
+        let profile = own.as_ref().unwrap_or(profile);
         let dna = SongDna::generate(e.song_seed, profile);
-        let fs = features(&dna, e.bar);
+        let fs = features(&dna, e.bar, profile);
         let get = |k: &str| {
             fs.iter()
                 .filter(|(n, _)| n == k)
@@ -318,7 +324,7 @@ mod tests {
 
 1. 👎 Live-Set 4242 @ 0:02 · Song 1 (Seed 99533) · Intro 2/32 · Song-Takt 2/192 · H-Moll (10A) · Build abcdef1
    „Pinch auf der Offbeat“
-2. 👍 Mix 7 @ 3:10 · Song 1 (Seed 742138) · F-Moll (4A)
+2. 👍 Mix 7 @ 3:10 · Song 1 (Seed 742138) · F-Moll (4A) · Genre House
 3. 💡 Live-Set 4242 @ 5:00 · Song 2 (Seed 11) · Drop 1/32 · Song-Takt 80/200
    „Ein Acid-Lead im zweiten Drop wäre cool“
 ";
@@ -336,6 +342,8 @@ mod tests {
         assert_eq!(e[0].comment, "Pinch auf der Offbeat");
         assert_eq!(e[2].comment, "Ein Acid-Lead im zweiten Drop wäre cool");
         assert_eq!(e[1].bar, None);
+        assert_eq!(e[1].genre.as_deref(), Some("house"));
+        assert_eq!(e[0].genre, None);
     }
 
     #[test]

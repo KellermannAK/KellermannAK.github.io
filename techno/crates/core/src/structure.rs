@@ -14,8 +14,13 @@ pub const MAX_SECTIONS: usize = 24;
 pub const PHRASE_BARS: u32 = 8;
 
 /// Short, rhythmic synths: at most one of them plays in any bar.
-pub const SHORT_SYNTHS: TrackSet =
-    TrackSet((1 << Track::Lead as u32) | (1 << Track::Arp as u32) | (1 << Track::Stab as u32));
+pub const SHORT_SYNTHS: TrackSet = TrackSet(
+    (1 << Track::Lead as u32)
+        | (1 << Track::Arp as u32)
+        | (1 << Track::Stab as u32)
+        | (1 << Track::Piano as u32)
+        | (1 << Track::Guitar as u32),
+);
 const MAX_PHRASES: usize = 64;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -280,6 +285,25 @@ pub struct StructureRules {
     pub variation: VariationRules,
     /// Per-song jitter of the energy thresholds at which tracks join.
     pub threshold_jitter: f32,
+    /// What follows a breakdown. Unset: a drop (optionally after a build), as in techno.
+    #[serde(default)]
+    pub after_breakdown: Option<Weighted<SectionKind>>,
+    /// Every song gets at least one drop (techno). House can do without.
+    #[serde(default = "yes")]
+    pub require_drop: bool,
+    /// The long layer (pad / strings) also plays in grooves, not only in drops.
+    #[serde(default)]
+    pub groove_layers: bool,
+    /// Soft section changes: no impact into breakdowns, small fills instead of rolls.
+    #[serde(default)]
+    pub soft_transitions: bool,
+    /// Added to the groove energy when choosing tracks (fuller grooves).
+    #[serde(default)]
+    pub groove_energy_offset: f32,
+}
+
+fn yes() -> bool {
+    true
 }
 
 /// Energy at or above which a track joins in groove / build / drop sections.
@@ -297,6 +321,8 @@ fn base_threshold(t: Track) -> f32 {
         Track::Tom => 0.8,
         Track::Drone => 0.85,
         Track::Pad => 0.95,
+        Track::Piano => 0.6,
+        Track::Guitar => 0.65,
         // Event-driven or never energy-driven.
         Track::Snare | Track::Crash | Track::Riser | Track::Impact => 2.0,
     }
@@ -335,6 +361,12 @@ pub struct SongPlan {
     fx_boost: f32,
     /// Short synth that replaces the main one in breakdowns, if any.
     pub alt_synth: Option<Track>,
+    /// Second instrument that plays together with the main one in fuller parts (house).
+    pub companion: Option<Track>,
+    companion_energy: f32,
+    groove_layers: bool,
+    soft: bool,
+    groove_offset: f32,
 }
 
 fn len_pick(w: &Weighted<u32>, rng: &mut Rng) -> u32 {
@@ -383,6 +415,23 @@ impl SongPlan {
                     }
                 };
                 match kind {
+                    SectionKind::Breakdown if r.after_breakdown.is_some() => {
+                        let mut v = vec![(SectionKind::Breakdown, len(&r.breakdown_bars, rng))];
+                        match r.after_breakdown.as_ref().unwrap().pick(rng) {
+                            SectionKind::Drop => {
+                                if rng.chance(r.breakdown_to_build_prob) {
+                                    v.push((SectionKind::Build, len(&r.build_bars, rng)));
+                                }
+                                v.push((SectionKind::Drop, len(&r.drop_bars, rng)));
+                            }
+                            SectionKind::Build => {
+                                v.push((SectionKind::Build, len(&r.build_bars, rng)));
+                                v.push((SectionKind::Drop, len(&r.drop_bars, rng)));
+                            }
+                            _ => v.push((SectionKind::Groove, len(&r.groove_bars, rng))),
+                        }
+                        v
+                    }
                     SectionKind::Breakdown => {
                         let mut v = vec![(SectionKind::Breakdown, len(&r.breakdown_bars, rng))];
                         if rng.chance(r.breakdown_to_build_prob) {
@@ -408,7 +457,7 @@ impl SongPlan {
             };
             // No endless grooves: after 32 bars of groove something has to happen.
             if next == SectionKind::Groove && groove_run >= 32 {
-                next = if rng.chance(0.5) {
+                next = if rng.chance(0.5) || !r.require_drop {
                     SectionKind::Breakdown
                 } else {
                     SectionKind::Build
@@ -420,7 +469,7 @@ impl SongPlan {
             if run_len(&run) > room {
                 run = run_for(next, rng, true);
             }
-            if run_len(&run) > room && next != SectionKind::Groove {
+            if run_len(&run) > room && next != SectionKind::Groove && r.require_drop {
                 run = run_for(SectionKind::Build, rng, true);
             }
             if run_len(&run) > room {
@@ -447,7 +496,7 @@ impl SongPlan {
                 }
             }
         }
-        if !has_drop {
+        if !has_drop && r.require_drop {
             // Every song gets at least one build and drop, even if it runs long.
             list.push((SectionKind::Build, PHRASE_BARS * 2));
             list.push((SectionKind::Drop, PHRASE_BARS * 4));
@@ -542,6 +591,11 @@ impl SongPlan {
             alt_synth,
             filter_depth: r.synth_filter_depth,
             fx_boost: profile.fx.breakdown_boost,
+            companion: None,
+            companion_energy: profile.synths.companion_energy,
+            groove_layers: r.groove_layers,
+            soft: r.soft_transitions,
+            groove_offset: r.groove_energy_offset,
         }
     }
 
@@ -629,7 +683,14 @@ impl SongPlan {
                 }
                 a
             }
-            SectionKind::Groove => by_energy(energy).minus(TrackSet::of(&[Pad, Drone])),
+            SectionKind::Groove => {
+                let a = by_energy(energy + self.groove_offset).minus(TrackSet::of(&[Pad, Drone]));
+                if self.groove_layers && sb >= 8.min(s.bars / 2) {
+                    a.with(Pad).with(Drone)
+                } else {
+                    a
+                }
+            }
             SectionKind::Drop => {
                 if sb == 0 {
                     impact = style.impact == DropImpact::ImpactCrash;
@@ -685,7 +746,7 @@ impl SongPlan {
             }
             SectionKind::Breakdown => {
                 if sb == 0 {
-                    impact = true;
+                    impact = !self.soft;
                     crash = true;
                 }
                 let mut a = TrackSet::of(&[Pad, Lead, Drone]);
@@ -724,8 +785,12 @@ impl SongPlan {
             fill = Fill::Small;
         }
         if s.kind == SectionKind::Breakdown && left == 1 && roll_every == 0 {
-            fill = Fill::Roll;
-            active = active.with(Snare);
+            if self.soft {
+                fill = Fill::Small;
+            } else {
+                fill = Fill::Roll;
+                active = active.with(Snare);
+            }
         }
         if s.kind != SectionKind::Build && s.kind != SectionKind::Breakdown && sb == 0 && bar > 0 {
             crash = crash || matches!(s.kind, SectionKind::Groove | SectionKind::Drop);
@@ -754,6 +819,17 @@ impl SongPlan {
                 _ => self.main_synth,
             };
             active = active.minus(SHORT_SYNTHS).with(pick);
+        }
+        // House: a companion (e.g. guitar under the piano) joins fuller grooves and drops.
+        if let Some(c) = self.companion {
+            let full = match s.kind {
+                SectionKind::Groove => energy + self.groove_offset >= self.companion_energy,
+                SectionKind::Drop => true,
+                _ => false,
+            };
+            if full && !active.and(SHORT_SYNTHS).is_empty() {
+                active = active.with(c);
+            }
         }
 
         BarPlan {

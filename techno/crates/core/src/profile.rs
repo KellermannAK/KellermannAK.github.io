@@ -45,6 +45,103 @@ pub struct Profile {
     pub variants: VariantRules,
     pub mix: MixRules,
     pub structure: StructureRules,
+    /// Piano (house). Optional so older profiles stay valid.
+    #[serde(default)]
+    pub piano: PianoRules,
+    /// Plucked guitar (house).
+    #[serde(default)]
+    pub guitar: GuitarRules,
+}
+
+fn zero_variant() -> Weighted<u8> {
+    Weighted {
+        values: vec![0],
+        weights: vec![1.0],
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum KeysStyle {
+    /// Classic house piano: syncopated chord stabs.
+    Stabs,
+    /// Offbeat chords, one per beat.
+    Offbeat,
+    /// One long chord per bar or two (ballad / deep house).
+    Held,
+}
+
+/// Piano: physically inspired modal synthesis (no samples).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PianoRules {
+    pub styles: Weighted<KeysStyle>,
+    pub chords: Weighted<ChordShape>,
+    /// 0 = dark felt, 1 = bright.
+    pub brightness: Range,
+    /// Ring time of the low partials in seconds.
+    pub decay: Range,
+    /// 0 grand, 1 felt, 2 electric (tine), 3 bright house piano.
+    pub variants: Weighted<u8>,
+}
+
+impl Default for PianoRules {
+    fn default() -> Self {
+        PianoRules {
+            styles: Weighted {
+                values: vec![KeysStyle::Stabs],
+                weights: vec![1.0],
+            },
+            chords: Weighted {
+                values: vec![ChordShape::Seventh],
+                weights: vec![1.0],
+            },
+            brightness: [0.5, 0.5],
+            decay: [1.5, 1.5],
+            variants: zero_variant(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GuitarStyle {
+    /// Muted single-note 16ths (funk / disco house).
+    Muted,
+    /// Chord strums on the offbeats.
+    Strum,
+    /// A few sustained notes, like a sparse lead.
+    Picked,
+}
+
+/// Plucked guitar: Karplus-Strong string model (no samples).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GuitarRules {
+    pub styles: Weighted<GuitarStyle>,
+    pub chords: Weighted<ChordShape>,
+    /// 0 = dull, 1 = bright pick.
+    pub brightness: Range,
+    /// String sustain in seconds.
+    pub sustain: Range,
+    /// 0 nylon (soft), 1 steel, 2 clean electric.
+    pub variants: Weighted<u8>,
+}
+
+impl Default for GuitarRules {
+    fn default() -> Self {
+        GuitarRules {
+            styles: Weighted {
+                values: vec![GuitarStyle::Muted],
+                weights: vec![1.0],
+            },
+            chords: Weighted {
+                values: vec![ChordShape::Triad],
+                weights: vec![1.0],
+            },
+            brightness: [0.5, 0.5],
+            sustain: [1.0, 1.0],
+            variants: zero_variant(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -79,6 +176,8 @@ pub enum LeadKind {
     Supersaw,
     /// Two-operator FM pluck.
     Pluck,
+    /// Soft saw/sine lead with long portamento and delayed vibrato (house glides).
+    Glide,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -141,6 +240,12 @@ pub struct VariantRules {
     pub drone: Weighted<u8>,
 }
 
+/// Embedded house profile.
+pub const HOUSE_TOML: &str = include_str!("../../../profiles/house.toml");
+
+/// Genres the engine knows, in the order of the site's genre switcher.
+pub const GENRES: [&str; 2] = ["techno", "house"];
+
 /// Insert effect on a track.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -177,6 +282,21 @@ pub enum ShortSynth {
     Lead,
     Arp,
     Stab,
+    Piano,
+    Guitar,
+}
+
+impl ShortSynth {
+    pub const fn track(self) -> crate::tracks::Track {
+        use crate::tracks::Track;
+        match self {
+            ShortSynth::Lead => Track::Lead,
+            ShortSynth::Arp => Track::Arp,
+            ShortSynth::Stab => Track::Stab,
+            ShortSynth::Piano => Track::Piano,
+            ShortSynth::Guitar => Track::Guitar,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -199,6 +319,19 @@ pub struct SynthRules {
     pub long_layer: Weighted<LongLayer>,
     /// Notes per stab hit: 1 = single tone, more = chords.
     pub stab_notes: u8,
+    /// Second instrument that may play together with the main one (house: guitar under
+    /// piano). Techno has none.
+    #[serde(default)]
+    pub companion: Option<Weighted<ShortSynth>>,
+    #[serde(default)]
+    pub companion_prob: f32,
+    /// Energy from which the companion joins grooves and drops.
+    #[serde(default = "default_companion_energy")]
+    pub companion_energy: f32,
+}
+
+fn default_companion_energy() -> f32 {
+    0.62
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -349,6 +482,8 @@ pub enum BassRhythm {
     Syncopated,
     /// Few notes: offbeat on beats 1 and 3, two 16ths before the next bar.
     Sparse,
+    /// House bounce: offbeat, push before beat 3, answer at the end of the bar.
+    Funky,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -387,6 +522,8 @@ pub enum ChordShape {
     Seventh,
     /// Root, fifth, tenth: open "dub techno" voicing.
     Dub,
+    /// Root, third, fifth, ninth: the warm house chord.
+    Ninth,
 }
 
 impl ChordShape {
@@ -397,6 +534,7 @@ impl ChordShape {
             ChordShape::Power => &[0, 4, 7],
             ChordShape::Seventh => &[0, 2, 4, 6],
             ChordShape::Dub => &[0, 4, 9],
+            ChordShape::Ninth => &[0, 2, 4, 8],
         }
     }
 }
@@ -455,6 +593,28 @@ impl Profile {
     pub fn hard_techno_simple() -> Profile {
         Profile::from_toml(HARD_TECHNO_SIMPLE_TOML).expect("embedded profile must parse")
     }
+
+    pub fn house() -> Profile {
+        Profile::from_toml(HOUSE_TOML).expect("embedded house profile must parse")
+    }
+
+    /// Embedded profile by genre name ("techno", "house") or profile id.
+    pub fn by_genre(genre: &str) -> Option<Profile> {
+        match genre {
+            "techno" | "hard_techno_simple" => Some(Profile::hard_techno_simple()),
+            "house" => Some(Profile::house()),
+            _ => None,
+        }
+    }
+
+    /// Short genre name of this profile.
+    pub fn genre(&self) -> &str {
+        if self.naming.library.is_empty() {
+            "techno"
+        } else {
+            &self.naming.library
+        }
+    }
 }
 
 #[cfg(test)]
@@ -466,5 +626,16 @@ mod tests {
         let p = Profile::hard_techno_simple();
         assert_eq!(p.id, "hard_techno_simple");
         assert!(p.tempo.bpm[0] >= 120.0);
+        assert_eq!(p.genre(), "techno");
+    }
+
+    #[test]
+    fn house_profile_parses() {
+        let p = Profile::house();
+        assert_eq!(p.genre(), "house");
+        assert!(p.tempo.bpm[1] < Profile::hard_techno_simple().tempo.bpm[0]);
+        for g in GENRES {
+            assert_eq!(Profile::by_genre(g).unwrap().genre(), g);
+        }
     }
 }

@@ -8,8 +8,9 @@
 use crate::euclid::{euclid, Pattern};
 use crate::markov::next_degree;
 use crate::profile::{
-    ArpPattern, Backbeat, BassRhythm, ChordShape, HarmonyScope, HatStyle, InsertKind, KickStyle,
-    LeadKind, LeadStyle, LongLayer, Profile, ProgressionShape, RideStyle, ShortSynth,
+    ArpPattern, Backbeat, BassRhythm, ChordShape, GuitarStyle, HarmonyScope, HatStyle, InsertKind,
+    KeysStyle, KickStyle, LeadKind, LeadStyle, LongLayer, Profile, ProgressionShape, RideStyle,
+    ShortSynth,
 };
 use crate::rng::Rng;
 use crate::structure::{SectionKind, SongPlan, SHORT_SYNTHS};
@@ -236,6 +237,24 @@ pub struct PadParams {
 }
 
 #[derive(Clone, Copy, Debug)]
+pub struct KeysParams {
+    pub variant: u8,
+    pub style: KeysStyle,
+    pub chord: ChordShape,
+    pub brightness: f32,
+    pub decay: f32,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct GuitarParams {
+    pub variant: u8,
+    pub style: GuitarStyle,
+    pub chord: ChordShape,
+    pub brightness: f32,
+    pub sustain: f32,
+}
+
+#[derive(Clone, Copy, Debug)]
 pub struct MixParams {
     pub sidechain_depth: f32,
     pub sidechain_release: f32,
@@ -286,6 +305,8 @@ pub struct SoundParams {
     pub lead: LeadParams,
     pub pad: PadParams,
     pub mix: MixParams,
+    pub piano: KeysParams,
+    pub guitar: GuitarParams,
 }
 
 /// Everything that defines a song's identity.
@@ -301,6 +322,10 @@ pub struct SongDna {
     pub stab: Motif,
     pub lead: Motif,
     pub arp: Motif,
+    /// Piano chord rhythm (degree = inversion offset, chords follow the progression).
+    pub piano: Motif,
+    /// Guitar: muted notes, strums (chords) or picked notes depending on the style.
+    pub guitar: Motif,
     pub sound: SoundParams,
     /// Song structure, fixed at song start.
     pub plan: SongPlan,
@@ -383,11 +408,7 @@ impl SongDna {
         drums.backbeat = profile.drums.backbeat.pick(&mut v);
         // One short synth carries the song; another may only replace it in breakdowns.
         let sr = &profile.synths;
-        let to_track = |s: ShortSynth| match s {
-            ShortSynth::Lead => Track::Lead,
-            ShortSynth::Arp => Track::Arp,
-            ShortSynth::Stab => Track::Stab,
-        };
+        let to_track = |s: ShortSynth| s.track();
         let main_synth = to_track(sr.main.pick(&mut v));
         let alt_synth = if v.chance(sr.breakdown_alt_prob) {
             let others: Vec<(ShortSynth, f32)> = sr
@@ -418,6 +439,42 @@ impl SongDna {
         if let Some(t) = long_layer {
             palette = palette.with(t);
         }
+        // Genres without a rumble (house) leave it out completely.
+        if profile.rumble.amount[1] <= 0.0 {
+            palette = palette.without(Track::Rumble);
+        }
+        // Companion instrument (own stream; techno has none).
+        let mut cr = root.fork("companion");
+        let companion = sr
+            .companion
+            .as_ref()
+            .filter(|_| cr.chance(sr.companion_prob))
+            .map(|w| to_track(w.pick(&mut cr)))
+            .filter(|t| *t != main_synth);
+        if let Some(t) = companion {
+            palette = palette.with(t);
+        }
+        // Piano and guitar (own streams, so techno seeds are unchanged).
+        let (piano, piano_sound) = gen_piano(&mut root.fork("piano"), profile);
+        sound.piano = piano_sound;
+        let (guitar, guitar_sound) =
+            gen_guitar(&mut root.fork("guitar"), profile, key, &bass, &progression);
+        sound.guitar = guitar_sound;
+        // Glide leads slide between neighbouring notes: the electronic house glide.
+        if sound.lead.kind == LeadKind::Glide {
+            let len = lead.len as usize;
+            for i in 0..len {
+                let next = (1..=4)
+                    .map(|k| (i + k) % len)
+                    .find(|j| lead.notes[*j].is_some());
+                if let (Some(j), Some(n)) = (next, lead.notes[i].as_mut()) {
+                    if j > i {
+                        n.slide = true;
+                        n.len = (j - i) as u8;
+                    }
+                }
+            }
+        }
         sound.stab.notes = sr.stab_notes.max(1);
         sound.fx = gen_fx(&mut root.fork("fx"), profile);
         // Instrument sound variants (own stream).
@@ -445,13 +502,14 @@ impl SongDna {
             drive: r.in_range(profile.drone.drive),
             detune: r.in_range(profile.drone.detune),
         };
-        let plan = SongPlan::generate(
+        let mut plan = SongPlan::generate(
             &mut root.fork("structure"),
             profile,
             palette,
             main_synth,
             alt_synth,
         );
+        plan.companion = companion;
 
         SongDna {
             seed,
@@ -464,6 +522,8 @@ impl SongDna {
             stab,
             lead,
             arp,
+            piano,
+            guitar,
             sound,
             plan,
         }
@@ -498,7 +558,9 @@ impl SongDna {
              sounds     kick {:?}, lead {:?} ({:?}), bass {:?}, backbeat {:?}\n\
              fx         synth {:?}, layer {:?}, hats {:?}\n\
              variants   clap {} snare {} hats {} ride {} crash {} rim {} tom {} bass {} rumble {} stab {} arp {} pad {} drone {}\n\
-             synths     main {}, breakdown {}\n\
+             synths     main {}, breakdown {}, companion {}\n\
+             piano      {}   {:?} {:?} v{}\n\
+             guitar     {}   {:?} {:?} v{}\n\
              palette    {}\n\
              (motif digits = scale degree above root, a/b/c.. = 1/2/3.. below)",
             self.seed,
@@ -555,6 +617,15 @@ impl SongDna {
             self.sound.drone.variant,
             self.plan.main_synth.name(),
             self.plan.alt_synth.map(|t| t.name()).unwrap_or("same"),
+            self.plan.companion.map(|t| t.name()).unwrap_or("none"),
+            self.piano.to_string_grid(),
+            self.sound.piano.style,
+            self.sound.piano.chord,
+            self.sound.piano.variant,
+            self.guitar.to_string_grid(),
+            self.sound.guitar.style,
+            self.sound.guitar.chord,
+            self.sound.guitar.variant,
             self.plan
                 .palette
                 .iter()
@@ -585,8 +656,15 @@ fn gen_progression(rng: &mut Rng, p: &Profile, key: Key) -> Progression {
     // Degrees that would produce an ugly root chord in this scale are filtered out:
     // bII only exists as a strong colour in phrygian, VII in harmonic minor is diminished.
     let allowed = |d: i32| match d {
-        1 => key.scale == ScaleKind::Phrygian,
-        6 => key.scale != ScaleKind::HarmonicMinor,
+        // bII in phrygian; ii is a minor chord in major and dorian (diminished in minor).
+        1 => matches!(
+            key.scale,
+            ScaleKind::Phrygian | ScaleKind::Major | ScaleKind::Dorian
+        ),
+        // vi is diminished in dorian.
+        5 => key.scale != ScaleKind::Dorian,
+        // VII is diminished in harmonic minor and major.
+        6 => !matches!(key.scale, ScaleKind::HarmonicMinor | ScaleKind::Major),
         _ => true,
     };
 
@@ -721,6 +799,12 @@ fn bass_positions(r: BassRhythm, beat: u32) -> &'static [u32] {
             0 | 2 => &[2],
             3 => &[2, 3],
             _ => &[],
+        },
+        BassRhythm::Funky => match beat {
+            0 => &[2, 3],
+            1 => &[2],
+            2 => &[3],
+            _ => &[1, 3],
         },
     }
 }
@@ -1228,7 +1312,156 @@ fn gen_sound(rng: &mut Rng, p: &Profile, key: Key) -> SoundParams {
             sidechain_depth: rng.in_range(p.mix.sidechain_depth),
             sidechain_release: rng.in_range(p.mix.sidechain_release),
         },
+        // Filled in from their own streams in `generate_with`.
+        piano: KeysParams {
+            variant: 0,
+            style: KeysStyle::Stabs,
+            chord: ChordShape::Seventh,
+            brightness: 0.5,
+            decay: 1.5,
+        },
+        guitar: GuitarParams {
+            variant: 0,
+            style: GuitarStyle::Muted,
+            chord: ChordShape::Triad,
+            brightness: 0.5,
+            sustain: 1.0,
+        },
     }
+}
+
+/// Classic house piano rhythms over two bars (16th steps, len in steps).
+const PIANO_STABS: [&[(usize, u8)]; 5] = [
+    // The "M1" push: 1, a-of-1, and-of-2, a-of-3 ...
+    &[
+        (0, 2),
+        (3, 2),
+        (6, 3),
+        (10, 2),
+        (12, 3),
+        (16, 2),
+        (19, 2),
+        (22, 3),
+        (26, 4),
+    ],
+    &[(2, 2), (6, 2), (10, 2), (14, 2), (18, 2), (22, 2), (27, 3)],
+    &[(0, 3), (6, 2), (11, 3), (16, 3), (22, 2), (27, 2), (30, 2)],
+    &[(3, 2), (6, 4), (14, 2), (19, 2), (22, 4), (30, 2)],
+    &[(0, 6), (6, 2), (10, 6), (16, 6), (22, 2), (26, 6)],
+];
+
+fn gen_piano(rng: &mut Rng, p: &Profile) -> (Motif, KeysParams) {
+    let r = &p.piano;
+    let style = r.styles.pick(rng);
+    let mut m = Motif::empty(32);
+    match style {
+        KeysStyle::Stabs => {
+            let pat = PIANO_STABS[rng.range_i32(0, PIANO_STABS.len() as i32 - 1) as usize];
+            for &(s, len) in pat {
+                let mut n = Note::new(0, if s % 4 == 0 { 0.95 } else { 0.8 });
+                n.len = len;
+                n.accent = s % 8 == 6;
+                m.notes[s] = Some(n);
+            }
+        }
+        KeysStyle::Offbeat => {
+            for s in (2..32).step_by(4) {
+                let mut n = Note::new(0, 0.8);
+                n.len = 2;
+                m.notes[s] = Some(n);
+            }
+            if rng.chance(0.5) {
+                // A push into the next bar.
+                let mut n = Note::new(0, 0.9);
+                n.len = 2;
+                m.notes[31] = Some(n);
+                m.notes[30] = None;
+            }
+        }
+        KeysStyle::Held => {
+            let per = if rng.chance(0.5) { 16 } else { 32 };
+            for s in (0..32).step_by(per) {
+                let mut n = Note::new(0, 0.75);
+                n.len = (per - 2) as u8;
+                m.notes[s] = Some(n);
+            }
+            // Soft re-attack on the "and" of 3 now and then.
+            if per == 16 && rng.chance(0.5) {
+                let mut n = Note::new(0, 0.55);
+                n.len = 4;
+                m.notes[10] = Some(n);
+                m.notes[0].as_mut().unwrap().len = 10;
+            }
+        }
+    }
+    let params = KeysParams {
+        variant: r.variants.pick(rng),
+        style,
+        chord: r.chords.pick(rng),
+        brightness: rng.in_range(r.brightness),
+        decay: rng.in_range(r.decay),
+    };
+    (m, params)
+}
+
+fn gen_guitar(
+    rng: &mut Rng,
+    p: &Profile,
+    key: Key,
+    bass: &Motif,
+    prog: &Progression,
+) -> (Motif, GuitarParams) {
+    let r = &p.guitar;
+    let style = r.styles.pick(rng);
+    let mut m = Motif::empty(16);
+    match style {
+        GuitarStyle::Muted => {
+            // Funky muted 16ths: a euclidean rhythm, mostly root and octave.
+            let k = rng.range_i32(6, 10) as u32;
+            let pat = euclid(k, 16, rng.range_i32(0, 3));
+            const POOL: [i32; 4] = [0, 7, 4, 2];
+            for s in 0..16 {
+                if pat.hit(s) {
+                    let d = POOL[rng.weighted_index(&[4.0, 2.0, 1.5, 0.8])];
+                    let mut n = Note::new(d, if s % 4 == 2 { 0.95 } else { 0.7 });
+                    n.accent = s % 4 == 2;
+                    m.notes[s as usize] = Some(n);
+                }
+            }
+        }
+        GuitarStyle::Strum => {
+            // Offbeat strums, every other one an up-strum (accent = down).
+            m = Motif::empty(16);
+            for (i, s) in [2usize, 6, 10, 14].into_iter().enumerate() {
+                let mut n = Note::new(0, if i % 2 == 0 { 0.9 } else { 0.7 });
+                n.accent = i % 2 == 0;
+                n.len = 2;
+                m.notes[s] = Some(n);
+            }
+            if rng.chance(0.5) {
+                let mut n = Note::new(0, 0.6);
+                n.len = 1;
+                m.notes[15] = Some(n);
+            }
+        }
+        GuitarStyle::Picked => {
+            m = gen_lead_styled(rng, LeadStyle::Sparse, key, bass, prog);
+        }
+    }
+    if m.note_count() == 0 {
+        m.notes[2] = Some(Note::new(0, 0.9));
+    }
+    if style != GuitarStyle::Picked {
+        avoid_friction_with_bass(&mut m, key, bass, prog);
+    }
+    let params = GuitarParams {
+        variant: r.variants.pick(rng),
+        style,
+        chord: r.chords.pick(rng),
+        brightness: rng.in_range(r.brightness),
+        sustain: rng.in_range(r.sustain),
+    };
+    (m, params)
 }
 
 /// Kick tuning that sits with the key: the tonic, else the fifth, else the fourth,
@@ -1401,6 +1634,88 @@ mod tests {
             moving_bars * 4 < bars,
             "the tonic should dominate: {moving_bars}/{bars}"
         );
+    }
+
+    fn house_songs() -> impl Iterator<Item = SongDna> {
+        let p = Profile::house();
+        (0..200u64).map(move |s| SongDna::generate(s, &p))
+    }
+
+    #[test]
+    fn house_stays_in_key_including_piano_and_guitar() {
+        for dna in house_songs() {
+            for &root in dna.progression.roots() {
+                for motif in [&dna.bass, &dna.lead, &dna.piano, &dna.guitar] {
+                    for i in 0..motif.len as u32 {
+                        if let Some(n) = motif.at(i) {
+                            let semis = dna.key.degree_to_semitone(root as i32 + n.degree as i32);
+                            let pc = dna.key.root as i32 + semis;
+                            assert!(dna.key.contains_pitch_class(pc), "seed {}", dna.seed);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn house_is_house() {
+        use crate::structure::SHORT_SYNTHS;
+        let p = Profile::house();
+        let (mut with_drop, mut natural, mut companions) = (0, 0, 0);
+        for dna in house_songs() {
+            assert!(dna.bpm >= p.tempo.bpm[0] && dna.bpm <= p.tempo.bpm[1]);
+            assert!(dna.swing >= p.tempo.swing[0]);
+            assert!(
+                !dna.plan.palette.contains(Track::Rumble),
+                "no rumble in house"
+            );
+            assert_ne!(dna.sound.kick.style, KickStyle::Distorted);
+            with_drop += dna
+                .plan
+                .sections()
+                .iter()
+                .any(|s| s.kind == SectionKind::Drop) as u32;
+            natural += [Track::Piano, Track::Guitar]
+                .iter()
+                .any(|t| dna.plan.palette.contains(*t)) as u32;
+            companions += dna.plan.companion.is_some() as u32;
+            for bar in 0..dna.plan.total_bars {
+                let b = dna.plan.bar(bar);
+                // Main instrument plus at most one companion.
+                assert!(
+                    b.active.and(SHORT_SYNTHS).0.count_ones() <= 2,
+                    "seed {}",
+                    dna.seed
+                );
+                // Soft: no impact hits into breakdowns.
+                if b.section == SectionKind::Breakdown {
+                    assert!(!b.impact, "seed {} bar {bar}", dna.seed);
+                }
+            }
+        }
+        assert!(
+            with_drop < 80,
+            "drops should be the exception: {with_drop}/200"
+        );
+        assert!(
+            natural > 100,
+            "piano / guitar should be common: {natural}/200"
+        );
+        assert!(companions > 30, "{companions}/200");
+    }
+
+    #[test]
+    fn house_grooves_have_strings() {
+        // The long layer also plays in grooves (house backdrop), not only in drops.
+        let mut groove_layer = 0;
+        for dna in house_songs() {
+            groove_layer += (0..dna.plan.total_bars).any(|bar| {
+                let b = dna.plan.bar(bar);
+                b.section == SectionKind::Groove && b.active.contains(Track::Pad)
+            }) as u32;
+        }
+        assert!(groove_layer > 120, "{groove_layer}/200");
     }
 
     #[test]

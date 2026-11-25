@@ -2,7 +2,7 @@
 //! and runs the instruments through their channel strips and send effects.
 
 use techno_core::dna::{bass_base_midi, Note, SongDna};
-use techno_core::profile::{Backbeat, ChordShape, LeadKind};
+use techno_core::profile::{Backbeat, ChordShape, GuitarStyle, KeysStyle, LeadKind};
 use techno_core::structure::{Automation, BarPlan, Fill, RollKind, SongPlan};
 use techno_core::theory::midi_to_hz;
 use techno_core::time::{
@@ -55,6 +55,8 @@ fn channel_settings(t: Track, dna: &SongDna) -> ChannelSettings {
         Track::Drone => settings(0.08, 0.0, sc, 0.05, 0.25, 90.0),
         Track::Riser => settings(0.20, 0.0, 0.0, 0.10, 0.25, 150.0),
         Track::Impact => settings(0.45, 0.0, 0.0, 0.0, 0.35, 0.0),
+        Track::Piano => settings(0.16, -0.08, sc * 0.5, 0.10, 0.22, 90.0),
+        Track::Guitar => settings(0.30, 0.25, sc * 0.4, 0.16, 0.12, 120.0),
     }
 }
 
@@ -62,7 +64,7 @@ fn channel_settings(t: Track, dna: &SongDna) -> ChannelSettings {
 fn insert_params(t: Track, dna: &SongDna) -> InsertParams {
     let fx = &dna.sound.fx;
     let spec = match t {
-        Track::Lead | Track::Arp | Track::Stab => fx.synth,
+        Track::Lead | Track::Arp | Track::Stab | Track::Piano | Track::Guitar => fx.synth,
         Track::Pad | Track::Drone => fx.layer,
         Track::HatClosed | Track::HatOpen => fx.hats,
         _ => return InsertParams::NONE,
@@ -126,6 +128,8 @@ pub struct Deck {
     impact: Impact,
     arp: Stab,
     drone: Drone,
+    piano: Piano,
+    guitar: Guitar,
 
     delay: PingPongDelay,
     reverb: Reverb,
@@ -236,6 +240,8 @@ impl Deck {
             riser: Riser::new(midi_to_hz((bass_base + 24) as f32), 1.0, sr),
             arp: Stab::new(s.arp, sr),
             drone: Drone::new(s.drone, sr),
+            piano: Piano::new(s.piano, sr),
+            guitar: Guitar::new(s.guitar, sr),
             impact: Impact::new(seconds_per_bar(dna.bpm as f64) as f32, sr),
             delay,
             reverb,
@@ -527,6 +533,7 @@ impl Deck {
                     LeadKind::Acid => 0.55,
                     LeadKind::Pluck => 0.4,
                     LeadKind::Hoover | LeadKind::Supersaw => 0.85,
+                    LeadKind::Glide => 0.95,
                 };
                 let gate = if n.slide { len * 1.1 } else { len * hold } as u32;
                 self.lead
@@ -534,6 +541,55 @@ impl Deck {
                 self.prev_lead_slide = n.slide;
             } else {
                 self.prev_lead_slide = false;
+            }
+        }
+    }
+
+    fn on_keys(&mut self, bar: u32, step: u32) {
+        let a = self.plan.active;
+        let abs = bar * 16 + step;
+        let root = fold_root(self.dna.root_at(bar));
+        let base = self.bass_base + 24;
+        if a.contains(Track::Piano) {
+            if let Some(n) = self.dna.piano.at(abs) {
+                let mut buf = [0.0f32; 4];
+                let k = self.chord_freqs(
+                    root,
+                    self.dna.sound.piano.chord,
+                    base + self.end_octave(bar),
+                    &mut buf,
+                );
+                let held = self.dna.sound.piano.style == KeysStyle::Held;
+                let gate = (n.len as f32 * self.step_samples * 0.92) as u32;
+                // Chords are never perfectly together; held chords are rolled.
+                let spread = (self.sr * if held { 0.014 } else { 0.004 }) as u32;
+                let v = (n.velocity + humanize(abs as u64, 7)).clamp(0.3, 1.0);
+                self.piano.trigger_chord(&buf[..k], v, gate, spread);
+            }
+        }
+        if a.contains(Track::Guitar) {
+            if let Some(n) = self.dna.guitar.at(abs) {
+                let v = (n.velocity + humanize(abs as u64, 8)).clamp(0.3, 1.0);
+                match self.dna.sound.guitar.style {
+                    GuitarStyle::Strum => {
+                        let mut buf = [0.0f32; 4];
+                        let k = self.chord_freqs(root, self.dna.sound.guitar.chord, base, &mut buf);
+                        let gate = (n.len as f32 * self.step_samples * 0.95) as u32;
+                        let spread = (self.sr * 0.011) as u32;
+                        self.guitar
+                            .trigger_chord(&buf[..k], v, gate, spread, false, n.accent);
+                    }
+                    style => {
+                        let muted = style == GuitarStyle::Muted;
+                        let f = self.note_freq(base, root, &n);
+                        let len = if muted { 0.9 } else { n.len as f32 * 1.6 };
+                        let gate = (len * self.step_samples) as u32;
+                        // Single notes carry less energy than strums: level-matched by ear
+                        // and meter (`techno render --solo guitar`).
+                        let v = v * if muted { 1.8 } else { 1.6 };
+                        self.guitar.trigger_chord(&[f], v, gate, 0, muted, true);
+                    }
+                }
             }
         }
     }
@@ -580,6 +636,7 @@ impl Deck {
             self.throw_active = self.plan.variation.delay_throw && t.bar() % 8 == 7 && step >= 12;
             self.on_step(t.bar(), step);
             self.on_arp(t.bar(), step);
+            self.on_keys(t.bar(), step);
         }
     }
 
@@ -601,9 +658,17 @@ impl Deck {
         self.lead.filter_open = (self.lead_filter.next() * sf).clamp(0.0, 1.3);
         self.stab.filter_mul = sf;
         self.arp.filter_mul = sf;
+        self.piano.filter_mul = sf;
+        self.guitar.filter_mul = sf;
         // Delay throw: synth delay sends open up in the last beat of a phrase.
         let throw = if self.throw_active { 0.45 } else { 0.0 };
-        for t in [Track::Lead, Track::Arp, Track::Stab] {
+        for t in [
+            Track::Lead,
+            Track::Arp,
+            Track::Stab,
+            Track::Piano,
+            Track::Guitar,
+        ] {
             self.channels[t.index()].delay_boost = throw;
         }
         self.bass.filter_mul = self.bass_filter.next();
@@ -616,7 +681,9 @@ impl Deck {
         let (hc, ho) = self.hats.process();
         let (pad_l, pad_r) = self.pad.process();
 
-        let mono: [(Track, f32); 17] = [
+        let mono: [(Track, f32); 19] = [
+            (Track::Piano, self.piano.process()),
+            (Track::Guitar, self.guitar.process()),
             (Track::Arp, self.arp.process()),
             (Track::Drone, self.drone.process()),
             (Track::Kick, kick),

@@ -1,7 +1,17 @@
 # Algorithmic Techno Generator
 
-Endless, hard, pounding, predictable techno, generated and synthesized live. No samples,
-no vocals. Every song comes from a seed and can be reproduced exactly.
+Endless electronic music, generated and synthesized live. No samples, no vocals. Every song
+comes from a seed and can be reproduced exactly. Two genres, each with its own rule tree:
+
+- **Techno** (`profiles/hard_techno_simple.toml`): hard, pounding, predictable, 134-136 BPM.
+- **House** (`profiles/house.toml`): softer and slower (120-124 BPM, swing), dorian / minor /
+  major, seventh and ninth chord loops, piano (modal synthesis), guitar (Karplus-Strong
+  string model), electronic glide leads, strings, a round bass; breakdowns flow back into
+  the groove, drops are rare and soft. Own word library for titles and artists
+  (`profiles/words_house.toml`).
+
+The site switches genres with the arrows under the header (the page turns like a cube; every
+genre has its own colours). Feedback and listening statistics store the genre.
 
 Requirements: [Claude Docs page "Requirements: Algorithmischer Techno-Generator"](https://claude.ai/code/artifact/a30876a6-5dab-457a-b661-d056b7b7c405).
 
@@ -25,6 +35,7 @@ Extra: sound variety (kick styles, backbeats, lead kinds, arp, drone, per-song p
 cargo build --release
 ./target/release/techno mix    --seed 7 --songs 5 --out mix.wav --tracklist mix.json
 ./target/release/techno info   --seed 42                 # song DNA and structure
+./target/release/techno info   --seed 42 --genre house   # same for house (also: render, mix)
 ./target/release/techno render --seed 42 --out 42.wav    # one song, ~5-7 min
 ./target/release/techno render --seed 42 --start-bar 96 --bars 8 --solo bass,lead --out dbg.wav
 ./target/release/techno render --seed 42 --start-bar 96 --bars 8 --solo lead --no-fx   # A/B without inserts
@@ -103,7 +114,9 @@ a phrase boundary.
 ## Layout
 
 ```
-profiles/hard_techno_simple.toml   style profile: every random choice is bounded here
+profiles/hard_techno_simple.toml   techno profile: every random choice is bounded here
+profiles/house.toml                house profile (own rule tree, same engine)
+profiles/words*.toml               title / artist word libraries per genre
 crates/core     deterministic, audio-free: time base (ticks), PRNG, theory, euclid,
                 Markov chain, profile, song DNA, song structure / energy / automation
 crates/synth    DSP (PolyBLEP osc, TPT SVF, envelopes, delay, reverb, compressor,

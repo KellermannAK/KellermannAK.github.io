@@ -90,7 +90,7 @@ function tick() {
   if (!enabled()) return;
   const listening = now && t - nowAt < FRESH_MS;
   if (listening) {
-    const key = `${now.source}|${now.source_seed}|${now.song_seed}`;
+    const key = `${now.genre || "techno"}|${now.source}|${now.source_seed}|${now.song_seed}`;
     const s = songs.get(key) || { ...now, ms: 0 };
     s.ms += dt;
     s.title = now.title || s.title;
@@ -111,6 +111,7 @@ async function flush() {
   const listens = [...songs.values()]
     .slice(-60)
     .map((s) => ({
+      genre: s.genre || "techno",
       source: s.source,
       source_seed: s.source_seed,
       song_seed: s.song_seed,

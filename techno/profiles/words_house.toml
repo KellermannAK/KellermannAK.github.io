@@ -1,0 +1,60 @@
+# Word library for house titles and artist names. Data, not code: edit freely.
+# Warm, soulful, summery words instead of the dark techno vocabulary.
+# All names are invented combinations; the lists avoid real artist, label and club names.
+
+[title]
+nouns = [
+  "Sunset", "Sunrise", "Feeling", "Soul", "Heart", "Love", "Summer", "Island", "Balcony",
+  "Garden", "Velvet", "Honey", "Golden Hour", "Rooftop", "Lagoon", "Boulevard", "Promenade",
+  "Weekend", "Sunday", "Saturday", "Groove", "Desire", "Paradise", "Harmony", "Melody",
+  "Embrace", "Glow", "Shine", "Breeze", "Ocean", "Coast", "Harbour Lights", "Palm", "Terrace",
+  "Satin", "Silk", "Gold", "Amber", "Coral", "Jasmine", "Orchid", "Peach", "Mango", "Citrus",
+  "Lemonade", "Cocktail", "Daydream", "Memory", "Promise", "Kiss", "Touch", "Smile", "Dancer",
+  "Lover", "Friend", "Stranger", "Angel", "Spirit", "Freedom", "Journey", "Horizon", "Skyline",
+  "Starlight", "Moonlight", "Afterglow", "Twilight", "Morning", "Evening", "Night Drive",
+  "Avenue", "Corner", "Diner", "Jukebox", "Record", "Vinyl", "Piano", "Strings", "Saxophone",
+  "Rhythm", "Motion", "Emotion", "Devotion", "Celebration", "Gathering", "Family", "Home",
+  "Window", "Mirror", "Rain", "Thunder", "Rainbow", "Waves", "Tides", "Sand", "Shore", "Bay",
+  "Riviera", "Sunlight", "Warmth", "Fire", "Flame", "Heat", "Fever", "Magic", "Wonder",
+  "Mystery", "Secret", "Whisper", "Voice", "Echo", "Reflection", "Colours", "Sunshine",
+]
+adjectives = [
+  "Golden", "Warm", "Sweet", "Soft", "Gentle", "Endless", "Sunny", "Lazy", "Late", "Early",
+  "Tender", "Velvet", "Silky", "Smooth", "Deep", "Higher", "Brighter", "Lighter", "Free",
+  "Wild", "Easy", "Slow", "Better", "True", "Real", "Pure", "Honest", "Simple", "Little",
+  "Blue", "Violet", "Pink", "Amber", "Crystal", "Silver", "Tropical", "Balearic", "Coastal",
+  "Midnight", "Summer", "Sunday", "Weekend", "Secret", "Hidden", "Dreamy", "Hazy", "Glowing",
+  "Shining", "Floating", "Lovely", "Beautiful", "Precious", "Rare", "Electric", "Cosmic",
+  "Heavenly", "Spiritual", "Soulful", "Jazzy", "Funky", "Disco", "Liquid", "Warmer",
+]
+gerunds = [
+  "Dancing", "Dreaming", "Floating", "Shining", "Feeling", "Falling", "Rising", "Moving",
+  "Swaying", "Glowing", "Burning", "Waiting", "Smiling", "Singing", "Running", "Holding",
+  "Touching", "Loving", "Chasing", "Drifting", "Sailing", "Gliding", "Breathing", "Believing",
+]
+plurals = [
+  "Lights", "Colours", "Feelings", "Hearts", "Lovers", "Dreams", "Stars", "Waves", "Days",
+  "Nights", "Summers", "Memories", "Friends", "Dancers", "Voices", "Skies", "Places",
+  "Moments", "Islands", "Rhythms", "Sounds", "Wishes", "Flowers", "Promises",
+]
+german = [
+  "Sommer", "Wärme", "Sonne", "Abendrot", "Sehnsucht", "Liebe", "Freiheit", "Seele",
+  "Morgenlicht", "Sternenzelt", "Fernweh", "Glück", "Strandbar", "Uferweg", "Lichtblick",
+  "Sonntag", "Herzschlag", "Leichtigkeit", "Goldstaub", "Wellengang",
+]
+numbers = ["4AM", "6AM", "1999", "2001", "'88", "'92", "24/7", "Pt. 2", "No. 5", "121", "123", "Ibiza '95"]
+roman = ["II", "III", "IV", "V", "VI"]
+
+[artist]
+# Invented names are built from these syllables (softer sounds than the techno list).
+starts = [
+  "Lu", "Ma", "Ni", "So", "Ela", "Ami", "Bel", "Ca", "Da", "Fe", "Gio", "Isa", "Jo", "Ka",
+  "Le", "Mi", "No", "Pa", "Ro", "Sa", "Te", "Va", "Ze", "Ali", "Bo", "Cla", "Del", "Emi",
+  "Flo", "Ga", "Hel", "Lio", "Mar", "Nel", "Oli", "Rae", "Sol", "Tia", "Ve", "Yu",
+]
+middles = ["", "", "", "la", "li", "ra", "ri", "na", "no", "ve", "mi", "lo", "sa", "ni", "ta"]
+ends = [
+  "a", "o", "e", "i", "y", "na", "no", "la", "lo", "ra", "ro", "ia", "io", "el", "ey",
+  "an", "in", "ie", "ah", "ee", "ani", "ina", "ito", "elle", "ette", "ena",
+]
+suffixes = ["Soul Club", "Ensemble", "Orchestra", "Sound System", "Quartet", "Trio", "& Friends", "Experience", "Band", "Lovers"]
