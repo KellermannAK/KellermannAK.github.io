@@ -68,7 +68,7 @@
   .g-dots { display: flex; justify-content: center; gap: 6px; margin-bottom: 4px; }
   .g-dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--line); transition: background 0.3s; }
   .g-dots span.on { background: var(--accent); }
-  .counters { display: flex; flex-direction: column; align-items: center; gap: 1px; margin: 6px 0 0; font-size: 0.82rem; color: var(--muted); font-variant-numeric: tabular-nums; text-align: center; }
+  .counters { display: flex; flex-direction: column; align-items: center; gap: 1px; margin: 40px 0 0; font-size: 0.82rem; color: var(--muted); font-variant-numeric: tabular-nums; text-align: center; }
   .counters b { color: var(--text); font-weight: 600; margin-right: 4px; }
   .acc-btn {
     position: absolute; top: 34px; right: 16px; z-index: 21;
@@ -234,7 +234,6 @@
       <button class="g-arrow" id="g-next" aria-label="Next genre"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
     </nav>
     <div class="g-dots" id="g-dots" aria-hidden="true"></div>
-    <p class="counters" id="g-counters" hidden></p>
   </header>
 
   <h2>Live</h2>
@@ -305,6 +304,7 @@
     switcher show only totals of the last 30 days. Statistics can be switched off in the account panel (top right) and stay
     off if your browser sends “Do Not Track”.</p>
   </details>
+  <p class="counters" id="g-counters" hidden></p>
 </main>
 </div>
 <script>
