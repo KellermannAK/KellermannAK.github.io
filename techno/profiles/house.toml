@@ -10,7 +10,7 @@ name = "House"
 [tempo]
 bpm = [120.0, 124.0]
 # Shuffled 16ths are the core of the house groove.
-swing = [0.35, 0.6]
+swing = [0.3, 0.5]
 
 [harmony]
 # Dorian is the soulful minor of house; major for the sunny tracks.
@@ -87,10 +87,10 @@ movement = [0.3, 0.6]
 degree_range = [0, 9]
 cutoff_hz = [260.0, 650.0]
 env_mod = [0.5, 1.5]
-resonance = [0.05, 0.3]
+resonance = [0.02, 0.12]
 decay = [0.15, 0.3]
-drive = [1.0, 1.8]
-sub_mix = [0.5, 0.9]
+drive = [1.0, 1.3]
+sub_mix = [0.6, 0.95]
 
 [rumble]
 # No rumble in house.
@@ -108,6 +108,8 @@ decay = [0.2, 0.45]
 detune = [0.04, 0.10]
 
 [lead]
+# Feedback: "4th tone is atonal": melody notes only on chord tones.
+chord_tones_only = true
 # Electronic glides first, then soft plucks.
 kinds = { values = ["acid", "hoover", "supersaw", "pluck", "glide"], weights = [0.0, 0.0, 0.4, 2.0, 4.0] }
 styles = { values = ["riff", "sparse", "pulse", "long"], weights = [0.15, 3.0, 0.4, 3.5] }
@@ -154,15 +156,17 @@ variants = { values = [0, 1, 2, 3], weights = [2.0, 1.5, 2.0, 2.5] }
 [guitar]
 styles = { values = ["muted", "strum", "picked"], weights = [3.0, 2.0, 1.5] }
 chords = { values = ["triad", "seventh"], weights = [2.0, 1.0] }
-brightness = [0.3, 0.8]
-sustain = [0.6, 2.0]
+# Feedback: guitar too loud and too clear.
+brightness = [0.15, 0.5]
+sustain = [0.5, 1.6]
 # 0 nylon, 1 steel, 2 clean electric
 variants = { values = [0, 1, 2], weights = [1.5, 1.0, 2.5] }
 
 [synths]
 # The main instrument carries the song; piano and guitar are as likely as synths.
 main = { values = ["piano", "guitar", "lead", "stab", "arp"], weights = [4.0, 1.5, 2.5, 2.0, 0.8] }
-breakdown_alt_prob = 0.5
+# Feedback: complete theme changes are liked but came too often.
+breakdown_alt_prob = 0.22
 # Strings / pads are the house backdrop.
 long_layer = { values = ["pad", "drone", "none"], weights = [6.0, 0.3, 0.6] }
 stab_notes = 4
@@ -192,7 +196,8 @@ crash = { values = [0, 1, 2], weights = [2.0, 0.5, 1.5] }
 rim = { values = [0, 1, 2], weights = [1.0, 2.0, 2.0] }
 tom = { values = [0, 1, 2], weights = [2.0, 0.3, 1.0] }
 # bass: 0 saw + sub, 1 reese, 2 square + sub, 3 sine pluck
-bass = { values = [0, 1, 2, 3], weights = [1.5, 0.2, 1.5, 3.0] }
+# Feedback: the saw / reese basses were "too dirty for nice house".
+bass = { values = [0, 1, 2, 3], weights = [0.3, 0.0, 1.0, 4.0] }
 rumble = { values = [0], weights = [1.0] }
 # stab / arp: 0 detuned saws, 1 pulse, 2 FM bell, 3 organ
 stab = { values = [0, 1, 2, 3], weights = [1.0, 0.5, 2.0, 3.0] }
@@ -211,6 +216,8 @@ suffix_prob = 0.3
 [mix]
 sidechain_depth = [0.35, 0.6]
 sidechain_release = [0.15, 0.25]
+# Feedback: the 8ths with the open hat were too loud.
+open_hat_gain = 0.5
 
 [structure]
 # ~5:20-7:00 at 122 BPM.
@@ -229,6 +236,8 @@ after_breakdown = { values = ["groove", "drop"], weights = [4.0, 0.5] }
 require_drop = false
 groove_layers = true
 soft_transitions = true
+# Feedback: hard cut between sections: a small breakdown (no synths) comes first.
+pre_breakdown_thin = true
 groove_energy_offset = 0.08
 drop_pause_prob = 0.1
 breakdown_to_build_prob = 0.2

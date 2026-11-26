@@ -101,7 +101,8 @@ size = [0.75, 0.90]
 
 [stab]
 hits = [2, 5]
-chords = { values = ["seventh", "dub", "triad", "power"], weights = [3.0, 3.0, 2.0, 1.0] }
+# Feedback: seventh / dub chords on the offbeat were "too pretty for deep techno".
+chords = { values = ["seventh", "dub", "triad", "power"], weights = [1.2, 1.2, 2.5, 2.5] }
 cutoff_hz = [600.0, 1600.0]
 env_mod = [1.5, 4.0]
 decay = [0.15, 0.35]
@@ -109,9 +110,9 @@ detune = [0.05, 0.18]
 
 [lead]
 # Keep acid rare: dark techno, not acid techno.
-kinds = { values = ["acid", "hoover", "supersaw", "pluck"], weights = [0.3, 2.0, 2.0, 3.0] }
+kinds = { values = ["acid", "hoover", "supersaw", "pluck"], weights = [0.1, 2.0, 2.0, 3.0] }
 # Sparse leads with few pitches were liked; busy riffs read as "too melodic".
-styles = { values = ["riff", "sparse", "pulse", "long"], weights = [1.0, 4.0, 2.5, 2.0] }
+styles = { values = ["riff", "sparse", "pulse", "long"], weights = [0.3, 4.0, 2.5, 2.0] }
 motif_bars = { values = [1, 2], weights = [2.0, 3.0] }
 density = [0.35, 0.65]
 slide_prob = 0.2
@@ -125,7 +126,7 @@ drive = [1.5, 4.0]
 square = [0.0, 0.5]
 
 [pad]
-chords = { values = ["triad", "dub", "seventh"], weights = [2.0, 2.0, 1.0] }
+chords = { values = ["triad", "dub", "seventh"], weights = [3.0, 1.0, 0.4] }
 cutoff_hz = [700.0, 1800.0]
 detune = [0.08, 0.20]
 attack = [0.8, 2.5]
@@ -214,16 +215,23 @@ build_bars = { values = [8, 16], weights = [1.0, 2.0] }
 breakdown_bars = { values = [8, 16, 32], weights = [2.0, 4.0, 0.15] }
 drop_bars = { values = [32, 48], weights = [3.0, 1.0] }
 after_intro = { values = ["groove", "build"], weights = [4.0, 1.0] }
-after_groove = { values = ["build", "breakdown", "groove"], weights = [3.0, 2.0, 0.5] }
+after_groove = { values = ["build", "breakdown", "groove"], weights = [1.8, 3.0, 0.8] }
+# A drop after a breakdown is not a must (feedback: "breakdown was great, the drop after it need not be").
+after_breakdown = { values = ["groove", "drop"], weights = [3.0, 2.0] }
 after_drop = { values = ["groove", "breakdown", "drop"], weights = [3.0, 1.5, 0.3] }
 drop_pause_prob = 0.45
 breakdown_to_build_prob = 0.3
 # Every build and drop picks its own flavour.
 # The pitched "fairground" riser was criticised twice: off.
-riser = { values = ["noise", "gated", "swell", "pitched", "none"], weights = [3.0, 2.5, 2.0, 0.0, 1.5] }
-roll = { values = ["snare", "clap", "kick", "none"], weights = [3.0, 2.0, 0.6, 1.0] }
+# Feedback: risers with rolls that double in speed sound like a fairground ("Jahrmarkt").
+# Fewer risers, steady rolls, and cliffhangers (silence before the drop) instead.
+riser = { values = ["noise", "gated", "swell", "pitched", "none"], weights = [2.0, 0.8, 2.0, 0.0, 3.0] }
+roll_accelerates = false
+cliffhanger_prob = 0.4
+roll = { values = ["snare", "clap", "kick", "none"], weights = [1.5, 1.0, 0.2, 3.0] }
 build_highpass_prob = 0.5
-drop_style = { values = ["full", "bass_first", "stripped", "filter_open"], weights = [2.0, 2.0, 1.2, 1.5] }
+# bass_first = only bass and rumble for 8 bars: disliked.
+drop_style = { values = ["full", "bass_first", "stripped", "filter_open"], weights = [2.0, 0.4, 1.5, 1.5] }
 drop_impact = { values = ["impact_crash", "crash", "none"], weights = [2.0, 2.0, 1.0] }
 # Slow synth filter movement over grooves, drops and breakdowns (not on the bass: no acid).
 synth_filter = { values = ["static", "rise", "fall", "swell", "breathe"], weights = [1.0, 2.0, 1.0, 2.0, 2.0] }

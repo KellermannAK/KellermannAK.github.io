@@ -41,7 +41,7 @@ fn channel_settings(t: Track, dna: &SongDna) -> ChannelSettings {
         Track::Rumble => settings(0.30 * dna.sound.rumble.amount, 0.0, 1.0, 0.0, 0.0, 0.0),
         Track::Bass => settings(0.35, 0.0, sc, 0.0, 0.0, 30.0),
         Track::HatClosed => settings(0.24, 0.15, 0.15, 0.0, 0.04, 0.0),
-        Track::HatOpen => settings(0.20, -0.12, 0.3, 0.0, 0.06, 0.0),
+        Track::HatOpen => settings(0.20 * dna.sound.mix.open_hat_gain, -0.12, 0.3, 0.0, 0.06, 0.0),
         Track::Clap => settings(0.30, 0.0, 0.0, 0.04, 0.16, 180.0),
         Track::Snare => settings(0.30, 0.0, 0.0, 0.0, 0.14, 120.0),
         Track::Rim => settings(0.10, -0.35, 0.2, 0.04, 0.08, 250.0),
@@ -56,7 +56,7 @@ fn channel_settings(t: Track, dna: &SongDna) -> ChannelSettings {
         Track::Riser => settings(0.20, 0.0, 0.0, 0.10, 0.25, 150.0),
         Track::Impact => settings(0.45, 0.0, 0.0, 0.0, 0.35, 0.0),
         Track::Piano => settings(0.16, -0.08, sc * 0.5, 0.10, 0.22, 90.0),
-        Track::Guitar => settings(0.19, 0.25, sc * 0.4, 0.16, 0.12, 120.0),
+        Track::Guitar => settings(0.13, 0.25, sc * 0.4, 0.16, 0.12, 120.0),
     }
 }
 

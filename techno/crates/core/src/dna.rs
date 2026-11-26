@@ -258,6 +258,7 @@ pub struct GuitarParams {
 pub struct MixParams {
     pub sidechain_depth: f32,
     pub sidechain_release: f32,
+    pub open_hat_gain: f32,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -335,6 +336,9 @@ pub struct SongDna {
 /// wheel dictates the key.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Constraints {
+    /// Swing of the running song: two decks with different swing flam against each other
+    /// during a blend, so the incoming song takes over the swing.
+    pub swing: Option<f32>,
     pub bpm: Option<f32>,
     pub key_root: Option<u8>,
 }
@@ -374,6 +378,7 @@ impl SongDna {
         if let Some(b) = c.bpm {
             bpm = b;
         }
+        let swing = c.swing.unwrap_or(swing);
 
         let mut r = root.fork("key");
         let mut key = Key {
@@ -397,6 +402,11 @@ impl SongDna {
         sound.bass.rhythm = bass_rhythm;
         if lead_style != LeadStyle::Riff {
             lead = gen_lead_styled(&mut ls, lead_style, key, &bass, &progression);
+        }
+        if profile.lead.chord_tones_only {
+            for n in lead.notes.iter_mut().flatten() {
+                n.degree = nearest_chord_tone(n.degree as i32) as i8;
+            }
         }
 
         let mut drums = drums;
@@ -1324,6 +1334,7 @@ fn gen_sound(rng: &mut Rng, p: &Profile, key: Key) -> SoundParams {
         mix: MixParams {
             sidechain_depth: rng.in_range(p.mix.sidechain_depth),
             sidechain_release: rng.in_range(p.mix.sidechain_release),
+            open_hat_gain: p.mix.open_hat_gain,
         },
         // Filled in from their own streams in `generate_with`.
         piano: KeysParams {

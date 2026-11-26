@@ -339,6 +339,7 @@ impl Set {
         let key = cur.key.camelot_step(step);
         let seed = self.rng.next_u64() % 1_000_000;
         let c = Constraints {
+            swing: Some(cur.swing),
             bpm: Some(cur.bpm),
             key_root: Some(key.root),
         };

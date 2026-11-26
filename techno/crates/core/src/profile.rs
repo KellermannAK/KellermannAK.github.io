@@ -555,6 +555,10 @@ pub struct StabRules {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LeadRules {
+    /// Snap every lead note to a chord tone of the progression root (no passing tones that
+    /// sound atonal against the chords; house).
+    #[serde(default)]
+    pub chord_tones_only: bool,
     pub kinds: Weighted<LeadKind>,
     /// Melodic style of the lead motif.
     pub styles: Weighted<LeadStyle>,
@@ -584,6 +588,13 @@ pub struct PadRules {
 pub struct MixRules {
     pub sidechain_depth: Range,
     pub sidechain_release: Range,
+    /// Level of the open hat relative to the default (house: quieter 8ths).
+    #[serde(default = "one")]
+    pub open_hat_gain: f32,
+}
+
+fn one() -> f32 {
+    1.0
 }
 
 /// The default v1 profile, embedded so the engine works without file access (WASM).

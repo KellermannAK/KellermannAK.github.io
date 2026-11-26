@@ -8,6 +8,7 @@ changing the profile or the arrangement, so earlier decisions are not undone by 
 | Seed | Engine | Why it is interesting |
 |------|--------|-----------------------|
 | 614548 | 0.2.0 (85b1409) | Techno, "Top song" (2x 👍): distorted kick, supersaw lead in pulse style, no long layer, breakdown then drop. |
+| 87262, 348372 | techno (5242db3) | 👍 "minimalistic hard", "breakdown was great, the drop after it need not be": sparse pluck lead, hard kick, breakdown with groove or stripped drop afterwards. |
 | 184968 | house (e0320cf) | House, "Nice melody": D# dorian, swing 0.55, organ stab main, sine-pluck bass on the offbeats, guitar takes over in breakdowns. |
 | 742138 | 0.2.0 | F minor, two roots only (i-VI); hard kick tuned low (43.7 Hz); no open hat; clap + snare backbeat; rolling bass; pluck lead as the only short synth plus a triad pad; **no breakdown** - groove, build -> drop (bass first), groove, build -> drop (stripped). |
 
@@ -57,3 +58,12 @@ never counted as good or bad.
 | house (e0320cf) | Song "crowded", "childish housy" (seed 352168: busy piano stabs + strummed guitar companion, plain triads) | Companion only if one of the two instruments leaves room (held piano, muted/picked guitar, lead); triads rare; busy riff leads rare; held piano more common. |
 | house (e0320cf) | 👍 dorian / high swing / pad + guitar breakdown | Swing range 0.35-0.6, dorian weighted up, major down. |
 | 0.2.0 (85b1409) | 💡 one techno mix song "rather tech house" (seed 293512) | Noted; candidate for a third genre. |
+| techno (5242db3) | Risers with ever faster hits sound like a fairground (3x); roll + halving beats; "cliffhanger instead of a riser, like a breakdown" | Rolls keep their speed (`roll_accelerates = false`), risers/rolls much rarer, new cliffhanger builds (`cliffhanger_prob = 0.4`: no riser, no roll, two silent bars before the drop). |
+| techno (5242db3) | Drops "terrible" (3x); "only bass and rumble"; "drop after the breakdown need not be" | `bass_first` drop rare, fewer builds after grooves, after a breakdown the groove continues in 60 % of cases (`after_breakdown`). |
+| techno (5242db3) | Chords on the offbeat "too pretty for deep techno"; "no deep techno melody", "too tüdelü" | Stab chords: triad/power favoured over seventh/dub; pad mostly triad; acid and busy riff leads rare. |
+| both (5242db3) | Transition "bad with swing", "swing doing crazy stuff" | The incoming song takes over the swing of the running one (`Constraints.swing`): decks with different swing flammed during blends. House swing 0.3-0.5. |
+| house (5242db3) | 8ths with open hat too loud | `open_hat_gain = 0.5` (new mix rule). |
+| house (5242db3) | Guitar too loud and too clear again | Guitar a further -3.3 dB, darker (brightness 0.15-0.5). |
+| house (5242db3) | Melody 4th tone atonal | `chord_tones_only`: lead notes snap to chord tones. |
+| house (5242db3) | Bassline too dirty for nice house | Saw/reese bass variants removed, mostly sine pluck / square, less drive and resonance. |
+| house (5242db3) | Hard cut between sections; theme changes liked but too frequent | `pre_breakdown_thin`: last 2 bars before a breakdown without synths; breakdown instrument swap probability 0.5 -> 0.22. |

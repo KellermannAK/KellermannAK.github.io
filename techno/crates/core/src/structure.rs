@@ -148,6 +148,9 @@ pub struct SectionStyle {
     /// One-bar pause (only riser and roll) right before this drop.
     pub pause_before: bool,
     pub filter_shape: FilterShape,
+    /// Build without riser and roll that ends in two bars of silence before the drop:
+    /// a cliffhanger instead of a rising effect.
+    pub cliffhanger: bool,
 }
 
 impl Default for SectionStyle {
@@ -160,6 +163,7 @@ impl Default for SectionStyle {
             impact: DropImpact::ImpactCrash,
             pause_before: false,
             filter_shape: FilterShape::Static,
+            cliffhanger: false,
         }
     }
 }
@@ -300,6 +304,16 @@ pub struct StructureRules {
     /// Added to the groove energy when choosing tracks (fuller grooves).
     #[serde(default)]
     pub groove_energy_offset: f32,
+    /// Probability that a build is a cliffhanger (no riser, no roll, silence before the drop).
+    #[serde(default)]
+    pub cliffhanger_prob: f32,
+    /// Rolls keep their speed (quarters, last bar 8ths) instead of doubling towards the drop.
+    #[serde(default = "yes")]
+    pub roll_accelerates: bool,
+    /// The last two bars before a breakdown play without the short synths (a small
+    /// breakdown before the big one), so the change is not a hard cut.
+    #[serde(default)]
+    pub pre_breakdown_thin: bool,
 }
 
 fn yes() -> bool {
@@ -367,6 +381,8 @@ pub struct SongPlan {
     groove_layers: bool,
     soft: bool,
     groove_offset: f32,
+    steady_rolls: bool,
+    thin_before_breakdown: bool,
 }
 
 fn len_pick(w: &Weighted<u32>, rng: &mut Rng) -> u32 {
@@ -572,7 +588,13 @@ impl SongPlan {
                 impact: r.drop_impact.pick(&mut st),
                 pause_before: st.chance(r.drop_pause_prob),
                 filter_shape: FilterShape::Static,
+                cliffhanger: false,
             };
+        }
+        // Cliffhangers draw from their own stream (keeps every other style stable).
+        let mut cst = rng.fork("cliff");
+        for style in styles.iter_mut() {
+            style.cliffhanger = cst.chance(r.cliffhanger_prob);
         }
         let mut fst = rng.fork("filter-shapes");
         for style in styles.iter_mut() {
@@ -596,6 +618,8 @@ impl SongPlan {
             groove_layers: r.groove_layers,
             soft: r.soft_transitions,
             groove_offset: r.groove_energy_offset,
+            steady_rolls: !r.roll_accelerates,
+            thin_before_breakdown: r.pre_breakdown_thin,
         }
     }
 
@@ -718,16 +742,22 @@ impl SongPlan {
                 if left * 4 <= s.bars {
                     a = a.without(Clap);
                 }
-                if style.riser != RiserKind::None {
+                if style.riser != RiserKind::None && !style.cliffhanger {
                     a = a.with(Riser);
                 }
-                // Roll over the second half, getting denser.
+                // Roll over the second half, getting denser (unless the profile keeps it steady).
                 let half = s.bars / 2;
-                if sb >= half && style.roll != RollKind::None {
+                if sb >= half && style.roll != RollKind::None && !style.cliffhanger {
                     a = a.with(roll_track(style.roll));
-                    roll_every = if left <= 1 {
-                        1
-                    } else if left <= half / 2 {
+                    roll_every = if !self.steady_rolls {
+                        if left <= 1 {
+                            1
+                        } else if left <= half / 2 {
+                            2
+                        } else {
+                            4
+                        }
+                    } else if left <= 1 {
                         2
                     } else {
                         4
@@ -741,6 +771,14 @@ impl SongPlan {
                         p = p.with(roll_track(style.roll));
                     }
                     a = p;
+                }
+                if style.cliffhanger {
+                    // Nothing but the reverb tails in the last two bars.
+                    if left <= 2 {
+                        a = TrackSet::NONE;
+                    }
+                    riser_kind = RiserKind::None;
+                    roll_kind = RollKind::None;
                 }
                 a
             }
@@ -810,6 +848,15 @@ impl SongPlan {
         } else {
             Variation::default()
         };
+
+        // A small breakdown before the big one: no hard cut into the next section.
+        if self.thin_before_breakdown
+            && matches!(s.kind, SectionKind::Groove | SectionKind::Drop)
+            && left <= 2
+            && self.next_kind(idx) == Some(SectionKind::Breakdown)
+        {
+            active = active.minus(SHORT_SYNTHS).minus(TrackSet::of(&[HatOpen, Rim]));
+        }
 
         // One short synth at a time: whenever the arrangement asks for any of them, the
         // song's main synth plays (or its alternative in breakdowns), never two at once.
@@ -908,7 +955,7 @@ impl SongPlan {
                 a.lead_filter = lerp(0.6, 0.85);
                 a.fx_amount = lerp(1.0, 0.5 + 0.5 * self.fx_boost);
                 a.fx_send = lerp(1.0, 1.8);
-                if style.riser != RiserKind::None {
+                if style.riser != RiserKind::None && !style.cliffhanger {
                     a.riser = x * x;
                     a.riser_progress = x;
                 }
@@ -1021,7 +1068,11 @@ mod tests {
             for w in s.windows(2) {
                 match w[0].kind {
                     SectionKind::Breakdown => {
-                        assert!(matches!(w[1].kind, SectionKind::Build | SectionKind::Drop))
+                        // After a breakdown: the groove (if the profile allows), a build or a drop.
+                        assert!(matches!(
+                            w[1].kind,
+                            SectionKind::Build | SectionKind::Drop | SectionKind::Groove
+                        ))
                     }
                     SectionKind::Build => assert_eq!(w[1].kind, SectionKind::Drop),
                     _ => {}
