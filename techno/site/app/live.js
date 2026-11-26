@@ -1,15 +1,14 @@
 // Live set controller (main thread): audio context, worklet, wake lock, status display.
 
 const $ = (id) => document.getElementById(id);
-const NOTES = ["C", "Cis", "D", "Es", "E", "F", "Fis", "G", "Gis", "A", "B", "H"];
+const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const keyName = (root, scale) =>
-  [`${NOTES[root]}-Moll`, `${NOTES[root]} phrygisch`, `${NOTES[root]} harmonisch Moll`,
-    `${NOTES[root]} dorisch`, `${NOTES[root]}-Dur`][scale] || NOTES[root];
+  `${NOTES[root]} ${["minor", "phrygian", "harmonic minor", "dorian", "major"][scale] || ""}`.trim();
 const genre = () => (window.TechnoGenre ? window.TechnoGenre.current() : { id: "techno", name: "Techno", index: 0 });
 // Genre the running set was started with (the switcher may change it later).
 let setGenre = genre();
 const SECTIONS = ["Intro", "Groove", "Build-up", "Breakdown", "Drop", "Outro"];
-const TRANSITIONS = ["harter Cut", "schnelle Blende", "langsame Blende", "Filter-Blende"];
+const TRANSITIONS = ["Hard cut", "Fast blend", "Slow blend", "Filter blend"];
 // Short silent WAV: playing it through an <audio> element moves iOS into the
 // "playback" audio session, so Web Audio is not muted by the ring/silent switch.
 const SILENCE =
@@ -99,7 +98,7 @@ document.addEventListener("visibilitychange", () => {
   if (playing && document.visibilityState === "visible") requestWakeLock();
 });
 
-const PLAY_LABELS = { idle: "Live starten", loading: "Lädt…", playing: "Pause", paused: "Weiter", stopped: "Live starten" };
+const PLAY_LABELS = { idle: "Start live", loading: "Loading…", playing: "Pause", paused: "Resume", stopped: "Start live" };
 
 function setPlayButton(state) {
   const btn = $("lv-play");
@@ -149,7 +148,7 @@ async function startSetInner(newSeed) {
   if (!wasmBytes) {
     const [bytes] = await Promise.all([
       fetch("app/techno.wasm").then((r) => {
-        if (!r.ok) throw new Error("techno.wasm fehlt");
+        if (!r.ok) throw new Error("techno.wasm is missing");
         return r.arrayBuffer();
       }),
       ctx.audioWorklet.addModule("app/worklet.js"),
@@ -163,10 +162,10 @@ async function startSetInner(newSeed) {
   const hint = $("lv-slow");
   if (speed > 0 && speed < 4) {
     hint.hidden = false;
-    hint.textContent = `Dein Browser führt die Engine sehr langsam aus (${speed.toFixed(1)}× Echtzeit, normal sind 30–50×). `
-      + "Bei Microsoft Edge liegt das meist an „Verbesserte Sicherheit“: Einstellungen → Datenschutz, Suche und Dienste → "
-      + "„Sicherheit im Web verbessern“ → Ausnahme für diese Seite hinzufügen. Oder Chrome/Firefox nutzen. "
-      + (eco ? "Der Sparmodus ist eingeschaltet." : "");
+    hint.textContent = `Your browser runs the engine very slowly (${speed.toFixed(1)}× real time, normal is 30–50×). `
+      + "In Microsoft Edge this is usually caused by “Enhanced security”: Settings → Privacy, search and services → "
+      + "“Enhance your security on the web” → add an exception for this site. Or use Chrome/Firefox. "
+      + (eco ? "Economy mode is on." : "");
   } else {
     hint.hidden = true;
   }
@@ -222,12 +221,12 @@ function showDiag(load, rate) {
   // Technical diagnostics only on request (?debug); the page does not show statistics.
   $("lv-diag").hidden = !new URLSearchParams(location.search).has("debug");
   $("lv-diag").textContent =
-    `Engine-Last ${Math.round(loadAvg * 100)} % · ${rate} Hz${out !== rate ? ` (Ausgabe ${out} Hz)` : ""}`
-    + `${eco ? " · Sparmodus (intern 24 kHz)" : ""} · Browser-Test ${speed ? speed.toFixed(0) + "×" : "?"} · ${browser || "Browser?"}`;
+    `Engine load ${Math.round(loadAvg * 100)} % · ${rate} Hz${out !== rate ? ` (output ${out} Hz)` : ""}`
+    + `${eco ? " · economy mode (internal 24 kHz)" : ""} · browser test ${speed ? speed.toFixed(0) + "×" : "?"} · ${browser || "browser?"}`;
 }
 
 function showError(msg) {
-  $("lv-error").textContent = `Fehler: ${msg}`;
+  $("lv-error").textContent = `Error: ${msg}`;
   $("lv-error").hidden = false;
   setPlayButton("stopped");
 }
@@ -241,7 +240,7 @@ function feedback(rating) {
   if (!lastStatus || !window.TechnoFeedback) return;
   const [song, songSeed, root, scale, camelot, bpm, section, bar, secBar, secBars, totalBars] = lastStatus;
   window.TechnoFeedback.open({
-    source: "Live-Set",
+    source: "Live set",
     genre: setGenre.id,
     setSeed: seed,
     songIndex: song,
@@ -286,13 +285,13 @@ function showStatus(s) {
   $("lv-key").textContent = `Song ${song + 1} · ${key} · ${bpm} BPM`;
   $("lv-cam").textContent = `${camelot}${ring()}`;
   $("lv-section").textContent = SECTIONS[section] || "–";
-  $("lv-bars").textContent = `Takt ${secBar + 1}/${secBars}`;
+  $("lv-bars").textContent = `Bar ${secBar + 1}/${secBars}`;
   $("lv-progress").style.width = `${Math.min(100, ((secBar + 1) / Math.max(1, secBars)) * 100)}%`;
   $("lv-energy").style.width = `${Math.round(energy * 100)}%`;
-  $("lv-songbar").textContent = `Song-Takt ${bar + 1}/${totalBars} · Seed ${songSeed}`;
+  $("lv-songbar").textContent = `Song bar ${bar + 1}/${totalBars} · Seed ${songSeed}`;
   let next = "";
-  if (inTransition) next = `Übergang läuft: ${TRANSITIONS[transition] || ""}`;
-  else if (transition >= 0) next = `Nächster Song: ${TRANSITIONS[transition]} in ${barsTo} Takten`;
+  if (inTransition) next = `Transition running: ${TRANSITIONS[transition] || ""}`;
+  else if (transition >= 0) next = `Next song: ${TRANSITIONS[transition].toLowerCase()} in ${barsTo} bars`;
   $("lv-next").textContent = next;
   $("lv-time").textContent = `Set #${seed} · ${mmss(seconds)}`;
   const title = currentName ? currentName.title : `Song ${song + 1} – ${key}`;
@@ -301,7 +300,7 @@ function showStatus(s) {
     navigator.mediaSession.metadata = new MediaMetadata({
       title,
       artist: currentName ? currentName.artist : "Techno Generator",
-      album: `Techno Generator · ${setGenre.name} · Live-Set #${seed}`,
+      album: `Techno Generator · ${setGenre.name} · Live set #${seed}`,
     });
   }
 }
@@ -331,7 +330,7 @@ async function togglePlay(wantPlay) {
 
 function init() {
   if (!window.AudioWorkletNode) {
-    showError("Dieser Browser unterstützt kein AudioWorklet.");
+    showError("This browser does not support AudioWorklet.");
     $("lv-play").disabled = true;
     return;
   }

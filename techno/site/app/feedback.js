@@ -36,10 +36,10 @@
   function where(ctx) {
     const parts = [];
     if (ctx.mixSeed !== undefined) parts.push(`Mix ${ctx.mixSeed} @ ${ctx.time}`);
-    else parts.push(`Live-Set ${ctx.setSeed} @ ${ctx.time}`);
-    if (ctx.songIndex !== undefined) parts.push(`Song ${ctx.songIndex + 1}${ctx.title ? ` „${ctx.title}“` : ""}${ctx.songSeed !== undefined ? ` (Seed ${ctx.songSeed})` : ""}`);
+    else parts.push(`Live set ${ctx.setSeed} @ ${ctx.time}`);
+    if (ctx.songIndex !== undefined) parts.push(`Song ${ctx.songIndex + 1}${ctx.title ? ` “${ctx.title}”` : ""}${ctx.songSeed !== undefined ? ` (Seed ${ctx.songSeed})` : ""}`);
     if (ctx.section) parts.push(`${ctx.section}${ctx.sectionBar ? ` ${ctx.sectionBar}` : ""}`);
-    if (ctx.songBar) parts.push(`Song-Takt ${ctx.songBar}`);
+    if (ctx.songBar) parts.push(`Song bar ${ctx.songBar}`);
     if (ctx.key) parts.push(`${ctx.key}${ctx.camelot ? ` (${ctx.camelot})` : ""}`);
     // The genre is always part of the position (the analysis rebuilds songs with it).
     const g = genreOf(ctx);
@@ -63,13 +63,13 @@
     }
     if (stored) {
       renderInbox();
-      toast(`${stored} gespeicherte${stored === 1 ? "s Feedback" : " Feedbacks"} übertragen ✓`);
+      toast(`${stored} saved feedback${stored === 1 ? "" : "s"} sent ✓`);
     }
   }
   // The database module loads asynchronously; sync shortly after start.
   setTimeout(syncPending, 2500);
 
-  /** Short message at the bottom; optional action button (e.g. "Rückgängig"). */
+  /** Short message at the bottom; optional action button (e.g. "Undo"). */
   function toast(msg, actionLabel, action) {
     let t = document.getElementById("fb-toast");
     if (!t) {
@@ -99,7 +99,7 @@
     const before = load();
     save(before.filter((e) => !keys.has(e.at)));
     renderInbox();
-    toast(`${sent.length} gesendete${sent.length === 1 ? "r Eintrag" : " Einträge"} entfernt`, "Rückgängig", () => {
+    toast(`${sent.length} sent ${sent.length === 1 ? "entry" : "entries"} removed`, "Undo", () => {
       save(before);
       renderInbox();
     });
@@ -115,15 +115,15 @@
     d.innerHTML = `
       <div class="fb">
         <div class="fb-thumbs">
-          <button type="button" class="fb-thumb" data-r="up" aria-label="Daumen hoch">👍</button>
-          <button type="button" class="fb-thumb" data-r="down" aria-label="Daumen runter">👎</button>
-          <button type="button" class="fb-thumb" data-r="idea" aria-label="Idee">💡</button>
+          <button type="button" class="fb-thumb" data-r="up" aria-label="Thumbs up">👍</button>
+          <button type="button" class="fb-thumb" data-r="down" aria-label="Thumbs down">👎</button>
+          <button type="button" class="fb-thumb" data-r="idea" aria-label="Idea">💡</button>
         </div>
         <p class="fb-where"></p>
-        <textarea rows="4" placeholder="Optional: Was genau? z.B. „klickendes Geräusch“, „super Drop“ – oder bei 💡 deine Idee"></textarea>
+        <textarea rows="4" placeholder="Optional: what exactly? e.g. “clicking noise”, “great drop” – or your idea for 💡"></textarea>
         <div class="fb-actions">
-          <button type="button" class="btn fb-cancel">Abbrechen</button>
-          <button type="button" class="play fb-save">Speichern</button>
+          <button type="button" class="btn fb-cancel">Cancel</button>
+          <button type="button" class="play fb-save">Save</button>
         </div>
       </div>`;
     document.body.appendChild(d);
@@ -154,13 +154,13 @@
           if (ok) {
             save(load().filter((x) => x.at !== entry.at));
             renderInbox();
-            toast("Gespeichert ✓");
+            toast("Saved ✓");
           } else {
-            toast("Lokal gespeichert – wird später übertragen");
+            toast("Saved locally – will be sent later");
           }
         });
       } else {
-        toast(`Gespeichert – ${list.length} Feedback${list.length === 1 ? "" : "s"} gesammelt`);
+        toast(`Saved – ${list.length} feedback${list.length === 1 ? "" : "s"} collected`);
       }
     });
     return d;
@@ -185,10 +185,10 @@
 
   function exportText(list) {
     const v = list.length ? list[list.length - 1] : { engine: build.version.engine, profile: build.version.profile, build: "" };
-    const lines = [`Feedback (${list.length}) – Engine ${v.engine} · Profil ${v.profile} · Build ${v.build || "?"}`, ""];
+    const lines = [`Feedback (${list.length}) – Engine ${v.engine} · Profile ${v.profile} · Build ${v.build || "?"}`, ""];
     list.forEach((e, i) => {
       lines.push(`${i + 1}. ${ICON[ratingOf(e)]} ${e.where}${e.build ? ` · Build ${e.build}` : ""}`);
-      if (e.comment) lines.push(`   „${e.comment}“`);
+      if (e.comment) lines.push(`   "${e.comment}"`);
     });
     return lines.join("\n");
   }
@@ -196,7 +196,7 @@
   function issueUrl(list, part, parts) {
     const text = exportText(list);
     const n = (r) => list.filter((e) => ratingOf(e) === r).length;
-    const suffix = parts > 1 ? ` (Teil ${part}/${parts})` : "";
+    const suffix = parts > 1 ? ` (part ${part}/${parts})` : "";
     const title = `Feedback: ${n("up")}× 👍, ${n("down")}× 👎, ${n("idea")}× 💡${suffix}`;
     const body = `${text}\n\n<!-- techno-feedback v2 -->`;
     return `https://github.com/${OWNER}/${REPO}/issues/new?labels=feedback&title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
@@ -248,22 +248,22 @@
     box.hidden = hide;
     if (title) title.hidden = hide;
     if (!list.length) {
-      box.innerHTML = hide ? "" : `<p class="meta">Noch nichts gesammelt. Tippe beim Hören auf 👍 oder 👎 – die Stelle wird sofort hier gespeichert.</p>`;
+      box.innerHTML = hide ? "" : `<p class="meta">Nothing collected yet. Tap 👍 or 👎 while listening – the moment is saved here right away.</p>`;
       return;
     }
     const parts = issueParts(list);
     box.innerHTML = `
       <ol class="fb-list">${list.map((e, i) => `
         <li><span class="fb-icon">${ICON[ratingOf(e)]}</span>
-          <span><span class="fb-w">${esc(e.where)}</span>${e.comment ? `<br><span class="fb-c">„${esc(e.comment)}“</span>` : ""}</span>
-          <button class="fb-del" data-i="${i}" aria-label="Eintrag löschen">✕</button></li>`).join("")}
+          <span><span class="fb-w">${esc(e.where)}</span>${e.comment ? `<br><span class="fb-c">“${esc(e.comment)}”</span>` : ""}</span>
+          <button class="fb-del" data-i="${i}" aria-label="Delete entry">✕</button></li>`).join("")}
       </ol>
       <div class="fb-actions fb-export">
-        <button class="btn" id="fb-copy">Kopieren</button>
-        ${navigator.share ? `<button class="btn" id="fb-share">Teilen</button>` : ""}
-        ${parts.map((p, i) => `<a class="btn fb-issue" data-part="${i}" href="${esc(issueUrl(p, i + 1, parts.length))}" target="_blank" rel="noopener">Als GitHub-Issue${parts.length > 1 ? ` (Teil ${i + 1}/${parts.length})` : ""}</a>`).join("")}
+        <button class="btn" id="fb-copy">Copy</button>
+        ${navigator.share ? `<button class="btn" id="fb-share">Share</button>` : ""}
+        ${parts.map((p, i) => `<a class="btn fb-issue" data-part="${i}" href="${esc(issueUrl(p, i + 1, parts.length))}" target="_blank" rel="noopener">As GitHub issue${parts.length > 1 ? ` (part ${i + 1}/${parts.length})` : ""}</a>`).join("")}
       </div>
-      <p class="fb-hint">Kopieren/Teilen und z.B. in den Chat mit Claude einfügen – oder als GitHub-Issue senden (dort „Create“ tippen). Gesendete Einträge verschwinden danach aus der Liste. <button class="linkbtn" id="fb-clear">Liste leeren</button></p>`;
+      <p class="fb-hint">Copy/share and paste into the chat with Claude – or send as a GitHub issue (tap “Create” there). Sent entries disappear from the list afterwards. <button class="linkbtn" id="fb-clear">Clear list</button></p>`;
     box.querySelectorAll(".fb-del").forEach((b) => b.addEventListener("click", () => {
       const l = load();
       l.splice(parseInt(b.dataset.i, 10), 1);
@@ -273,13 +273,13 @@
     box.querySelector("#fb-copy").addEventListener("click", async () => {
       const l = load();
       if (await copy(exportText(l))) removeSent(l);
-      else toast("Kopieren nicht möglich");
+      else toast("Copying not possible");
     });
     const share = box.querySelector("#fb-share");
     if (share) {
       share.addEventListener("click", () => {
         const l = load();
-        navigator.share({ title: "Generator-Feedback", text: exportText(l) }).then(() => removeSent(l)).catch(() => {});
+        navigator.share({ title: "Generator feedback", text: exportText(l) }).then(() => removeSent(l)).catch(() => {});
       });
     }
     box.querySelectorAll(".fb-issue").forEach((a) => a.addEventListener("click", () => {
@@ -288,7 +288,7 @@
       setTimeout(() => removeSent(sent), 400);
     }));
     box.querySelector("#fb-clear").addEventListener("click", () => {
-      if (confirm("Alle gesammelten Feedbacks löschen?")) {
+      if (confirm("Delete all collected feedback?")) {
         save([]);
         renderInbox();
       }

@@ -579,7 +579,11 @@ mod tests {
                 cur = set.current;
                 switches += 1;
                 let d = &set.slots[cur].as_ref().unwrap().deck;
-                assert!((d.swing_target - d.dna.swing).abs() < 1e-4, "ended at {}", d.swing_target);
+                assert!(
+                    (d.swing_target - d.dna.swing).abs() < 1e-4,
+                    "ended at {}",
+                    d.swing_target
+                );
             }
             if set.transition_start_frame.is_some() {
                 let a = set.slots[set.current].as_ref().unwrap().deck.swing_target;

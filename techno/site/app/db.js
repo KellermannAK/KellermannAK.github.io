@@ -83,7 +83,7 @@ const redirect = () => location.origin + location.pathname;
  */
 export async function register(email) {
   const c = await db();
-  if (!c) return { error: "Datenbank nicht verfügbar" };
+  if (!c) return { error: "Database not available" };
   const { data } = await c.auth.getUser();
   const res = data.user && data.user.is_anonymous
     ? await c.auth.updateUser({ email }, { emailRedirectTo: redirect() })
@@ -94,14 +94,14 @@ export async function register(email) {
 /** Sign in on another device: sends a login link to an existing account. */
 export async function signIn(email) {
   const c = await db();
-  if (!c) return { error: "Datenbank nicht verfügbar" };
+  if (!c) return { error: "Database not available" };
   const res = await c.auth.signInWithOtp({ email, options: { emailRedirectTo: redirect(), shouldCreateUser: false } });
   return { error: res.error ? res.error.message : null };
 }
 
 export async function setDisplayName(name) {
   const c = await db();
-  if (!c) return { error: "Datenbank nicht verfügbar" };
+  if (!c) return { error: "Database not available" };
   const { data } = await c.auth.getUser();
   const { error } = await c.from("profiles").upsert({ id: data.user.id, display_name: name.trim() || null });
   return { error: error ? error.message : null };

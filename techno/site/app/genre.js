@@ -34,8 +34,8 @@
     const next = GENRES[(i + 1) % GENRES.length];
     const p = document.getElementById("g-prev");
     const n = document.getElementById("g-next");
-    if (p) p.setAttribute("aria-label", `Zu ${prev.name}`);
-    if (n) n.setAttribute("aria-label", `Zu ${next.name}`);
+    if (p) p.setAttribute("aria-label", `Switch to ${prev.name}`);
+    if (n) n.setAttribute("aria-label", `Switch to ${next.name}`);
     const url = new URL(location.href);
     if (g.id === "techno") url.searchParams.delete("genre");
     else url.searchParams.set("genre", g.id);

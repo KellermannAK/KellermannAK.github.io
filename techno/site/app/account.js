@@ -20,13 +20,13 @@ function build() {
   btn.type = "button";
   btn.setAttribute("aria-haspopup", "dialog");
   btn.setAttribute("aria-expanded", "false");
-  btn.setAttribute("aria-label", "Konto");
+  btn.setAttribute("aria-label", "Account");
   btn.innerHTML = PERSON;
   panel = document.createElement("div");
   panel.className = "acc-panel";
   panel.hidden = true;
   panel.setAttribute("role", "dialog");
-  panel.setAttribute("aria-label", "Konto");
+  panel.setAttribute("aria-label", "Account");
   main.prepend(panel);
   main.prepend(btn);
 
@@ -65,8 +65,8 @@ async function refresh() {
   const loggedIn = !!(a && !a.anonymous);
   btn.classList.toggle("in", loggedIn);
   btn.innerHTML = loggedIn ? CHECK : PERSON;
-  btn.title = loggedIn ? `Angemeldet als ${a.displayName || a.email || "Nutzer"}` : "Konto";
-  btn.setAttribute("aria-label", loggedIn ? "Konto, angemeldet" : "Konto, nicht angemeldet");
+  btn.title = loggedIn ? `Signed in as ${a.displayName || a.email || "user"}` : "Account";
+  btn.setAttribute("aria-label", loggedIn ? "Account, signed in" : "Account, not signed in");
   if (!panel.hidden) renderPanel();
 }
 
@@ -82,23 +82,23 @@ function renderPanel() {
   const keepMsg = msgOld ? msgOld.textContent : "";
   const stats = `
     <label class="acc-opt"><input type="checkbox" id="acc-stats" ${Stats.enabled() ? "checked" : ""}>
-      <span>Nutzungsstatistik senden <small>(anonym, ohne IP-Adresse – siehe Datenschutz unten)</small></span></label>`;
+      <span>Send usage statistics <small>(anonymous, no IP address – see Privacy below)</small></span></label>`;
   if (!a) {
-    panel.innerHTML = `<p class="acc-line">Verbinde …</p>${stats}`;
+    panel.innerHTML = `<p class="acc-line">Connecting …</p>${stats}`;
   } else if (a.anonymous) {
     const status = a.pendingEmail
-      ? `Bestätigungs-Link an <b>${esc(a.pendingEmail)}</b> geschickt – bitte in der E-Mail klicken.`
-      : "Du bist nicht angemeldet. Dein Feedback wird trotzdem gespeichert.";
+      ? `Confirmation link sent to <b>${esc(a.pendingEmail)}</b> – please click it in the e-mail.`
+      : "You are not signed in. Your feedback is saved anyway.";
     panel.innerHTML = `
       <p class="acc-line">${status}</p>
-      <div class="seed-row"><input id="acc-email" type="email" inputmode="email" autocomplete="email" placeholder="E-Mail" aria-label="E-Mail"><button class="btn" id="acc-register">Registrieren</button></div>
-      <p class="label" style="margin:6px 0 0">Kein Passwort: du bekommst einen Link per E-Mail. Schon registriert? <button class="linkbtn" id="acc-signin">Anmelden</button></p>
+      <div class="seed-row"><input id="acc-email" type="email" inputmode="email" autocomplete="email" placeholder="E-mail" aria-label="E-mail"><button class="btn" id="acc-register">Register</button></div>
+      <p class="label" style="margin:6px 0 0">No password: you get a link by e-mail. Already registered? <button class="linkbtn" id="acc-signin">Sign in</button></p>
       ${stats}<p class="label" id="acc-msg"></p>`;
   } else {
     panel.innerHTML = `
-      <p class="acc-line">Angemeldet als <b>${esc(a.displayName || a.email || "Nutzer")}</b>${a.displayName && a.email ? `<br><small>${esc(a.email)}</small>` : ""}</p>
-      <div class="seed-row"><input id="acc-name" maxlength="40" placeholder="Anzeigename" aria-label="Anzeigename" value="${esc(a.displayName || "")}"><button class="btn" id="acc-save">Speichern</button></div>
-      <p class="label" style="margin:6px 0 0"><button class="linkbtn" id="acc-signout">Abmelden</button></p>
+      <p class="acc-line">Signed in as <b>${esc(a.displayName || a.email || "user")}</b>${a.displayName && a.email ? `<br><small>${esc(a.email)}</small>` : ""}</p>
+      <div class="seed-row"><input id="acc-name" maxlength="40" placeholder="Display name" aria-label="Display name" value="${esc(a.displayName || "")}"><button class="btn" id="acc-save">Save</button></div>
+      <p class="label" style="margin:6px 0 0"><button class="linkbtn" id="acc-signout">Sign out</button></p>
       ${stats}<p class="label" id="acc-msg"></p>`;
   }
   const $ = (id) => panel.querySelector(`#${id}`);
@@ -109,21 +109,21 @@ function renderPanel() {
   $("acc-stats").addEventListener("change", (e) => Stats.setMode(e.target.checked ? "on" : "off"));
   if (a && a.anonymous) {
     $("acc-register").addEventListener("click", async () => {
-      if (!valid()) return msg("Bitte eine gültige E-Mail eingeben.");
+      if (!valid()) return msg("Please enter a valid e-mail.");
       const r = await DB.register(email());
-      msg(r.error ? `Fehler: ${r.error}` : "Link verschickt – bitte E-Mail öffnen und bestätigen.");
+      msg(r.error ? `Error: ${r.error}` : "Link sent – please open the e-mail and confirm.");
     });
     $("acc-signin").addEventListener("click", async () => {
-      if (!valid()) return msg("Bitte deine E-Mail oben eingeben.");
+      if (!valid()) return msg("Please enter your e-mail above.");
       const r = await DB.signIn(email());
-      msg(r.error ? `Fehler: ${r.error}` : "Anmelde-Link verschickt.");
+      msg(r.error ? `Error: ${r.error}` : "Sign-in link sent.");
     });
   } else if (a) {
     $("acc-save").addEventListener("click", async () => {
       const r = await DB.setDisplayName($("acc-name").value);
-      if (r.error) return msg(`Fehler: ${r.error}`);
+      if (r.error) return msg(`Error: ${r.error}`);
       await refresh();
-      msg("Gespeichert.");
+      msg("Saved.");
     });
     $("acc-signout").addEventListener("click", async () => {
       await DB.signOut();

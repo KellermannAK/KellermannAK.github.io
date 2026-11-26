@@ -77,7 +77,10 @@ pub fn parse(text: &str) -> Vec<Entry> {
         out.push(Entry {
             rating,
             song_seed,
-            bar: number_after(t, "Song-Takt ").map(|b| b as u32),
+            // "Song bar" since the English site; "Song-Takt" in older entries.
+            bar: number_after(t, "Song bar ")
+                .or_else(|| number_after(t, "Song-Takt "))
+                .map(|b| b as u32),
             build: word_after(t, "Build "),
             comment: String::new(),
             genre: word_after(t, "Genre ").map(|g| g.to_lowercase()),
@@ -328,6 +331,16 @@ mod tests {
 3. 💡 Live-Set 4242 @ 5:00 · Song 2 (Seed 11) · Drop 1/32 · Song-Takt 80/200
    „Ein Acid-Lead im zweiten Drop wäre cool“
 ";
+
+    #[test]
+    fn parses_english_export() {
+        let e = parse("Feedback (1) – Engine 0.2.0 · Profile house · Build abcdef1\n\n1. 👎 Live set 4242 @ 0:02 · Song 1 “Ann – Foo” (Seed 99533) · Intro 2/32 · Song bar 2/192 · C minor (5A) · Genre House · Build abcdef1\n   \"too loud\"\n");
+        assert_eq!(e.len(), 1);
+        assert_eq!(e[0].song_seed, 99533);
+        assert_eq!(e[0].bar, Some(2));
+        assert_eq!(e[0].genre.as_deref(), Some("house"));
+        assert_eq!(e[0].comment, "too loud");
+    }
 
     #[test]
     fn parses_export() {

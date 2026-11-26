@@ -59,3 +59,9 @@ Run `genre.sql` once (SQL Editor -> paste -> Run, safe to repeat). It adds a `ge
 the key: the same set seed is a different song in another genre), and updates `track()`.
 The site sends the genre already; before the script runs nothing breaks, the listens are just
 not split by genre yet.
+
+## Public counters
+
+Run `public_stats.sql` once (after `stats.sql` and `genre.sql`). It adds `public_stats()`, which
+returns only aggregates for the last 30 days (distinct listeners and listening hours, per genre
+and in total). The site shows them under the genre switcher; without the function they stay hidden.

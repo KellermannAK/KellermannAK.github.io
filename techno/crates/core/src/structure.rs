@@ -855,7 +855,9 @@ impl SongPlan {
             && left <= 2
             && self.next_kind(idx) == Some(SectionKind::Breakdown)
         {
-            active = active.minus(SHORT_SYNTHS).minus(TrackSet::of(&[HatOpen, Rim]));
+            active = active
+                .minus(SHORT_SYNTHS)
+                .minus(TrackSet::of(&[HatOpen, Rim]));
         }
 
         // One short synth at a time: whenever the arrangement asks for any of them, the

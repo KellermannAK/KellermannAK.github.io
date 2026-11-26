@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="de">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Techno Generator</title>
-<meta name="description" content="Endlose, live im Browser erzeugte elektronische Musik – Techno und House, komplett algorithmisch synthetisiert, ohne Samples. Dazu DJ-Mixes der aktuellen Engine-Version.">
+<meta name="description" content="Endless electronic music generated live in your browser – techno and house, fully algorithmic and synthesized, no samples. Plus DJ mixes from the current engine version.">
 <meta name="theme-color" content="#0d0d0f">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -68,6 +68,8 @@
   .g-dots { display: flex; justify-content: center; gap: 6px; margin-bottom: 4px; }
   .g-dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--line); transition: background 0.3s; }
   .g-dots span.on { background: var(--accent); }
+  .counters { display: flex; flex-direction: column; align-items: center; gap: 1px; margin: 6px 0 0; font-size: 0.82rem; color: var(--muted); font-variant-numeric: tabular-nums; text-align: center; }
+  .counters b { color: var(--text); font-weight: 600; margin-right: 4px; }
   .acc-btn {
     position: absolute; top: 34px; right: 16px; z-index: 21;
     width: 40px; height: 40px; border-radius: 50%; padding: 0;
@@ -225,25 +227,26 @@
 <main id="face">
   <header id="g-head">
     <h1>Techno<span>.</span>Generator</h1>
-    <p class="tagline">Komplett algorithmisch erzeugt und synthetisiert. Keine Samples.</p>
+    <p class="tagline">Completely algorithmically generated and synthesized. No samples.</p>
     <nav class="genre-nav" aria-label="Genre">
-      <button class="g-arrow" id="g-prev" aria-label="Vorheriges Genre"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <button class="g-arrow" id="g-prev" aria-label="Previous genre"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
       <div class="g-name" id="g-name" aria-live="polite">Techno</div>
-      <button class="g-arrow" id="g-next" aria-label="Nächstes Genre"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+      <button class="g-arrow" id="g-next" aria-label="Next genre"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
     </nav>
     <div class="g-dots" id="g-dots" aria-hidden="true"></div>
+    <p class="counters" id="g-counters" hidden></p>
   </header>
 
   <h2>Live</h2>
   <section class="card live">
     <div class="head">
-      <span class="title">Endlos-Set</span>
+      <span class="title">Endless set</span>
       <span class="pill" id="lv-cam">live</span>
     </div>
     <button class="play" id="lv-play" data-state="idle">
       <svg class="ico-play" viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>
       <svg class="ico-pause" viewBox="0 0 24 24"><path d="M6 4h4.5v16H6zM13.5 4H18v16h-4.5z"/></svg>
-      <span>Live starten</span>
+      <span>Start live</span>
     </button>
     <p class="err" id="lv-error" hidden></p>
     <p class="label" id="lv-slow" hidden style="margin:8px 0 0;color:#ffb13d"></p>
@@ -253,69 +256,63 @@
       <div class="meta" id="lv-key" style="font-size:.9rem;margin-top:2px"></div>
       <div class="row"><span class="section-name" id="lv-section">–</span><span class="label" id="lv-bars"></span></div>
       <div class="track"><div id="lv-progress"></div></div>
-      <div class="row"><span class="label">Energie</span></div>
+      <div class="row"><span class="label">Energy</span></div>
       <div class="track energy"><div id="lv-energy"></div></div>
       <div class="row"><span id="lv-next"></span></div>
       <div class="row"><span class="label" id="lv-time"></span><span class="label" id="lv-songbar"></span></div>
       <div class="fb-row">
-        <span class="label">Feedback zu dieser Stelle</span>
-        <button class="btn thumb" id="lv-up" aria-label="Daumen hoch">👍</button>
-        <button class="btn thumb" id="lv-down" aria-label="Daumen runter">👎</button>
-        <button class="btn thumb" id="lv-idea" aria-label="Idee">💡</button>
+        <span class="label">Feedback on this moment</span>
+        <button class="btn thumb" id="lv-up" aria-label="Thumbs up">👍</button>
+        <button class="btn thumb" id="lv-down" aria-label="Thumbs down">👎</button>
+        <button class="btn thumb" id="lv-idea" aria-label="Idea">💡</button>
       </div>
     </div>
     <div class="controls">
-      <label>Lautstärke <input type="range" id="lv-vol" min="0" max="1" step="0.01" value="0.85"></label>
-      <button class="btn" id="lv-new">Neues Set</button>
+      <label>Volume <input type="range" id="lv-vol" min="0" max="1" step="0.01" value="0.85"></label>
+      <button class="btn" id="lv-new">New set</button>
     </div>
     <details>
-      <summary>Set-Seed (gleicher Seed = gleiches Set)</summary>
-      <div class="seed-row"><input id="lv-seed" inputmode="numeric" aria-label="Set-Seed"><button class="btn" id="lv-seed-go">Starten</button></div>
+      <summary>Set seed (same seed = same set)</summary>
+      <div class="seed-row"><input id="lv-seed" inputmode="numeric" aria-label="Set seed"><button class="btn" id="lv-seed-go">Start</button></div>
       <div class="seed-row" style="align-items:center">
-        <label class="label" for="lv-eco" style="flex:1">Sparmodus (halbe Rechenlast, ohne höchste Höhen)</label>
+        <label class="label" for="lv-eco" style="flex:1">Economy mode (half the CPU load, no top highs)</label>
         <select id="lv-eco" class="btn">
           <option value="auto">Auto</option>
-          <option value="on">An</option>
-          <option value="off">Aus</option>
+          <option value="on">On</option>
+          <option value="off">Off</option>
         </select>
       </div>
-      <p class="label" id="lv-diag" hidden style="margin:10px 0 0">Diagnose erscheint nach dem Start.</p>
+      <p class="label" id="lv-diag" hidden style="margin:10px 0 0">Diagnostics appear after start.</p>
     </details>
   </section>
 
-  <h2 id="fb-title">Dein Feedback</h2>
+  <h2 id="fb-title">Your feedback</h2>
   <section class="card" id="fb-inbox"></section>
 
   <h2>Mixes</h2>
-  <div id="mixes"><p class="meta">Lade…</p></div>
+  <div id="mixes"><p class="meta">Loading…</p></div>
 
-  <h2 id="songs-title">Einzelne Songs</h2>
+  <h2 id="songs-title">Single songs</h2>
   <div id="songs"></div>
 
   <footer id="foot"></footer>
   <details style="margin-top:12px;color:var(--muted);font-size:.85rem">
-    <summary style="cursor:pointer">Datenschutz &amp; Statistik</summary>
-    <p>Beim Besuch bekommst du automatisch eine zufällige, anonyme Nutzer-ID (kein Name, keine E-Mail). Gespeichert werden
-    dein Feedback und eine Nutzungsstatistik: Seitenaufrufe, Zeit auf der Seite und Hörzeit pro Song (auf 10 Sekunden genau),
-    dazu Gerätetyp, Browser, Engine-Version und das Ergebnis eines Geschwindigkeitstests. In diesen Tabellen steht keine
-    IP-Adresse. Wenn du dich mit einer E-Mail registrierst, wird sie zusätzlich gespeichert. Die Daten liegen bei Supabase
-    (Datenbank-Anbieter). Die Statistik lässt sich im Bereich „Konto“ abschalten und bleibt aus, wenn dein Browser
-    „Do Not Track“ sendet.</p>
+    <summary style="cursor:pointer">Privacy &amp; statistics</summary>
+    <p>When you visit, you automatically get a random, anonymous user ID (no name, no e-mail). Stored are your feedback and
+    usage statistics: page views, time on the page and listening time per song (to the nearest 10 seconds), plus device type,
+    browser, engine version and the result of a speed test. These tables contain no IP address. If you register with an
+    e-mail address, it is stored as well. The data is hosted at Supabase (database provider). The counters under the genre
+    switcher show only totals of the last 30 days. Statistics can be switched off in the account panel (top right) and stay
+    off if your browser sends “Do Not Track”.</p>
   </details>
 </main>
 </div>
 <script>
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
   const mmss = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
-  // Engine key names ("F# phrygian") -> German ("Fis phrygisch").
-  const DE_NOTE = { "C": "C", "C#": "Cis", "D": "D", "D#": "Es", "E": "E", "F": "F", "F#": "Fis", "G": "G", "G#": "Gis", "A": "A", "A#": "B", "B": "H" };
-  const deKey = (k) => {
-    const m = /^([A-G]#?) (.+)$/.exec(k || "");
-    if (!m) return k;
-    const n = DE_NOTE[m[1]] || m[1];
-    return { "minor": `${n}-Moll`, "phrygian": `${n} phrygisch`, "harmonic minor": `${n} harmonisch Moll`, "dorian": `${n} dorisch`, "major": `${n}-Dur` }[m[2]] || k;
-  };
-  const HOW = { "cut": "harter Cut", "fast blend": "schnelle Blende", "slow blend": "langsame Blende", "filter blend": "Filter-Blende" };
+  // Engine key names ("F# phrygian") are already English.
+  const deKey = (k) => k;
+  const HOW = { "cut": "hard cut", "fast blend": "fast blend", "slow blend": "slow blend", "filter blend": "filter blend" };
 
   // Only one player at a time.
   document.addEventListener("play", (e) => {
@@ -337,30 +334,30 @@
     el.className = "card";
     const songs = set.songs || [];
     const build = (meta.commit || "").slice(0, 7);
-    const date = meta.built ? new Date(meta.built.replace("Z", ":00Z")).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
+    const date = meta.built ? new Date(meta.built.replace("Z", ":00Z")).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
     el.innerHTML = `
       <div class="head">
         <span class="title">Mix #${seed}</span>
-        <span class="meta">${songs.length} Songs · ${set.bpm} BPM · ${mmss(set.duration)}</span>
-        ${newest ? '<span class="pill">neu</span>' : ""}
+        <span class="meta">${songs.length} songs · ${set.bpm} BPM · ${mmss(set.duration)}</span>
+        ${newest ? '<span class="pill">new</span>' : ""}
       </div>
       ${build ? `<p class="meta" style="margin:-6px 0 10px;font-size:.85rem">Build ${esc(build)}${date ? " · " + esc(date) : ""}</p>` : ""}
       <audio controls preload="none" src="${mixFile(genre, seed)}.mp3"></audio>
       <div class="fb-row">
-        <span class="label">Feedback zur aktuellen Stelle</span>
-        <button class="btn thumb" data-r="up" aria-label="Daumen hoch">👍</button>
-        <button class="btn thumb" data-r="down" aria-label="Daumen runter">👎</button>
-        <button class="btn thumb" data-r="idea" aria-label="Idee">💡</button>
+        <span class="label">Feedback on the current moment</span>
+        <button class="btn thumb" data-r="up" aria-label="Thumbs up">👍</button>
+        <button class="btn thumb" data-r="down" aria-label="Thumbs down">👎</button>
+        <button class="btn thumb" data-r="idea" aria-label="Idea">💡</button>
       </div>
       <ol class="tracks">${songs.map((s, i) => `
         <li data-start="${s.start}" data-i="${i}">
           <span class="time">${mmss(s.start)}</span>
           <span class="song-key">${s.title ? esc(s.title) : esc(deKey(s.key))}</span>
           <span class="cam">${esc(s.camelot)}</span>
-          <span class="how">${s.artist ? esc(s.artist) + " · " : ""}${s.title ? esc(deKey(s.key)) + " · " : ""}${s.transition ? esc(HOW[s.transition] || s.transition) : "Start"} · Seed ${s.seed}</span>
+          <span class="how">${s.artist ? esc(s.artist) + " · " : ""}${s.title ? esc(deKey(s.key)) + " · " : ""}${s.transition ? esc(HOW[s.transition] || s.transition) : "start"} · Seed ${s.seed}</span>
         </li>`).join("")}
       </ol>
-      <details><summary>Aufbau der Songs</summary><pre>${songs.map((s) =>
+      <details><summary>Song structure</summary><pre>${songs.map((s) =>
         `#${s.index + 1}  ${s.artist ? esc(s.artist) + " – " + esc(s.title) + "  " : ""}Seed ${s.seed}  ${esc(deKey(s.key))} (${esc(s.camelot)})\n${esc(s.structure)}`).join("\n\n")}</pre></details>`;
     const audio = el.querySelector("audio");
     const rows = [...el.querySelectorAll("li")];
@@ -417,7 +414,7 @@
       </div>
       <audio controls preload="none" src="audio/seed-${seed}.mp3"></audio>
       ${sounds ? `<p class="meta" style="margin:8px 0 0;font-size:.9rem">${esc(sounds)}</p>` : ""}
-      <details><summary>Song-DNA &amp; Aufbau</summary><pre>${esc(info)}</pre></details>`;
+      <details><summary>Song DNA &amp; structure</summary><pre>${esc(info)}</pre></details>`;
     return el;
   }
 
@@ -435,7 +432,7 @@
       index = await indexPromise;
     } catch (e) {
       indexPromise = null;
-      mixBox.innerHTML = '<p class="err">songs.json fehlt – Seite wurde noch nicht gebaut.</p>';
+      mixBox.innerHTML = '<p class="err">songs.json is missing – the site has not been built yet.</p>';
       return;
     }
     // Mixes from before the genre switcher have no genre: they are techno.
@@ -451,7 +448,7 @@
       } catch (e) {
         const p = document.createElement("p");
         p.className = "err";
-        p.textContent = `Mix ${seed} fehlt.`;
+        p.textContent = `Mix ${seed} is missing.`;
         cards.push(p);
       }
     }
@@ -459,7 +456,7 @@
     mixBox.innerHTML = "";
     cards.forEach((c) => mixBox.appendChild(c));
     if (!mixes.length) {
-      mixBox.innerHTML = `<p class="meta">Noch keine ${esc(g.name)}-Mixes – der erste entsteht beim nächsten Push. Das Live-Set oben läuft schon.</p>`;
+      mixBox.innerHTML = `<p class="meta">No ${esc(g.name)} mixes yet – the first one arrives with the next push. The live set above already works.</p>`;
     }
     // Endless radio: when a mix ends, the next one starts (and after the last, the first).
     const mixAudios = [...mixBox.querySelectorAll("audio")];
@@ -471,7 +468,7 @@
       next.closest(".card").scrollIntoView({ behavior: "smooth", block: "nearest" });
     }));
     if (mixAudios.length > 1) {
-      mixBox.insertAdjacentHTML("afterbegin", '<p class="meta" style="margin:0 0 12px">Die Mixes laufen nacheinander endlos durch – gut als Alternative, falls das Live-Set auf einem Gerät ruckelt.</p>');
+      mixBox.insertAdjacentHTML("afterbegin", '<p class="meta" style="margin:0 0 12px">The mixes play back to back endlessly – a good alternative if the live set stutters on a device.</p>');
     }
     songBox.innerHTML = "";
     if (g.id === "techno") for (const seed of index.seeds || []) songBox.appendChild(await songCard(seed));
@@ -483,7 +480,7 @@
 
     const sha = (index.commit || "").slice(0, 7);
     document.getElementById("foot").innerHTML =
-      `Build <code>${esc(sha)}</code> · ${esc(index.built || "")} · Feedback-Format: „Mix X, Minute Y, Problem“ oder „Seed X, Takt Y, Problem“`;
+      `Build <code>${esc(sha)}</code> · ${esc(index.built || "")} · Feedback format: “mix X, minute Y, problem” or “seed X, bar Y, problem”`;
   }
   load();
   window.addEventListener("genrechange", () => { load(); dots(); });
@@ -501,6 +498,7 @@
 <script type="module" src="app/db.js"></script>
 <script type="module" src="app/stats.js"></script>
 <script type="module" src="app/account.js"></script>
+<script type="module" src="app/counters.js"></script>
 <script type="module" src="app/live.js"></script>
 </body>
 </html>
