@@ -336,9 +336,6 @@ pub struct SongDna {
 /// wheel dictates the key.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Constraints {
-    /// Swing of the running song: two decks with different swing flam against each other
-    /// during a blend, so the incoming song takes over the swing.
-    pub swing: Option<f32>,
     pub bpm: Option<f32>,
     pub key_root: Option<u8>,
 }
@@ -378,7 +375,6 @@ impl SongDna {
         if let Some(b) = c.bpm {
             bpm = b;
         }
-        let swing = c.swing.unwrap_or(swing);
 
         let mut r = root.fork("key");
         let mut key = Key {

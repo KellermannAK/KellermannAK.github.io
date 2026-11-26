@@ -339,7 +339,6 @@ impl Set {
         let key = cur.key.camelot_step(step);
         let seed = self.rng.next_u64() % 1_000_000;
         let c = Constraints {
-            swing: Some(cur.swing),
             bpm: Some(cur.bpm),
             key_root: Some(key.root),
         };
@@ -423,6 +422,16 @@ impl Set {
                 out_s.strip.hp.target = p * 0.95;
                 out_s.strip.gain.target = (fade_out * 2.0).min(1.0);
             }
+        }
+        // Swing glides from the outgoing to the incoming song's swing over the whole
+        // transition (both decks use the same value, so the grooves never flam against each
+        // other); afterwards the incoming deck keeps the new swing. Cuts just switch.
+        if t.kind != TransitionKind::Cut {
+            let p = (x / t.bars as f64).clamp(0.0, 1.0) as f32;
+            let s = p * p * (3.0 - 2.0 * p); // smoothstep
+            let swing = out_s.deck.dna.swing + (in_s.deck.dna.swing - out_s.deck.dna.swing) * s;
+            out_s.deck.swing_target = swing;
+            in_s.deck.swing_target = swing;
         }
         in_s.strip.lows.target = if swapped { 1.0 } else { 0.0 };
         out_s.strip.lows.target = if swapped { 0.0 } else { 1.0 };
@@ -553,6 +562,42 @@ mod tests {
             assert!(w[1].start_seconds > w[0].start_seconds);
             assert_eq!(w[0].bpm, w[1].bpm, "tempo is global");
         }
+    }
+
+    #[test]
+    fn swing_glides_through_transitions() {
+        // House songs have clearly different swing. During a blend both decks share a value
+        // between the two songs' swings; afterwards the new song has its own swing again.
+        let mut set = Set::new(21, Profile::house(), 3, 8000.0);
+        let mut buf = vec![0.0f32; 2 * 512];
+        let mut cur = set.current;
+        let mut glided = false;
+        let mut switches = 0;
+        while !set.finished() {
+            set.render_interleaved(&mut buf);
+            if set.current != cur {
+                cur = set.current;
+                switches += 1;
+                let d = &set.slots[cur].as_ref().unwrap().deck;
+                assert!((d.swing_target - d.dna.swing).abs() < 1e-4, "ended at {}", d.swing_target);
+            }
+            if set.transition_start_frame.is_some() {
+                let a = set.slots[set.current].as_ref().unwrap().deck.swing_target;
+                let other = &set.slots[1 - set.current];
+                if let Some(o) = other {
+                    assert!((a - o.deck.swing_target).abs() < 1e-4, "decks flam");
+                    let (lo, hi) = {
+                        let x = set.slots[set.current].as_ref().unwrap().deck.dna.swing;
+                        let y = o.deck.dna.swing;
+                        (x.min(y), x.max(y))
+                    };
+                    assert!(a >= lo - 1e-4 && a <= hi + 1e-4);
+                    glided |= a > lo + 1e-3 && a < hi - 1e-3;
+                }
+            }
+        }
+        assert!(switches >= 2);
+        assert!(glided, "swing never moved between the two values");
     }
 
     #[test]

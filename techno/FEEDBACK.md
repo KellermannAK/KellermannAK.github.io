@@ -61,7 +61,7 @@ never counted as good or bad.
 | techno (5242db3) | Risers with ever faster hits sound like a fairground (3x); roll + halving beats; "cliffhanger instead of a riser, like a breakdown" | Rolls keep their speed (`roll_accelerates = false`), risers/rolls much rarer, new cliffhanger builds (`cliffhanger_prob = 0.4`: no riser, no roll, two silent bars before the drop). |
 | techno (5242db3) | Drops "terrible" (3x); "only bass and rumble"; "drop after the breakdown need not be" | `bass_first` drop rare, fewer builds after grooves, after a breakdown the groove continues in 60 % of cases (`after_breakdown`). |
 | techno (5242db3) | Chords on the offbeat "too pretty for deep techno"; "no deep techno melody", "too tüdelü" | Stab chords: triad/power favoured over seventh/dub; pad mostly triad; acid and busy riff leads rare. |
-| both (5242db3) | Transition "bad with swing", "swing doing crazy stuff" | The incoming song takes over the swing of the running one (`Constraints.swing`): decks with different swing flammed during blends. House swing 0.3-0.5. |
+| both (5242db3) | Transition "bad with swing", "swing doing crazy stuff" | Decks with different swing flammed during blends. First fix (incoming song takes over the swing) rejected: every song would swing alike. Now the swing glides from the old to the new song's value over the whole transition (both decks share it, applied at step boundaries), the new song then keeps its own swing. House swing 0.3-0.5. |
 | house (5242db3) | 8ths with open hat too loud | `open_hat_gain = 0.5` (new mix rule). |
 | house (5242db3) | Guitar too loud and too clear again | Guitar a further -3.3 dB, darker (brightness 0.15-0.5). |
 | house (5242db3) | Melody 4th tone atonal | `chord_tones_only`: lead notes snap to chord tones. |

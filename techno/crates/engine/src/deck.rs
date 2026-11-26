@@ -107,6 +107,9 @@ pub struct Deck {
     spt: f64,
     step_samples: f32,
     swing_ticks: u32,
+    /// Swing the deck moves towards (set by the set during transitions; applied at the next
+    /// step boundary so no note is skipped or doubled).
+    pub swing_target: f32,
     pub plan: BarPlan,
     bass_base: i32,
     tom_base: f32,
@@ -221,6 +224,7 @@ impl Deck {
             spt,
             step_samples: (spt * TICKS_PER_STEP as f64) as f32,
             swing_ticks: (dna.swing * 8.0).round() as u32,
+            swing_target: dna.swing,
             plan: dna.plan.bar(0),
             bass_base,
             tom_base: tom_p.tone_hz,
@@ -627,6 +631,7 @@ impl Deck {
             self.on_bar(t.bar());
         }
         if tis == 0 {
+            self.swing_ticks = (self.swing_target * 8.0).round() as u32;
             let pos = self.tick as f32 / TICKS_PER_BAR as f32;
             let a = self.dna.plan.automation(pos);
             self.apply_automation(a);
