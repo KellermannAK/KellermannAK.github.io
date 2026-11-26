@@ -451,15 +451,24 @@ impl SongDna {
             .filter(|_| cr.chance(sr.companion_prob))
             .map(|w| to_track(w.pick(&mut cr)))
             .filter(|t| *t != main_synth);
-        if let Some(t) = companion {
-            palette = palette.with(t);
-        }
         // Piano and guitar (own streams, so techno seeds are unchanged).
         let (piano, piano_sound) = gen_piano(&mut root.fork("piano"), profile);
         sound.piano = piano_sound;
         let (guitar, guitar_sound) =
             gen_guitar(&mut root.fork("guitar"), profile, key, &bass, &progression);
         sound.guitar = guitar_sound;
+        // Two rhythmic chord instruments at once sound crowded (feedback): a companion
+        // only joins if one of the two leaves room (held piano, muted / picked guitar, lead).
+        let chordal = |t: Track| match t {
+            Track::Piano => sound.piano.style != KeysStyle::Held,
+            Track::Guitar => sound.guitar.style == GuitarStyle::Strum,
+            Track::Stab => true,
+            _ => false,
+        };
+        let companion = companion.filter(|c| !(chordal(*c) && chordal(main_synth)));
+        if let Some(t) = companion {
+            palette = palette.with(t);
+        }
         // Glide leads slide between neighbouring notes: the electronic house glide.
         if sound.lead.kind == LeadKind::Glide {
             let len = lead.len as usize;
@@ -742,7 +751,11 @@ fn gen_drums(rng: &mut Rng, p: &Profile) -> DrumPatterns {
     let mut clap_ghost = Pattern::empty(16);
     if rng.chance(d.clap.ghost_prob) {
         const GHOST_SPOTS: [u32; 5] = [15, 7, 14, 11, 3];
-        let s = GHOST_SPOTS[rng.range_i32(0, GHOST_SPOTS.len() as i32 - 1) as usize];
+        let spots: &[u32] = match &d.clap.ghost_spots {
+            Some(v) if !v.is_empty() => v,
+            _ => &GHOST_SPOTS,
+        };
+        let s = spots[rng.range_i32(0, spots.len() as i32 - 1) as usize] % 16;
         clap_ghost = Pattern::from_mask(1 << s, 16);
     }
 

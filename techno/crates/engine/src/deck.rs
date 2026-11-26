@@ -56,7 +56,7 @@ fn channel_settings(t: Track, dna: &SongDna) -> ChannelSettings {
         Track::Riser => settings(0.20, 0.0, 0.0, 0.10, 0.25, 150.0),
         Track::Impact => settings(0.45, 0.0, 0.0, 0.0, 0.35, 0.0),
         Track::Piano => settings(0.16, -0.08, sc * 0.5, 0.10, 0.22, 90.0),
-        Track::Guitar => settings(0.30, 0.25, sc * 0.4, 0.16, 0.12, 120.0),
+        Track::Guitar => settings(0.19, 0.25, sc * 0.4, 0.16, 0.12, 120.0),
     }
 }
 
@@ -586,7 +586,7 @@ impl Deck {
                         let gate = (len * self.step_samples) as u32;
                         // Single notes carry less energy than strums: level-matched by ear
                         // and meter (`techno render --solo guitar`).
-                        let v = v * if muted { 1.8 } else { 1.6 };
+                        let v = v * if muted { 1.8 } else { 1.3 };
                         self.guitar.trigger_chord(&[f], v, gate, 0, muted, true);
                     }
                 }

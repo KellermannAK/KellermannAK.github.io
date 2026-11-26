@@ -441,6 +441,10 @@ pub struct HatRules {
 pub struct ClapRules {
     /// Probability of an extra ghost clap per bar position (euclid hits).
     pub ghost_prob: f32,
+    /// 16th steps a ghost clap may use. Unset: the techno spots (incl. right before the
+    /// backbeat). House leaves those out: with swing they sound like a sloppy double clap.
+    #[serde(default)]
+    pub ghost_spots: Option<Vec<u32>>,
     pub tone_hz: Range,
     pub decay: Range,
 }

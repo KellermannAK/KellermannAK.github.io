@@ -7,6 +7,8 @@ changing the profile or the arrangement, so earlier decisions are not undone by 
 
 | Seed | Engine | Why it is interesting |
 |------|--------|-----------------------|
+| 614548 | 0.2.0 (85b1409) | Techno, "Top song" (2x 👍): distorted kick, supersaw lead in pulse style, no long layer, breakdown then drop. |
+| 184968 | house (e0320cf) | House, "Nice melody": D# dorian, swing 0.55, organ stab main, sine-pluck bass on the offbeats, guitar takes over in breakdowns. |
 | 742138 | 0.2.0 | F minor, two roots only (i-VI); hard kick tuned low (43.7 Hz); no open hat; clap + snare backbeat; rolling bass; pluck lead as the only short synth plus a triad pad; **no breakdown** - groove, build -> drop (bass first), groove, build -> drop (stripped). |
 
 ## Feedback and resulting changes
@@ -50,3 +52,8 @@ style, sounds, structure), then counts every feature for 👍 vs 👎.
 Weighting: a 👎 counts half as much as a 👍 (score = 👍 − 0.5 × 👎), so a few complaints do
 not outweigh what was liked repeatedly. 💡 ideas are neutral suggestions: listed separately,
 never counted as good or bad.
+| house (e0320cf) | Guitar much too loud (mix 361546, end of song 9: picked steel guitar) | Guitar channel -4 dB, picked notes a further -1.8 dB. |
+| house (e0320cf) | "Strange double claps" in the previous section | Ghost claps right before the backbeat (steps 3/11) removed for house (`ghost_spots`): with swing they sounded like a flam; the wide clap variant is rare now. |
+| house (e0320cf) | Song "crowded", "childish housy" (seed 352168: busy piano stabs + strummed guitar companion, plain triads) | Companion only if one of the two instruments leaves room (held piano, muted/picked guitar, lead); triads rare; busy riff leads rare; held piano more common. |
+| house (e0320cf) | 👍 dorian / high swing / pad + guitar breakdown | Swing range 0.35-0.6, dorian weighted up, major down. |
+| 0.2.0 (85b1409) | 💡 one techno mix song "rather tech house" (seed 293512) | Noted; candidate for a third genre. |

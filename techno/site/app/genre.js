@@ -27,7 +27,6 @@
     document.documentElement.dataset.genre = g.id;
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute("content", g.theme);
-    document.title = `${g.name} Generator`;
     const name = document.getElementById("g-name");
     if (name) name.textContent = g.name;
     const i = GENRES.indexOf(g);

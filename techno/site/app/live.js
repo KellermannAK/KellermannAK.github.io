@@ -300,8 +300,8 @@ function showStatus(s) {
     lastTitle = title;
     navigator.mediaSession.metadata = new MediaMetadata({
       title,
-      artist: currentName ? currentName.artist : `${setGenre.name} Generator`,
-      album: `${setGenre.name} Generator · Live-Set #${seed}`,
+      artist: currentName ? currentName.artist : "Techno Generator",
+      album: `Techno Generator · ${setGenre.name} · Live-Set #${seed}`,
     });
   }
 }

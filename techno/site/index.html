@@ -50,10 +50,12 @@
   }
   #stage { overflow-x: clip; }
   main { max-width: 760px; margin: 0 auto; padding: 28px 16px 64px; position: relative; background: var(--bg); transition: background-color 0.35s ease; }
-  .tagline { color: var(--muted); margin: 0; padding-right: 56px; min-height: 40px; display: flex; align-items: center; font-size: 0.95rem; }
+  h1 { padding-right: 56px; }
+  h1 span { color: var(--accent); }
+  .tagline { color: var(--muted); margin: 0 0 8px; padding-right: 56px; }
   .genre-nav { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 18px 0 4px; user-select: none; }
-  .genre-nav h1 { flex: 0 1 auto; min-width: 7ch; text-align: center; margin: 0; font-size: 2.1rem; }
-  .genre-nav h1::after { content: "."; color: var(--accent); }
+  .g-name { flex: 0 1 auto; min-width: 7ch; text-align: center; margin: 0; font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em; }
+  .g-name::after { content: "."; color: var(--accent); }
   .g-arrow {
     width: 46px; height: 46px; border-radius: 50%; flex: none; cursor: pointer;
     display: grid; place-items: center; padding: 0;
@@ -222,10 +224,11 @@
 <div id="stage">
 <main id="face">
   <header id="g-head">
+    <h1>Techno<span>.</span>Generator</h1>
     <p class="tagline">Komplett algorithmisch erzeugt und synthetisiert. Keine Samples.</p>
     <nav class="genre-nav" aria-label="Genre">
       <button class="g-arrow" id="g-prev" aria-label="Vorheriges Genre"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
-      <h1 id="g-name" aria-live="polite">Techno</h1>
+      <div class="g-name" id="g-name" aria-live="polite">Techno</div>
       <button class="g-arrow" id="g-next" aria-label="Nächstes Genre"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
     </nav>
     <div class="g-dots" id="g-dots" aria-hidden="true"></div>

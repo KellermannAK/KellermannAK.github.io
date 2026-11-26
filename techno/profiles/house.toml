@@ -10,11 +10,11 @@ name = "House"
 [tempo]
 bpm = [120.0, 124.0]
 # Shuffled 16ths are the core of the house groove.
-swing = [0.25, 0.55]
+swing = [0.35, 0.6]
 
 [harmony]
 # Dorian is the soulful minor of house; major for the sunny tracks.
-scales = { values = ["dorian", "natural_minor", "major"], weights = [4.0, 3.0, 2.5] }
+scales = { values = ["dorian", "natural_minor", "major"], weights = [5.0, 3.0, 1.5] }
 # Chord loops instead of a tonic drone: two- and four-chord progressions.
 progression = { values = ["drone", "two", "return", "turn", "four"], weights = [0.4, 3.0, 1.0, 1.0, 3.5] }
 harmony_scope = { values = ["everywhere", "breakdown_only"], weights = [6.0, 1.0] }
@@ -52,6 +52,8 @@ metal = [0.2, 0.6]
 
 [drums.clap]
 ghost_prob = 0.4
+# Not right before the backbeat (3, 11): with swing that sounds like a double clap.
+ghost_spots = [15, 7, 14]
 tone_hz = [900.0, 1400.0]
 decay = [0.15, 0.26]
 
@@ -108,7 +110,7 @@ detune = [0.04, 0.10]
 [lead]
 # Electronic glides first, then soft plucks.
 kinds = { values = ["acid", "hoover", "supersaw", "pluck", "glide"], weights = [0.0, 0.0, 0.4, 2.0, 4.0] }
-styles = { values = ["riff", "sparse", "pulse", "long"], weights = [1.0, 3.0, 0.4, 3.0] }
+styles = { values = ["riff", "sparse", "pulse", "long"], weights = [0.15, 3.0, 0.4, 3.5] }
 motif_bars = { values = [1, 2], weights = [1.0, 3.0] }
 density = [0.3, 0.5]
 slide_prob = 0.4
@@ -142,9 +144,9 @@ drive = [1.0, 1.5]
 detune = [0.06, 0.15]
 
 [piano]
-styles = { values = ["stabs", "offbeat", "held"], weights = [4.0, 1.5, 2.0] }
-chords = { values = ["seventh", "ninth", "triad"], weights = [3.0, 3.0, 1.0] }
-brightness = [0.35, 0.85]
+styles = { values = ["stabs", "offbeat", "held"], weights = [2.5, 1.5, 3.0] }
+chords = { values = ["seventh", "ninth", "triad"], weights = [3.0, 3.0, 0.3] }
+brightness = [0.35, 0.8]
 decay = [1.2, 2.6]
 # 0 grand, 1 felt, 2 electric (tine), 3 bright house piano
 variants = { values = [0, 1, 2, 3], weights = [2.0, 1.5, 2.0, 2.5] }
@@ -159,14 +161,14 @@ variants = { values = [0, 1, 2], weights = [1.5, 1.0, 2.5] }
 
 [synths]
 # The main instrument carries the song; piano and guitar are as likely as synths.
-main = { values = ["piano", "guitar", "lead", "stab", "arp"], weights = [4.0, 1.5, 2.5, 1.5, 0.8] }
+main = { values = ["piano", "guitar", "lead", "stab", "arp"], weights = [4.0, 1.5, 2.5, 2.0, 0.8] }
 breakdown_alt_prob = 0.5
 # Strings / pads are the house backdrop.
 long_layer = { values = ["pad", "drone", "none"], weights = [6.0, 0.3, 0.6] }
 stab_notes = 4
 # A second instrument (electronic + natural mixed) in the fuller parts.
 companion = { values = ["guitar", "piano", "lead"], weights = [3.0, 2.0, 1.5] }
-companion_prob = 0.6
+companion_prob = 0.5
 companion_energy = 0.6
 
 [fx]
@@ -180,7 +182,7 @@ breakdown_boost = 1.3
 
 [variants]
 # clap: 0 classic, 1 tight, 2 wide/roomy, 3 gritty
-clap = { values = [0, 1, 2, 3], weights = [2.0, 1.0, 2.0, 0.2] }
+clap = { values = [0, 1, 2, 3], weights = [2.5, 1.5, 0.3, 0.2] }
 snare = { values = [0, 1, 2, 3], weights = [2.0, 2.0, 0.2, 0.5] }
 # hats: 0 metal + noise, 1 pure noise, 2 dark metallic, 3 shaker
 hats = { values = [0, 1, 2, 3], weights = [1.0, 2.0, 0.3, 2.0] }
