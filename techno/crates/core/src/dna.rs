@@ -268,6 +268,7 @@ pub struct MixParams {
     pub sidechain_depth: f32,
     pub sidechain_release: f32,
     pub open_hat_gain: f32,
+    pub ride_gain: f32,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -469,6 +470,12 @@ impl SongDna {
         // Genres without a rumble (house) leave it out completely.
         if profile.rumble.amount[1] <= 0.0 {
             palette = palette.without(Track::Rumble);
+        }
+        // A ride cymbal in 8ths sounds like open hats on every offbeat (feedback, five times):
+        // in house most songs have none at all.
+        if profile.drums.ride.prob < 1.0 && !root.fork("ride-prob").chance(profile.drums.ride.prob)
+        {
+            palette = palette.without(Track::Ride);
         }
         // Companion instrument (own stream; techno has none).
         let mut cr = root.fork("companion");
@@ -1445,6 +1452,7 @@ fn gen_sound(rng: &mut Rng, p: &Profile, key: Key) -> SoundParams {
             sidechain_depth: rng.in_range(p.mix.sidechain_depth),
             sidechain_release: rng.in_range(p.mix.sidechain_release),
             open_hat_gain: p.mix.open_hat_gain,
+            ride_gain: p.mix.ride_gain,
         },
         // Filled in from their own streams in `generate_with`.
         piano: KeysParams {

@@ -53,7 +53,7 @@ fn channel_settings(t: Track, dna: &SongDna) -> ChannelSettings {
         Track::Snare => settings(0.30, 0.0, 0.0, 0.0, 0.14, 120.0),
         Track::Rim => settings(0.10, -0.35, 0.2, 0.04, 0.08, 250.0),
         Track::Tom => settings(0.15, 0.25, 0.3, 0.0, 0.08, 50.0),
-        Track::Ride => settings(0.09, 0.3, 0.2, 0.0, 0.06, 0.0),
+        Track::Ride => settings(0.09 * dna.sound.mix.ride_gain, 0.3, 0.2, 0.0, 0.06, 0.0),
         Track::Crash => settings(0.16, -0.2, 0.2, 0.0, 0.08, 0.0),
         Track::Stab => settings(0.22, 0.0, sc * 0.8, 0.28, 0.22, 250.0),
         Track::Lead => settings(0.14, 0.0, sc * 0.7, 0.16, 0.10, 180.0),
@@ -166,6 +166,8 @@ pub struct Deck {
     inserts: [Insert; Track::COUNT],
     insert_depth: [f32; Track::COUNT],
     fx_amount: Smoother,
+    /// 0..1 over the second half of the song: the short synths get more effect variation.
+    late_fx: Smoother,
     drop_power: Smoother,
     throw_active: bool,
     hp_l: Svf,
@@ -278,6 +280,7 @@ impl Deck {
             }),
             insert_depth: core::array::from_fn(|i| insert_params(Track::ALL[i], &dna).depth),
             fx_amount: Smoother::new(1.0, 0.5, sr),
+            late_fx: Smoother::new(0.0, 1.0, sr),
             drop_power: Smoother::new(0.0, 0.05, sr),
             hp_l: Svf::new(20.0, 0.0, sr),
             hp_r: Svf::new(20.0, 0.0, sr),
@@ -335,6 +338,7 @@ impl Deck {
         self.lead_filter.target = a.lead_filter;
         self.synth_filter.target = a.synth_filter;
         self.fx_amount.target = a.fx_amount;
+        self.late_fx.target = a.late_fx;
         self.drop_power.target = a.drop_power;
         self.bass_filter.target = a.bass_filter;
         self.highpass.target = a.highpass;
@@ -550,6 +554,8 @@ impl Deck {
                     LeadKind::Pluck => 0.4,
                     LeadKind::Hoover | LeadKind::Supersaw => 0.85,
                     LeadKind::Glide => 0.95,
+                    LeadKind::Flute | LeadKind::Organ => 0.95,
+                    LeadKind::Bell => 0.6,
                 };
                 let gate = if n.slide { len * 1.1 } else { len * hold } as u32;
                 self.lead
@@ -703,7 +709,13 @@ impl Deck {
         self.melody_piano.filter_mul = sf;
         self.melody_lead.filter_open = (0.85 * sf).clamp(0.0, 1.3);
         // Delay throw: synth delay sends open up in the last beat of a phrase.
-        let throw = if self.throw_active { 0.45 } else { 0.0 };
+        // Second half of the song: the effects of the short synths (arp, lead, stab ...) swell
+        // and fade in a slow cycle of their own, and their delay opens up in between.
+        let late = self.late_fx.next();
+        let bars_now = self.tick as f32 / TICKS_PER_BAR as f32;
+        let wob = 0.5 + 0.5 * (bars_now * core::f32::consts::TAU / 12.0).sin();
+        let short_fx = 1.0 + late * (0.5 + 0.9 * wob);
+        let throw = if self.throw_active { 0.45 } else { 0.0 } + late * 0.3 * (1.0 - wob);
         for t in [
             Track::Lead,
             Track::Arp,
@@ -772,7 +784,12 @@ impl Deck {
             } else {
                 // Mono source into a stereo insert: -3 dB per side keeps the level equal.
                 let h = x * core::f32::consts::FRAC_1_SQRT_2;
-                let (l, r) = self.inserts[i].process(h, h, self.insert_depth[i] * amount);
+                let boost = if techno_core::structure::SHORT_SYNTHS.contains(t) {
+                    short_fx
+                } else {
+                    1.0
+                };
+                let (l, r) = self.inserts[i].process(h, h, self.insert_depth[i] * amount * boost);
                 add(self.channels[i].process_stereo(l, r, duck));
             }
         }

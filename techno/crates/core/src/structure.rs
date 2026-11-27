@@ -261,6 +261,8 @@ pub struct Automation {
     /// 0..1: extra weight in drops (harder kick, louder rumble) so they hit harder than
     /// the groove before them.
     pub drop_power: f32,
+    /// 0..1 over the second half of the song (more effect variation on the short synths).
+    pub late_fx: f32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1002,6 +1004,7 @@ impl SongPlan {
             synth_filter: 1.0,
             fx_amount: 1.0,
             drop_power: 0.0,
+            late_fx: ((pos_bars / self.total_bars.max(1) as f32 - 0.5) / 0.12).clamp(0.0, 1.0),
         };
         let style = self.styles[idx];
         let into_drop = self.next_kind(idx) == Some(SectionKind::Drop);
@@ -1018,7 +1021,8 @@ impl SongPlan {
                 FilterShape::Swell => (x * core::f32::consts::PI).sin() * 2.0 - 1.0,
                 FilterShape::Breathe => (sb / 8.0 * core::f32::consts::TAU).sin(),
             };
-            a.synth_filter = 1.0 + d * m;
+            // The second half moves the filters further, too.
+            a.synth_filter = 1.0 + d * (1.0 + 0.8 * a.late_fx) * m;
         }
         match s.kind {
             SectionKind::Intro => {

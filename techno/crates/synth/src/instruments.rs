@@ -797,6 +797,7 @@ pub struct Lead {
     pub filter_open: f32,
     stack: [Osc; 7],
     modulator: Osc,
+    noise: Noise,
     dive: f32,
     /// Samples since the last attack (glide vibrato fades in).
     since: u32,
@@ -825,6 +826,7 @@ impl Lead {
             filter_open: 1.0,
             stack: core::array::from_fn(|i| Osc::with_phase(i as f32 * 0.137 % 1.0)),
             modulator: Osc::default(),
+            noise: Noise::new(0x1EAD_F00D),
             dive: 0.0,
             since: 0,
             played: false,
@@ -834,10 +836,26 @@ impl Lead {
     }
 
     fn configured(mut self) -> Lead {
-        if self.p.kind == LeadKind::Glide {
-            // Long portamento, soft attack, longer release: the house glide.
-            self.glide = smooth_coef(0.09, self.sr);
-            self.amp = Adsr::new(0.012, 0.3, 0.85, 0.12, self.sr);
+        let sr = self.sr;
+        match self.p.kind {
+            LeadKind::Glide => {
+                // Long portamento, soft attack, longer release: the house glide.
+                self.glide = smooth_coef(0.09, sr);
+                self.amp = Adsr::new(0.012, 0.3, 0.85, 0.12, sr);
+            }
+            LeadKind::Flute => {
+                self.glide = smooth_coef(0.05, sr);
+                self.amp = Adsr::new(0.05, 0.3, 0.9, 0.15, sr);
+            }
+            LeadKind::Organ => {
+                self.glide = smooth_coef(0.005, sr);
+                self.amp = Adsr::new(0.012, 0.1, 1.0, 0.07, sr);
+            }
+            LeadKind::Bell => {
+                self.amp = Adsr::new(0.002, 0.9, 0.25, 0.4, sr);
+                self.fenv.set_time(1.2, sr);
+            }
+            _ => {}
         }
         self
     }
@@ -928,6 +946,32 @@ impl Lead {
                 self.f1
                     .set(cutoff.min(12000.0), 0.12 + 0.3 * p.resonance, sr);
                 self.f1.lp(x * 0.6)
+            }
+            LeadKind::Flute => {
+                self.since = self.since.saturating_add(1);
+                let t = self.since as f32 / sr;
+                let depth = 0.005 * ((t - 0.2) * 3.0).clamp(0.0, 1.0);
+                let f = self.freq * (1.0 + depth * self.vib.sine(5.4, sr));
+                let breath = self.noise.next() * 0.07 * (0.4 + 0.6 * fe);
+                let x = self.osc.sine(f, sr) * 0.85
+                    + self.modulator.sine(f * 2.0, sr) * 0.1 * (0.4 + 0.6 * self.filter_open)
+                    + breath;
+                self.f1.set((p.cutoff_hz * 3.0 * open).min(9000.0), 0.1, sr);
+                self.f1.lp(x)
+            }
+            LeadKind::Organ => {
+                let f = self.freq * (1.0 + 0.002 * self.vib.sine(6.1, sr));
+                let x = self.osc.sine(f, sr)
+                    + 0.5 * self.modulator.sine(f * 2.0, sr)
+                    + 0.35 * self.stack[0].sine(f * 3.0, sr)
+                    + 0.2 * self.stack[1].sine(f * 4.0, sr);
+                x * 0.4
+            }
+            LeadKind::Bell => {
+                let m = self.modulator.sine(self.freq * 3.5, sr);
+                let index = 0.4 + 3.0 * fe;
+                self.osc.phase = (self.osc.phase + m * index * 0.02).rem_euclid(1.0);
+                self.osc.sine(self.freq, sr) * (0.35 + 0.65 * fe) * 0.9
             }
             LeadKind::Pluck => {
                 // 2-op FM: modulation index decays with the filter envelope -> bell pluck.

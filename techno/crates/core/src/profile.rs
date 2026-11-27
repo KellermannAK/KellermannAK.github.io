@@ -256,6 +256,12 @@ pub enum LeadKind {
     Pluck,
     /// Soft saw/sine lead with long portamento and delayed vibrato (house glides).
     Glide,
+    /// Breathy sine with vibrato: a flute.
+    Flute,
+    /// Additive drawbar organ with a slight rotary wobble.
+    Organ,
+    /// Inharmonic FM bell with a long ring.
+    Bell,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -547,6 +553,9 @@ pub struct PercRules {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RideRules {
+    /// Probability that a song has a ride cymbal at all (1 = always, as in techno).
+    #[serde(default = "one")]
+    pub prob: f32,
     pub styles: Weighted<RideStyle>,
     pub tone_hz: Range,
     pub decay: Range,
@@ -672,6 +681,9 @@ pub struct MixRules {
     /// Level of the open hat relative to the default (house: quieter 8ths).
     #[serde(default = "one")]
     pub open_hat_gain: f32,
+    /// Level of the ride cymbal relative to the default.
+    #[serde(default = "one")]
+    pub ride_gain: f32,
 }
 
 fn one() -> f32 {

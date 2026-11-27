@@ -77,9 +77,13 @@ tone_hz = [90.0, 140.0]
 decay = [0.15, 0.28]
 
 [drums.ride]
-styles = { values = ["offbeat", "eighths", "quarters"], weights = [2.0, 1.5, 1.0] }
+# Feedback (five times: "8ths with open hats ... make it quieter"): it was the ride cymbal, in
+# 8ths with a long ring, not the open hat. Now most songs have no ride at all; where there is
+# one it plays the quarters, short and quiet.
+prob = 0.15
+styles = { values = ["offbeat", "eighths", "quarters"], weights = [0.0, 0.0, 1.0] }
 tone_hz = [5500.0, 8000.0]
-decay = [0.4, 0.7]
+decay = [0.12, 0.25]
 
 [bass]
 rhythms = { values = ["rolling", "offbeat", "gallop", "skippy", "syncopated", "sparse", "funky"], weights = [0.3, 3.0, 1.0, 1.0, 2.0, 1.5, 3.0] }
@@ -113,7 +117,8 @@ detune = [0.04, 0.10]
 # Feedback: "4th tone is atonal": melody notes only on chord tones.
 chord_tones_only = true
 # Electronic glides first, then soft plucks.
-kinds = { values = ["acid", "hoover", "supersaw", "pluck", "glide"], weights = [0.0, 0.0, 0.4, 2.0, 4.0] }
+# Feedback: "that brass-like lead is in every song": more variety - glide, pluck, flute, organ, bell.
+kinds = { values = ["acid", "hoover", "supersaw", "pluck", "glide", "flute", "organ", "bell"], weights = [0.0, 0.0, 0.15, 2.0, 2.0, 2.5, 2.0, 1.5] }
 styles = { values = ["riff", "sparse", "pulse", "long"], weights = [0.15, 3.0, 0.4, 3.5] }
 motif_bars = { values = [1, 2], weights = [1.0, 3.0] }
 density = [0.3, 0.5]
@@ -222,6 +227,7 @@ sidechain_depth = [0.35, 0.6]
 sidechain_release = [0.15, 0.25]
 # Feedback: the 8ths with the open hat were too loud.
 open_hat_gain = 0.4
+ride_gain = 0.6
 
 [structure]
 # ~5:20-7:00 at 122 BPM.
@@ -283,10 +289,10 @@ breakdown_prob = 0.33
 # only the bass, only the rhythm, or nothing but the strings.
 backing = { values = ["rhythm_bass", "bass", "rhythm", "bare"], weights = [3.0, 2.0, 1.2, 2.0] }
 # A leap (fifth / sixth) at the start of a half phrase; the line then turns and fills the gap.
-leap_prob = 0.25
-rest_prob = 0.12
+leap_prob = 0.12
+rest_prob = 0.3
 # Scale degrees above the key's tonic.
-range = [0, 11]
+range = [1, 9]
 brightness = [0.35, 0.7]
 decay = [1.5, 2.5]
 # Melody piano: 0 grand, 1 felt, 2 electric, 3 bright
