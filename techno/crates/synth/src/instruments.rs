@@ -694,6 +694,7 @@ impl Bass {
             1 => 0.73,
             2 => 0.53,
             3 => 0.77,
+            4 => 1.0,
             _ => 1.0,
         };
         Bass {
@@ -704,7 +705,14 @@ impl Bass {
             sub: Osc::default(),
             filt: Svf::new(p.cutoff_hz, p.resonance, sr),
             fenv,
-            amp: Adsr::new(0.0015, p.decay * 1.5, 0.55, 0.012, sr),
+            // Variant 4 (clean sub) starts a little softer: no click.
+            amp: Adsr::new(
+                if p.variant == 4 { 0.006 } else { 0.0015 },
+                p.decay * 1.5,
+                0.55,
+                if p.variant == 4 { 0.03 } else { 0.012 },
+                sr,
+            ),
             freq: 55.0,
             gate: 0,
             vel: 1.0,
@@ -752,13 +760,18 @@ impl Bass {
                 self.saw.phase = (self.saw.phase + m * 0.02).rem_euclid(1.0);
                 self.saw.sine(self.freq, sr) * 0.6 + sub * 0.4
             }
+            // 4 clean sub: sine with a soft second harmonic, no filter, no drive.
+            4 => sub * 0.85 + self.saw2.sine(self.freq * 2.0, sr) * 0.2 * (0.4 + 0.6 * fe),
             _ => self.saw.saw(self.freq, sr) * (1.0 - p.sub_mix * 0.5) + sub * p.sub_mix,
         };
         let cutoff = p.cutoff_hz
             * (0.3 + 0.7 * self.filter_mul)
             * (1.0 + p.env_mod * fe * (1.0 + 0.5 * self.accent) * (0.4 + 0.6 * self.filter_mul));
         self.filt.set(cutoff, p.resonance, sr);
-        let y = if p.variant == 3 { x } else { self.filt.lp(x) };
+        let y = if p.variant >= 3 { x } else { self.filt.lp(x) };
+        if p.variant == 4 {
+            return y * self.amp.next() * self.vel * self.gain;
+        }
         saturate(y * self.amp.next(), p.drive) * self.vel * self.gain
     }
 }
@@ -1684,6 +1697,14 @@ pub struct Guitar {
     noise: Noise,
     body1: Svf,
     body2: Svf,
+    /// Pick click and fret / finger noise (what makes a guitar sound played, not synthesised).
+    click: f32,
+    squeak: f32,
+    squeak_hz: f32,
+    click_bp: Svf,
+    squeak_bp: Svf,
+    since_pluck: u32,
+    last_freq: f32,
     /// Brightness multiplier from the arrangement.
     pub filter_mul: f32,
 }
@@ -1698,6 +1719,13 @@ impl Guitar {
             noise: Noise::new(0x6A17_A2C3),
             body1: Svf::new(105.0, 0.6, sr),
             body2: Svf::new(240.0, 0.5, sr),
+            click: 0.0,
+            squeak: 0.0,
+            squeak_hz: 2500.0,
+            click_bp: Svf::new(3200.0, 0.5, sr),
+            squeak_bp: Svf::new(2500.0, 2.0, sr),
+            since_pluck: u32::MAX,
+            last_freq: 0.0,
             filter_mul: 1.0,
         }
     }
@@ -1748,6 +1776,17 @@ impl Guitar {
         } else {
             p.sustain * if p.variant == 0 { 0.8 } else { 1.0 }
         };
+        // Pick click on every note; a short fret squeak when the hand moves to another pitch
+        // soon after the last note (chord change, position change on the neck).
+        let moved = (f - self.last_freq).abs() > 1.0;
+        let soon = (self.since_pluck as f32) < 0.45 * sr;
+        self.click = (0.05 + 0.12 * bright) * if muted { 0.5 } else { 1.0 } * self.voices[i].vel;
+        if moved && soon && !muted && self.last_freq > 0.0 && p.variant != 2 {
+            self.squeak = 0.09 * self.voices[i].vel;
+            self.squeak_hz = 1600.0 + 1400.0 * (self.noise.next() * 0.5 + 0.5);
+        }
+        self.since_pluck = 0;
+        self.last_freq = f;
         let noise_state = &mut self.noise;
         let v = &mut self.voices[i];
         v.pending = false;
@@ -1785,6 +1824,7 @@ impl Guitar {
     pub fn process(&mut self) -> f32 {
         let mut out = 0.0;
         let sr = self.sr;
+        self.since_pluck = self.since_pluck.saturating_add(1);
         for i in 0..GTR_VOICES {
             if self.voices[i].pending {
                 if self.voices[i].start_in == 0 {
@@ -1833,9 +1873,22 @@ impl Guitar {
         } else {
             out
         };
-        // Soft limit like a clip-on compressor: unity gain for normal levels, pick
-        // transients are rounded off instead of hitting the master limiter.
-        fast_tanh(y * 0.55) * 2.0
+        // Pick click and finger / fret noise.
+        let mut y = y;
+        if self.click > 1e-4 {
+            y += self.click_bp.bp(self.noise.next() * self.click) * 2.0;
+            self.click *= 0.9985;
+        }
+        if self.squeak > 1e-4 {
+            self.squeak_hz += 0.002 * (4200.0 - self.squeak_hz);
+            self.squeak_bp.set(self.squeak_hz, 2.5, sr);
+            y += self.squeak_bp.bp(self.noise.next() * self.squeak) * 3.0;
+            self.squeak *= 0.9994;
+        }
+        // Slight overdrive for a played-in sound (the more, the more electric), at unity gain
+        // for small signals; also rounds off pick transients before the master limiter.
+        let g = 0.55 + [0.12, 0.2, 0.4][(self.p.variant as usize).min(2)];
+        fast_tanh(y * g) * (1.1 / g)
     }
 }
 

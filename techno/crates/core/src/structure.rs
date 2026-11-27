@@ -151,6 +151,9 @@ pub struct SectionStyle {
     /// Build without riser and roll that ends in two bars of silence before the drop:
     /// a cliffhanger instead of a rising effect.
     pub cliffhanger: bool,
+    /// Bars at the start of a groove / drop after a breakdown or drop in which the short
+    /// synths and the melody stay out (they come in later, not "immediately").
+    pub entry_delay: u8,
 }
 
 impl Default for SectionStyle {
@@ -164,6 +167,7 @@ impl Default for SectionStyle {
             pause_before: false,
             filter_shape: FilterShape::Static,
             cliffhanger: false,
+            entry_delay: 0,
         }
     }
 }
@@ -310,6 +314,9 @@ pub struct StructureRules {
     /// Rolls keep their speed (quarters, last bar 8ths) instead of doubling towards the drop.
     #[serde(default = "yes")]
     pub roll_accelerates: bool,
+    /// How many bars the short synths / melody wait after a breakdown or drop (per section).
+    #[serde(default)]
+    pub entry_delay: Option<Weighted<u32>>,
     /// The last two bars before a breakdown play without the short synths (a small
     /// breakdown before the big one), so the change is not a hard cut.
     #[serde(default)]
@@ -602,7 +609,15 @@ impl SongPlan {
                 pause_before: st.chance(r.drop_pause_prob),
                 filter_shape: FilterShape::Static,
                 cliffhanger: false,
+                entry_delay: 0,
             };
+        }
+        // Entry delays too (own stream).
+        if let Some(w) = &r.entry_delay {
+            let mut est = rng.fork("entry-delay");
+            for style in styles.iter_mut() {
+                style.entry_delay = w.pick(&mut est).min(32) as u8;
+            }
         }
         // Cliffhangers draw from their own stream (keeps every other style stable).
         let mut cst = rng.fork("cliff");
@@ -889,6 +904,18 @@ impl SongPlan {
                 .minus(TrackSet::of(&[HatOpen, Rim]));
         }
 
+        // The short synths (and the melody, below) wait a few bars after a breakdown or drop.
+        let delayed = matches!(s.kind, SectionKind::Groove | SectionKind::Drop)
+            && idx > 0
+            && matches!(
+                self.sections[idx - 1].kind,
+                SectionKind::Breakdown | SectionKind::Drop
+            )
+            && sb < style.entry_delay as u32;
+        if delayed {
+            active = active.minus(SHORT_SYNTHS);
+        }
+
         // One short synth at a time: whenever the arrangement asks for any of them, the
         // song's main synth plays (or its alternative in breakdowns), never two at once.
         if !active.and(SHORT_SYNTHS).is_empty() {
@@ -921,7 +948,7 @@ impl SongPlan {
                 SectionKind::Breakdown => sb >= 4.min(s.bars / 2) && roll < g.breakdown_prob,
                 _ => false,
             };
-            if on {
+            if on && !delayed {
                 active = active.with(Melody).without(Lead).without(Arp);
             }
         }

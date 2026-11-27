@@ -25,6 +25,7 @@
     --accent2: #ffb13d;
     --code: #c9c9d3;
     --heart: #ff4d6d;
+    --label-ink: #ffffff;
   }
   /* House: warm violet night with a sunset amber accent. */
   html[data-genre="house"] {
@@ -39,6 +40,7 @@
     --accent2: #ff7ab8;
     --code: #e2d6ee;
     --heart: #ff7ab8;
+    --label-ink: #2a1636;
   }
   html[data-genre="house"] .play, html[data-genre="house"] .acc-btn.in { color: #2a1636; }
   * { box-sizing: border-box; }
@@ -81,6 +83,80 @@
   ol.favlist { margin-top: 0; }
   ol.favlist li { grid-template-columns: 1fr auto; cursor: default; }
   ol.favlist .how { grid-column: 1; }
+  /* ---- visuals mode: turntables and a mixer instead of the lower part of the page ---- */
+  .vis-btn {
+    position: absolute; top: 34px; right: 64px; z-index: 21;
+    width: 40px; height: 40px; border-radius: 50%; padding: 0;
+    display: grid; place-items: center; cursor: pointer;
+    background: var(--panel); color: var(--muted); border: 1.5px solid var(--line);
+  }
+  .vis-btn:hover { color: var(--text); border-color: var(--muted); }
+  .vis-btn[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
+  h1 { padding-right: 104px; }
+  .tagline { padding-right: 104px; }
+  #visuals { display: none; }
+  html[data-visuals="1"] #visuals { display: block; }
+  html[data-visuals="1"] #lower, html[data-visuals="1"] .site-title, html[data-visuals="1"] .tagline { display: none; }
+  html[data-visuals="1"] main { max-width: 1040px; }
+  html[data-visuals="1"] #g-head { padding-top: 52px; }
+  html[data-visuals="1"] .genre-nav { margin-top: 0; }
+  .vis { display: grid; gap: 16px; margin-top: 18px; grid-template-columns: 1fr; justify-items: center; }
+  .vis-deck { width: min(100%, 330px); }
+  .tt { width: 100%; height: auto; display: block; filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.45)); }
+  .tt-body { fill: var(--panel); stroke: var(--line); stroke-width: 2; }
+  .tt-platter { fill: #1d1d22; stroke: #34343b; stroke-width: 1.5; }
+  .tt-label { fill: var(--accent); }
+  .tt-artist, .tt-title { font: 700 9.5px system-ui, sans-serif; fill: var(--label-ink); }
+  .tt-title { font-weight: 600; }
+  .tt-genre { font: 800 7px system-ui, sans-serif; letter-spacing: 0.18em; fill: var(--label-ink); opacity: 0.85; }
+  .tt-bpm { font: 600 6.5px system-ui, sans-serif; fill: var(--label-ink); opacity: 0.7; }
+  .tt-pivot { fill: #2a2a31; stroke: #4a4a54; stroke-width: 1.5; }
+  .tt-tube { stroke: #c4c4cc; stroke-width: 3.6; stroke-linecap: round; }
+  .tt-head { fill: #e4e4ea; stroke: #888; stroke-width: 0.8; }
+  .arm { transform-origin: 196px 30px; transform: rotate(-18deg); transition: transform 0.9s ease; }
+  .arm.down { transform: rotate(0deg); }
+  .vis-cap { text-align: center; min-height: 3em; margin-top: 6px; line-height: 1.3; }
+  .vis-cap b { display: block; font-size: 1.05rem; }
+  .vis-cap span { color: var(--muted); font-size: 0.9rem; }
+  .vis-mixer {
+    width: min(100%, 330px); padding: 14px; border-radius: 16px; background: var(--panel);
+    border: 1px solid var(--line); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35); order: 0;
+  }
+  .mx-lcd { display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 8px; background: #0b0d0b; color: #8dffb0; font: 600 0.9rem ui-monospace, Menlo, Consolas, monospace; }
+  .mx-lcd b { font-size: 1.3rem; }
+  .mx-sec { margin-top: 8px; text-align: center; color: var(--accent); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.8rem; }
+  .mx-mid { display: grid; grid-template-columns: 56px 1fr 56px; gap: 8px; margin-top: 10px; align-items: stretch; }
+  .mx-ch { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .mx-lows { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); }
+  .mx-lows.on { color: #0b0d0b; background: #8dffb0; border-color: #8dffb0; }
+  .mx-lows.off { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+  .mx-fader { position: relative; width: 12px; height: 150px; border-radius: 6px; background: #0b0b0e; border: 1px solid var(--line); }
+  .mx-fill { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 6px; background: linear-gradient(to top, var(--accent2), var(--accent)); opacity: 0.55; }
+  .mx-knob { position: absolute; left: -9px; width: 28px; height: 14px; border-radius: 3px; background: linear-gradient(#e8e8ee, #9a9aa4); box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5); }
+  .mx-name { font-weight: 800; color: var(--muted); }
+  .mx-center { display: flex; flex-direction: column; align-items: center; gap: 10px; min-width: 0; }
+  .mx-leds { display: flex; flex-direction: column-reverse; gap: 3px; height: 70px; justify-content: flex-start; }
+  .mx-leds { flex-direction: row; height: auto; gap: 3px; }
+  .mx-leds i { width: 8px; height: 14px; border-radius: 2px; background: #1a1a20; }
+  .mx-leds i.on { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  .mx-leds i.on:nth-child(n+8) { background: var(--accent2); box-shadow: 0 0 6px var(--accent2); }
+  .mx-play { width: 62px; height: 62px; border-radius: 50%; border: 0; cursor: pointer; background: var(--accent); color: #fff; display: grid; place-items: center; }
+  html[data-genre="house"] .mx-play { color: #2a1636; }
+  .mx-play:disabled { opacity: 0.6; cursor: progress; }
+  .mx-play svg { width: 26px; height: 26px; fill: currentColor; }
+  .mx-play .ico-pause { display: none; }
+  .mx-play[data-state="playing"] .ico-play { display: none; }
+  .mx-play[data-state="playing"] .ico-pause { display: block; }
+  .mx-center input[type=range] { width: 100%; accent-color: var(--accent); }
+  .mx-row { display: flex; gap: 8px; align-items: center; }
+  .mx-new { padding: 5px 10px; font-size: 0.8rem; }
+  .mx-next { margin-top: 10px; min-height: 1.4em; text-align: center; color: var(--muted); font-size: 0.82rem; }
+  @media (min-width: 900px) {
+    .vis { grid-template-columns: 1fr 340px 1fr; align-items: center; gap: 22px; }
+    .vis-deck { width: 100%; max-width: 360px; }
+    .vis-mixer { width: 100%; }
+  }
+  @media (prefers-reduced-motion: reduce) { .arm { transition: none; } }
   .counters { display: flex; flex-direction: column; align-items: center; gap: 1px; margin: 40px 0 0; font-size: 0.82rem; color: var(--muted); font-variant-numeric: tabular-nums; text-align: center; }
   .counters b { color: var(--text); font-weight: 600; margin-right: 4px; }
   .acc-btn {
@@ -239,7 +315,7 @@
 <div id="stage">
 <main id="face">
   <header id="g-head">
-    <h1>Techno<span>.</span>Generator</h1>
+    <h1 class="site-title">Techno<span>.</span>Generator</h1>
     <p class="tagline">Completely algorithmically generated and synthesized. No samples.</p>
     <nav class="genre-nav" aria-label="Genre">
       <button class="g-arrow" id="g-prev" aria-label="Previous genre"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
@@ -249,6 +325,9 @@
     <div class="g-dots" id="g-dots" aria-hidden="true"></div>
   </header>
 
+  <section id="visuals" hidden aria-label="Visuals"></section>
+
+  <div id="lower">
   <h2>Live</h2>
   <section class="card live">
     <div class="head">
@@ -321,6 +400,7 @@
     off if your browser sends “Do Not Track”.</p>
   </details>
   <p class="counters" id="g-counters" hidden></p>
+  </div>
 </main>
 </div>
 <script>
@@ -567,5 +647,6 @@
 <script type="module" src="app/account.js"></script>
 <script type="module" src="app/counters.js"></script>
 <script type="module" src="app/live.js"></script>
+<script type="module" src="app/visuals.js"></script>
 </body>
 </html>

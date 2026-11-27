@@ -1,7 +1,7 @@
 // AudioWorklet: runs the Rust engine (WebAssembly) on the audio thread.
 // The main thread passes the .wasm bytes and the set seed via processorOptions.
 
-const STATUS_LEN = 17;
+const STATUS_LEN = 26;
 // Clock for load measurement (performance.now is not available in every worklet scope).
 const now = () => (globalThis.performance && performance.now ? performance.now() : Date.now());
 

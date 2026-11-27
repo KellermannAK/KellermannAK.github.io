@@ -822,10 +822,16 @@ fn gen_drums(rng: &mut Rng, p: &Profile) -> DrumPatterns {
 
     let hat_style = d.hats.styles.pick(rng);
     let open = rng.chance(d.hats.open_hat_prob);
+    // Open hats on every offbeat, or (house) just one per bar on the last offbeat.
+    let open_pat = if d.hats.open_single {
+        Pattern::from_mask(1 << 14, 16)
+    } else {
+        OFFBEATS
+    };
     let (mut hat_closed, hat_open) = match hat_style {
         HatStyle::Sixteenths => (
             Pattern::from_mask(0xFFFF, 16),
-            if open { OFFBEATS } else { Pattern::empty(16) },
+            if open { open_pat } else { Pattern::empty(16) },
         ),
         HatStyle::Offbeat => (
             OFFBEATS,
@@ -840,7 +846,7 @@ fn gen_drums(rng: &mut Rng, p: &Profile) -> DrumPatterns {
                 rng.range_i32(d.hats.euclid_hits[0] as i32, d.hats.euclid_hits[1] as i32) as u32;
             let rot = rng.range_i32(0, 15);
             let base = euclid(k, 16, rot);
-            (base, if open { OFFBEATS } else { Pattern::empty(16) })
+            (base, if open { open_pat } else { Pattern::empty(16) })
         }
     };
     // An open hat is choked by a closed one on the same step, so never play both.

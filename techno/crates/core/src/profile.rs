@@ -497,6 +497,9 @@ pub struct HatRules {
     pub styles: Weighted<HatStyle>,
     pub euclid_hits: [u32; 2],
     pub open_hat_prob: f32,
+    /// One open hat per bar (on the last offbeat) instead of one on every offbeat.
+    #[serde(default)]
+    pub open_single: bool,
     pub tone_hz: Range,
     pub closed_decay: Range,
     pub open_decay: Range,

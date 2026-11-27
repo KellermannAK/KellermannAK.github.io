@@ -344,7 +344,44 @@ async function playFavorites(genreId) {
   $("lv-play").closest(".card").scrollIntoView({ behavior: "smooth", block: "start" });
   await startSet(0, pl).catch((e) => showError(e.message));
 }
-window.TechnoLive = { playFavorites };
+/** Title and artist of a song of the running set (cached; names come from the engine). */
+const nameCache = new Map();
+function nameOf(seedNum) {
+  const k = `${setGenre.id}|${seedNum}`;
+  if (!nameCache.has(k)) nameCache.set(k, songName(seedNum));
+  return nameCache.get(k) || { artist: "", title: "" };
+}
+
+/** What the visuals mode shows: both decks, the mixer values and the playing song. */
+function visual() {
+  const empty = { seed: null, title: "", artist: "", gain: 0, lows: 0, hp: 0 };
+  if (!lastStatus) return { playing: false, decks: [empty, empty], bpm: 0 };
+  const s = lastStatus;
+  const deck = (b) => {
+    if (s[b] < 0) return empty;
+    const n = nameOf(s[b]);
+    return { seed: s[b], title: n.title, artist: n.artist, gain: s[b + 1], lows: s[b + 2], hp: s[b + 3] };
+  };
+  return {
+    playing,
+    bpm: s[5],
+    camelot: `${s[4]}${ring()}`,
+    section: SECTIONS[s[6]] || "",
+    energy: s[11],
+    next: $("lv-next").textContent,
+    slot: s[17],
+    decks: [deck(18), deck(22)],
+  };
+}
+
+function toggleFavorite() {
+  const i = favInfo();
+  if (i && window.TechnoFavs) window.TechnoFavs.toggle(i);
+  showFav();
+}
+const isFavorite = () => !!(lastStatus && window.TechnoFavs && window.TechnoFavs.has(setGenre.id, lastStatus[1]));
+
+window.TechnoLive = { playFavorites, visual, toggleFavorite, isFavorite };
 
 function setupMediaSession() {
   if (!("mediaSession" in navigator)) return;

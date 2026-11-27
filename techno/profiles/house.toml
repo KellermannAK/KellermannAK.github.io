@@ -44,10 +44,12 @@ click = [0.04, 0.14]
 styles = { values = ["sixteenths", "offbeat", "euclid"], weights = [2.0, 4.0, 2.0] }
 euclid_hits = [6, 10]
 # The open offbeat hat is the signature of house.
-open_hat_prob = 0.85
+open_hat_prob = 0.5
+# Feedback (three times): open hats on every offbeat are too much. One per bar, short.
+open_single = true
 tone_hz = [8000.0, 11000.0]
 closed_decay = [0.02, 0.045]
-open_decay = [0.18, 0.32]
+open_decay = [0.07, 0.14]
 metal = [0.2, 0.6]
 
 [drums.clap]
@@ -136,7 +138,7 @@ patterns = { values = ["up", "down", "up_down", "random"], weights = [2.0, 1.0, 
 rate = { values = [1, 2], weights = [0.5, 3.0] }
 octaves = { values = [1, 2], weights = [2.0, 1.0] }
 chords = { values = ["triad", "seventh", "ninth"], weights = [1.0, 2.0, 2.0] }
-cutoff_hz = [1200.0, 3000.0]
+cutoff_hz = [900.0, 2200.0]
 env_mod = [0.5, 1.5]
 decay = [0.12, 0.3]
 
@@ -197,11 +199,13 @@ rim = { values = [0, 1, 2], weights = [1.0, 2.0, 2.0] }
 tom = { values = [0, 1, 2], weights = [2.0, 0.3, 1.0] }
 # bass: 0 saw + sub, 1 reese, 2 square + sub, 3 sine pluck
 # Feedback: the saw / reese basses were "too dirty for nice house".
-bass = { values = [0, 1, 2, 3], weights = [0.3, 0.0, 1.0, 4.0] }
+# 4 = clean sub (sine + soft 2nd harmonic, no filter, no drive).
+bass = { values = [0, 1, 2, 3, 4], weights = [0.0, 0.0, 0.2, 0.6, 7.0] }
 rumble = { values = [0], weights = [1.0] }
 # stab / arp: 0 detuned saws, 1 pulse, 2 FM bell, 3 organ
 stab = { values = [0, 1, 2, 3], weights = [1.0, 0.5, 2.0, 3.0] }
-arp = { values = [0, 1, 2, 3], weights = [1.0, 1.0, 2.5, 1.0] }
+# Feedback: the saw arp was "too harsh"; bell and organ only.
+arp = { values = [0, 1, 2, 3], weights = [0.15, 0.15, 3.0, 2.0] }
 # pad: 0 saws, 1 hollow squares, 2 sine choir, 3 strings
 pad = { values = [0, 1, 2, 3], weights = [1.0, 0.3, 2.0, 5.0] }
 drone = { values = [0, 1, 2], weights = [1.0, 2.0, 0.2] }
@@ -217,7 +221,7 @@ suffix_prob = 0.3
 sidechain_depth = [0.35, 0.6]
 sidechain_release = [0.15, 0.25]
 # Feedback: the 8ths with the open hat were too loud.
-open_hat_gain = 0.5
+open_hat_gain = 0.4
 
 [structure]
 # ~5:20-7:00 at 122 BPM.
@@ -233,6 +237,8 @@ after_groove = { values = ["groove", "breakdown", "build"], weights = [1.5, 3.0,
 after_drop = { values = ["groove", "breakdown"], weights = [3.0, 1.0] }
 # Few to no drops: a breakdown usually flows back into the groove.
 after_breakdown = { values = ["groove", "drop"], weights = [4.0, 0.5] }
+# Feedback: after a breakdown / drop the melody must not come back immediately.
+entry_delay = { values = [0, 4, 8], weights = [1.0, 2.0, 1.5] }
 require_drop = false
 groove_layers = true
 soft_transitions = true
@@ -265,7 +271,7 @@ delay_throw = 0.25
 # notes). Songs that carry one get a moving chord progression and strings underneath, and
 # the melody replaces the lead / arp while it plays.
 # To switch it off again: probability = 0 (or delete this section).
-probability = 0.45
+probability = 0.6
 voices = { values = ["piano", "glide", "pluck"], weights = [3.0, 3.0, 1.5] }
 bars = { values = [8, 16], weights = [2.0, 1.0] }
 # Share of the 8-bar phrases that carry the melody (grooves / drops, breakdowns).

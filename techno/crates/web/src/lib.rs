@@ -21,7 +21,7 @@ use techno_core::theory::ScaleKind;
 use techno_engine::{PlaylistSong, Set, TransitionKind};
 
 pub const MAX_FRAMES: usize = 4096;
-pub const STATUS_LEN: usize = 17;
+pub const STATUS_LEN: usize = 26;
 
 /// Status array layout (all f64):
 /// 0 song index, 1 song seed, 2 key root (0 = C), 3 scale (0 minor, 1 phrygian,
@@ -29,7 +29,9 @@ pub const STATUS_LEN: usize = 17;
 /// 3 breakdown, 4 drop, 5 outro, -1 none), 7 bar, 8 bar in section, 9 section length,
 /// 10 song length in bars, 11 energy 0..1, 12 planned transition (-1 none, 0 cut,
 /// 1 fast blend, 2 slow blend, 3 filter blend), 13 bars until it starts,
-/// 14 transition running (0/1), 15 seconds since start, 16 Camelot ring (0 A, 1 B).
+/// 14 transition running (0/1), 15 seconds since start, 16 Camelot ring (0 A, 1 B),
+/// 17 slot of the current song (0 / 1: which turntable), then per deck slot 0 (18..21) and
+/// slot 1 (22..25): song seed (-1 = empty), channel fader, low band, high-pass (mixer view).
 /// 2x upsampler (half-band windowed-sinc FIR, polyphase). Used by the economy mode,
 /// where the engine renders at half the output rate.
 pub struct Upsampler2x {
@@ -217,6 +219,15 @@ impl WebEngine {
             s.in_transition as u8 as f64,
             s.seconds,
             if key.camelot().1 == 'B' { 1.0 } else { 0.0 },
+            s.current_slot as f64,
+            s.decks[0].seed.map(|x| x as f64).unwrap_or(-1.0),
+            s.decks[0].gain as f64,
+            s.decks[0].lows as f64,
+            s.decks[0].hp as f64,
+            s.decks[1].seed.map(|x| x as f64).unwrap_or(-1.0),
+            s.decks[1].gain as f64,
+            s.decks[1].lows as f64,
+            s.decks[1].hp as f64,
         ];
         &self.status
     }
@@ -460,5 +471,13 @@ mod tests {
         assert_eq!(s[0], 0.0); // first song
         assert!(s[5] >= 120.0); // bpm
         assert!(s[6] >= 0.0); // has a section
+                              // Mixer view: the playing song sits on the current slot, at full fader, lows open.
+        let cur = s[17] as usize;
+        assert!(cur < 2);
+        let base = 18 + 4 * cur;
+        assert_eq!(s[base], s[1], "current deck holds the playing song");
+        assert!(s[base + 1] > 0.9 && s[base + 2] > 0.9);
+        // The other deck is empty before the first transition.
+        assert_eq!(s[18 + 4 * (1 - cur)], -1.0);
     }
 }

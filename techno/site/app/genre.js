@@ -124,6 +124,12 @@
 
   // Apply the theme before the first paint (this script is loaded in <head>).
   document.documentElement.dataset.genre = current;
+  try {
+    // Visuals mode (see visuals.js): set early so the page does not flash.
+    const q = new URLSearchParams(location.search).get("visuals");
+    const on = q === "1" || (q === null && localStorage.getItem("techno-visuals") === "1");
+    document.documentElement.dataset.visuals = on ? "1" : "0";
+  } catch (_) {}
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();
 

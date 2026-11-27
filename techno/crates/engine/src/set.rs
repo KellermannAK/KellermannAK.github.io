@@ -69,6 +69,23 @@ pub struct SetStatus {
     pub bars_to_transition: u32,
     pub in_transition: bool,
     pub seconds: f64,
+    /// Slot (0 / 1) of the song that owns the set: the turntable that plays it (visuals).
+    pub current_slot: u8,
+    /// Both decks as a mixer shows them.
+    pub decks: [DeckView; 2],
+}
+
+/// What a mixer display shows of one deck.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct DeckView {
+    /// Song loaded on the deck, if any.
+    pub seed: Option<u64>,
+    /// Channel fader 0..1.
+    pub gain: f32,
+    /// Low-band level 0..1 (0 = bass killed).
+    pub lows: f32,
+    /// High-pass amount 0..1 (filter sweep).
+    pub hp: f32,
 }
 
 /// One song as it appears in the set.
@@ -296,6 +313,16 @@ impl Set {
                 .unwrap_or(0),
             in_transition: self.transition_start_frame.is_some(),
             seconds: self.frame as f64 / self.sr as f64,
+            current_slot: self.current as u8,
+            decks: core::array::from_fn(|i| match self.slots[i].as_ref() {
+                Some(s) => DeckView {
+                    seed: Some(s.deck.dna.seed),
+                    gain: s.strip.gain.value,
+                    lows: s.strip.lows.value,
+                    hp: s.strip.hp.value,
+                },
+                None => DeckView::default(),
+            }),
         }
     }
 

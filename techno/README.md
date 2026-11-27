@@ -127,6 +127,15 @@ crates/cli      `techno` binary: render songs and mixes to WAV, DNA inspection
 site/, scripts/ preview page (GitHub Pages) and its build script
 ```
 
+### Visuals mode
+
+The button next to the account circle hides everything below the genre switcher and shows
+two turntables with a mixer: the records spin while their deck is audible (and slow down to a
+stop on pause), artist and title run around the record label, the mixer shows both channel
+faders, the low-band kills, BPM, key, section, energy and the next transition. All of it is
+read from the engine status (`techno_status`, fields 17-25); the buttons in the mixer press
+the controls of the live card. `?visuals=1` opens the page in this mode.
+
 ### Melody layer (experiment, house)
 
 Songs can carry a real melody over 8 or 16 bars instead of an arpeggio: it follows the chord

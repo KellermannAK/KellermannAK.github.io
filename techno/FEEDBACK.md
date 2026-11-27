@@ -67,3 +67,10 @@ never counted as good or bad.
 | house (5242db3) | Melody 4th tone atonal | `chord_tones_only`: lead notes snap to chord tones. |
 | house (5242db3) | Bassline too dirty for nice house | Saw/reese bass variants removed, mostly sine pluck / square, less drive and resonance. |
 | house (5242db3) | Hard cut between sections; theme changes liked but too frequent | `pre_breakdown_thin`: last 2 bars before a breakdown without synths; breakdown instrument swap probability 0.5 -> 0.22. |
+| house (919d919, 9a5f1bd) | Open hats on every offbeat "too loud", "8ths... why?" (4x, also after the first gain cut) | Open hat only once per bar (`open_single`), half as likely, short decay (0.07-0.14 s), level 0.4. |
+| house (9a5f1bd) | Bass "not nice" / "annoying instrument" (3x); "in house strongly increase the probability of clean basslines" | New bass variant 4 "clean sub" (sine + soft 2nd harmonic, no filter, no drive); weight 7 of ~8. |
+| house (9a5f1bd) | Guitar too clean, wants a natural acoustic sound with fret noise or very light distortion | Pick click on every note, fret squeak when the hand changes pitch, light overdrive (more on the electric variant). |
+| house (919d919) | After a breakdown / drop the melody comes back at once; wants a few bars without melody | `entry_delay` (0 / 4 / 8 bars, per section): short synths and melody wait after a breakdown or drop. Melody probability 0.45 -> 0.6 (glides and the lead melody were praised: "awesome", "idea is great, but the tones are crap"). |
+| house (919d919) | Arp synth "too harsh" on the offbeat (rhythm liked) | Arp variants: bell and organ only, saws rare, lower cutoff. |
+| techno | 👍 Live set with a build-up (Haldos - Specter) | Noted, no change. |
+
