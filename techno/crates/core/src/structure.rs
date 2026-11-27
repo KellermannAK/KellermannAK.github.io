@@ -907,7 +907,8 @@ impl SongPlan {
         }
 
         // The short synths (and the melody, below) wait a few bars after a breakdown or drop.
-        let delayed = matches!(s.kind, SectionKind::Groove | SectionKind::Drop)
+        // Not for drops: a drop must not start with the lead missing (feedback: "anti drop").
+        let delayed = s.kind == SectionKind::Groove
             && idx > 0
             && matches!(
                 self.sections[idx - 1].kind,

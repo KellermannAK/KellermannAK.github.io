@@ -106,10 +106,6 @@
   .tt-body { fill: var(--panel); stroke: var(--line); stroke-width: 2; }
   .tt-platter { fill: #1d1d22; stroke: #34343b; stroke-width: 1.5; }
   .tt-label { fill: var(--accent); }
-  .tt-artist, .tt-title { font: 700 9.5px system-ui, sans-serif; fill: var(--label-ink); }
-  .tt-title { font-weight: 600; }
-  .tt-genre { font: 800 7px system-ui, sans-serif; letter-spacing: 0.18em; fill: var(--label-ink); opacity: 0.85; }
-  .tt-bpm { font: 600 6.5px system-ui, sans-serif; fill: var(--label-ink); opacity: 0.7; }
   .tt-pivot { fill: #2a2a31; stroke: #4a4a54; stroke-width: 1.5; }
   .tt-tube { stroke: #c4c4cc; stroke-width: 3.6; stroke-linecap: round; }
   .tt-head { fill: #e4e4ea; stroke: #888; stroke-width: 0.8; }
@@ -161,7 +157,9 @@
   .mx-play[data-state="playing"] .ico-play { display: none; }
   .mx-play[data-state="playing"] .ico-pause { display: block; }
   .mx-center input[type=range] { width: 100%; accent-color: var(--accent); }
-  .mx-row { display: flex; gap: 8px; align-items: center; }
+  .mx-row { display: flex; gap: 4px; align-items: center; justify-content: center; flex-wrap: wrap; }
+  .rate { background: none; border: 1px solid var(--line); border-radius: 50%; width: 34px; height: 34px; padding: 0; font-size: 1rem; line-height: 1; cursor: pointer; }
+  .rate:hover { border-color: var(--muted); }
   .mx-new { padding: 5px 10px; font-size: 0.8rem; }
   .mx-next { margin-top: 10px; min-height: 1.4em; text-align: center; color: var(--muted); font-size: 0.82rem; }
   @media (min-width: 900px) {

@@ -250,7 +250,8 @@ breakdown_to_build_prob = 0.2
 riser = { values = ["noise", "gated", "swell", "pitched", "none"], weights = [0.5, 0.0, 2.0, 0.0, 3.0] }
 roll = { values = ["snare", "clap", "kick", "none"], weights = [0.5, 0.5, 0.0, 3.0] }
 build_highpass_prob = 0.3
-drop_style = { values = ["full", "bass_first", "stripped", "filter_open"], weights = [2.0, 0.5, 1.0, 3.0] }
+# Feedback: "anti drop" - the build had the lead, the stripped drop took it away. Only full drops.
+drop_style = { values = ["full", "bass_first", "stripped", "filter_open"], weights = [2.0, 0.0, 0.0, 3.0] }
 drop_impact = { values = ["impact_crash", "crash", "none"], weights = [0.0, 2.0, 2.0] }
 synth_filter = { values = ["static", "rise", "fall", "swell", "breathe"], weights = [2.0, 1.0, 1.0, 1.5, 2.0] }
 synth_filter_depth = 0.25

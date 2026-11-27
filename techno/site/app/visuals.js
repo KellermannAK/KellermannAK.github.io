@@ -4,6 +4,8 @@
 // low-band kills, the playing song's BPM and key, the arrangement energy and the next
 // transition. All data comes from the live set (`TechnoLive.visual()`); the buttons in the
 // mixer press the real controls of the live card.
+import { labelSvg } from "./labels.js";
+
 const KEY = "techno-visuals";
 const SPEED = 200; // degrees per second: 33 1/3 rpm
 const LEDS = 10;
@@ -27,13 +29,6 @@ const f = (n) => n.toFixed(2);
 
 function deckSvg(i) {
   const [c, R] = [110, 98];
-  const rt = 43; // artist (top arc)
-  const rb = 46; // title (bottom arc)
-  const span = 85;
-  const [tx0, ty0] = pt(c, c, rt, -span);
-  const [tx1, ty1] = pt(c, c, rt, span);
-  const [bx0, by0] = pt(c, c, rb, 180 + span);
-  const [bx1, by1] = pt(c, c, rb, 180 - span);
   const grooves = [90, 83, 76, 69, 63].map((r) => `<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="#202026" stroke-width="0.9"/>`).join("");
   return `
   <svg viewBox="0 0 220 220" class="tt" role="img" aria-label="Turntable ${i ? "B" : "A"}">
@@ -44,13 +39,7 @@ function deckSvg(i) {
       ${grooves}
       <path d="M${c} ${c} L${c} ${c - R} A${R} ${R} 0 0 1 ${f(c + R * Math.sin(0.5))} ${f(c - R * Math.cos(0.5))} Z" fill="#fff" opacity="0.06"/>
       <path d="M${c} ${c} L${c} ${c + R} A${R} ${R} 0 0 1 ${f(c - R * Math.sin(0.5))} ${f(c + R * Math.cos(0.5))} Z" fill="#fff" opacity="0.06"/>
-      <circle cx="${c}" cy="${c}" r="58" class="tt-label"/>
-      <path id="tp-${i}" d="M${f(tx0)} ${f(ty0)} A${rt} ${rt} 0 0 1 ${f(tx1)} ${f(ty1)}" fill="none"/>
-      <path id="bp-${i}" d="M${f(bx0)} ${f(by0)} A${rb} ${rb} 0 0 0 ${f(bx1)} ${f(by1)}" fill="none"/>
-      <text class="tt-artist"><textPath href="#tp-${i}" startOffset="50%" text-anchor="middle" id="ta-${i}"></textPath></text>
-      <text class="tt-title"><textPath href="#bp-${i}" startOffset="50%" text-anchor="middle" id="tt-${i}"></textPath></text>
-      <text class="tt-genre" x="${c}" y="${c - 4}" text-anchor="middle" id="tg-${i}"></text>
-      <text class="tt-bpm" x="${c}" y="${c + 9}" text-anchor="middle" id="tb-${i}"></text>
+      <g id="lab-${i}"><circle cx="${c}" cy="${c}" r="58" class="tt-label"/></g>
       <circle cx="${c}" cy="${c}" r="3.2" fill="#e6e6e6"/>
     </g>
     <g class="arm" id="arm-${i}">
@@ -59,20 +48,6 @@ function deckSvg(i) {
       <rect x="160" y="144" width="15" height="24" rx="3" transform="rotate(14 170 148)" class="tt-head"/>
     </g>
   </svg>`;
-}
-
-function fit(el, text, arc, size) {
-  // Shrink the text to the arc: glyphs and spacing are compressed when it is too long.
-  const t = text.length > 34 ? `${text.slice(0, 33)}…` : text;
-  el.textContent = t;
-  const natural = t.length * size * 0.56;
-  if (natural > arc) {
-    el.setAttribute("textLength", String(arc));
-    el.setAttribute("lengthAdjust", "spacingAndGlyphs");
-  } else {
-    el.removeAttribute("textLength");
-    el.removeAttribute("lengthAdjust");
-  }
 }
 
 // ------------------------------------------------------------------ build
@@ -128,8 +103,11 @@ function build() {
             <input type="range" id="mx-vol" min="0" max="1" step="0.01" aria-label="Volume">
             <div class="mx-row">
               <button class="heart" id="mx-fav" aria-label="Add to favorites" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M12 20.4C5.2 15.2 3 12.1 3 8.9 3 6.2 5 4.5 7.3 4.5c1.9 0 3.5 1.1 4.7 3 1.2-1.9 2.8-3 4.7-3C19 4.5 21 6.2 21 8.9c0 3.2-2.2 6.3-9 11.5z"/></svg></button>
-              <button class="btn mx-new" id="mx-new">New set</button>
+              <button class="rate" data-r="up" aria-label="Thumbs up">👍</button>
+              <button class="rate" data-r="down" aria-label="Thumbs down">👎</button>
+              <button class="rate" data-r="idea" aria-label="Idea">💡</button>
             </div>
+            <button class="btn mx-new" id="mx-new">New set</button>
           </div>
           <div class="mx-ch" data-i="1">
             <div class="mx-lows" id="lows-1">LOW</div>
@@ -160,6 +138,11 @@ function build() {
     if (source === "mix" && MV()) MV().toggleFavorite();
     else if (window.TechnoLive) window.TechnoLive.toggleFavorite();
   });
+  // Like / dislike / idea for the moment that is playing (opens the feedback dialog).
+  document.querySelectorAll(".rate").forEach((b) => b.addEventListener("click", () => {
+    if (source === "mix" && MV()) MV().feedback(b.dataset.r);
+    else if (window.TechnoLive) window.TechnoLive.feedback(b.dataset.r);
+  }));
   $("src-live").addEventListener("click", () => chooseSource("live"));
   $("src-mix").addEventListener("click", () => chooseSource("mix"));
   $("mx-sprev").addEventListener("click", () => MV() && MV().skip(-1));
@@ -195,7 +178,6 @@ function frame(t) {
     : $("lv-play") ? $("lv-play").dataset.state : "idle";
   const playing = !!(v && v.playing);
 
-  const gname = (window.TechnoGenre ? window.TechnoGenre.current().name : "").toUpperCase();
   for (let i = 0; i < 2; i++) {
     const d = v && v.decks ? v.decks[i] : null;
     const has = !!(d && d.seed !== null && d.seed !== undefined);
@@ -213,10 +195,10 @@ function frame(t) {
     const key = has ? `${d.seed}|${d.title}|${d.artist}` : "";
     if (key !== st.key) {
       st.key = key;
-      fit($(`ta-${i}`), has ? d.artist || "" : "", 2 * Math.PI * 43 * (170 / 360), 9.5);
-      fit($(`tt-${i}`), has ? d.title || `Song ${d.seed}` : "", 2 * Math.PI * 46 * (170 / 360), 9.5);
-      $(`tg-${i}`).textContent = gname;
-      $(`tb-${i}`).textContent = has && v.bpm ? `${Math.round(v.bpm)} BPM` : "";
+      // Every song gets its own label (layout, colours, type, decoration) from its seed.
+      $(`lab-${i}`).innerHTML = has
+        ? labelSvg(i, d.seed, d.artist || "", d.title || `Song ${d.seed}`)
+        : '<circle cx="110" cy="110" r="58" class="tt-label"/>';
       $(`cap-${i}`).innerHTML = has
         ? `<b>${esc(d.title || "Song " + d.seed)}</b><span>${esc(d.artist || "")}</span>`
         : `<span>${playing ? "" : "Press play"}</span>`;
@@ -261,6 +243,7 @@ function frame(t) {
   fav.classList.toggle("on", isFav);
   fav.setAttribute("aria-pressed", String(isFav));
   fav.hidden = !playing;
+  document.querySelectorAll(".rate").forEach((b) => { b.hidden = !playing; });
 }
 
 // ------------------------------------------------------------------ switch

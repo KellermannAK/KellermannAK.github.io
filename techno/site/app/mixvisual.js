@@ -170,6 +170,19 @@
       if (root < 0) return null;
       return { genre: m.genre, seed: s.seed, root, bpm: s.bpm, title: s.title || "", artist: s.artist || "", key: s.key, build: m.build };
     },
+    /** Like / dislike / idea for the playing moment: same dialog as the buttons of a mix card. */
+    feedback(rating) {
+      const m = list[playingIndex() >= 0 ? playingIndex() : sel];
+      if (!m || !window.TechnoFeedback) return;
+      const t = m.audio.currentTime || 0;
+      const cur = songIndexAt(m.songs, t);
+      const s = m.songs[cur];
+      window.TechnoFeedback.open({
+        source: "Mix", genre: m.genre, mixSeed: m.seed, mixSongs: m.songs.length, songIndex: cur,
+        songSeed: s.seed, build: m.build, key: s.key, camelot: s.camelot, bpm: m.set.bpm, time: mmss(t),
+        title: s.artist ? `${s.artist} – ${s.title}` : undefined,
+      }, rating);
+    },
     isFavorite() {
       const i = api.info();
       return !!(i && window.TechnoFavs && window.TechnoFavs.has(i.genre, i.seed));

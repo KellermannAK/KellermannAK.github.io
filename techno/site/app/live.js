@@ -381,7 +381,7 @@ function toggleFavorite() {
 }
 const isFavorite = () => !!(lastStatus && window.TechnoFavs && window.TechnoFavs.has(setGenre.id, lastStatus[1]));
 
-window.TechnoLive = { playFavorites, visual, toggleFavorite, isFavorite };
+window.TechnoLive = { playFavorites, visual, toggleFavorite, isFavorite, feedback };
 
 function setupMediaSession() {
   if (!("mediaSession" in navigator)) return;

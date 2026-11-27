@@ -136,6 +136,11 @@ faders, the low-band kills, BPM, key, section, energy and the next transition. A
 read from the engine status (`techno_status`, fields 17-25); the buttons in the mixer press
 the controls of the live card. `?visuals=1` opens the page in this mode.
 
+Every song gets its own record label, drawn from its seed (`app/labels.js`): artist and title
+curved along the rim, straight, on a diagonal band, in two halves or minimal, in one of nine
+colour schemes and six type styles, sometimes with a ring, dots, bars, a triangle or a line.
+Next to the heart the mixer has the thumbs up / down and idea buttons of the live card.
+
 The mixer also plays the archived mixes (switch LIVE / MIX at its top): the records and faders
 are redrawn from the playing position and the tracklist (`app/mixvisual.js`; song i sits on
 deck i % 2, the fader curves are those of the live DJ strips, the blend timing comes from
