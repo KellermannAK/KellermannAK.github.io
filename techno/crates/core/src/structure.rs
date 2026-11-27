@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::profile::{Profile, Weighted};
+use crate::profile::{MelodyBacking, Profile, Weighted};
 use crate::rng::Rng;
 use crate::time::seconds_per_bar;
 use crate::tracks::{Track, TrackSet};
@@ -399,10 +399,10 @@ pub struct SongPlan {
 /// melody: per 8-bar phrase dice (compared with the profile's probabilities) and thresholds.
 #[derive(Clone, Copy, Debug)]
 struct MelodyGate {
-    roll: [f32; MAX_PHRASES],
-    phrase_prob: f32,
+    /// One die and one backing per section (the melody carries a whole breakdown or none).
+    roll: [f32; MAX_SECTIONS],
+    backing: [MelodyBacking; MAX_SECTIONS],
     breakdown_prob: f32,
-    energy: f32,
 }
 
 fn len_pick(w: &Weighted<u32>, rng: &mut Rng) -> u32 {
@@ -652,18 +652,20 @@ impl SongPlan {
         }
     }
 
-    /// melody: give the song a melody layer; `bar()` then adds `Track::Melody` in the phrases
-    /// the dice allow (grooves and drops above the energy threshold, breakdowns after 4 bars).
+    /// melody: give the song a melody layer. `bar()` then plays `Track::Melody` in breakdowns
+    /// only (the dice decide per breakdown), over the strings and, depending on the backing
+    /// drawn for that breakdown, a stripped groove, only the bass, only the rhythm or nothing.
     pub fn set_melody(&mut self, rng: &mut Rng, r: &crate::profile::MelodyRules) {
-        let mut roll = [0.0f32; MAX_PHRASES];
-        for x in roll.iter_mut() {
-            *x = rng.next_f32();
+        let mut roll = [0.0f32; MAX_SECTIONS];
+        let mut backing = [MelodyBacking::RhythmBass; MAX_SECTIONS];
+        for i in 0..MAX_SECTIONS {
+            roll[i] = rng.next_f32();
+            backing[i] = r.backing.pick(rng);
         }
         self.melody = Some(MelodyGate {
             roll,
-            phrase_prob: r.phrase_prob,
+            backing,
             breakdown_prob: r.breakdown_prob,
-            energy: r.energy,
         });
     }
 
@@ -937,20 +939,24 @@ impl SongPlan {
             }
         }
 
-        // melody: while the melody plays it is the only short instrument: no lead, arp, stab,
-        // piano or guitar behind it (feedback: "too much in the background", "not harmonic").
-        // The strings, the bass and the drums carry the chords.
+        // melody: only in breakdowns, after a few bars of strings. While it plays it is the only
+        // short instrument (no lead, arp, stab, piano or guitar; feedback: "too much in the
+        // background", "not harmonic"); under it the strings and, per breakdown, a stripped
+        // groove (kick, hats, clap, bass), only bass, only rhythm or nothing else.
         if let Some(g) = &self.melody {
-            let roll = g.roll[(bar / PHRASE_BARS) as usize % MAX_PHRASES];
-            let on = match s.kind {
-                SectionKind::Groove | SectionKind::Drop => {
-                    energy + self.groove_offset >= g.energy && roll < g.phrase_prob
-                }
-                SectionKind::Breakdown => sb >= 4.min(s.bars / 2) && roll < g.breakdown_prob,
-                _ => false,
-            };
-            if on && !delayed {
-                active = active.minus(SHORT_SYNTHS).with(Melody);
+            let enter = (s.bars / 4).min(4);
+            if s.kind == SectionKind::Breakdown && sb >= enter && g.roll[idx] < g.breakdown_prob {
+                let rhythm = TrackSet::of(&[Kick, HatClosed, Clap]);
+                let backing = match g.backing[idx] {
+                    MelodyBacking::RhythmBass => rhythm.with(Bass),
+                    MelodyBacking::Bass => TrackSet::of(&[Bass]),
+                    MelodyBacking::Rhythm => rhythm,
+                    MelodyBacking::Bare => TrackSet::NONE,
+                };
+                active = active
+                    .minus(SHORT_SYNTHS)
+                    .union(backing.and(self.palette))
+                    .with(Melody);
             }
         }
 

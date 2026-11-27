@@ -1847,6 +1847,7 @@ mod tests {
     fn melody_songs_have_moving_chords_and_strings() {
         let p = Profile::house();
         let (mut with, mut played) = (0, 0);
+        let (mut kicks, mut basses, mut bare) = (0u32, 0u32, 0u32);
         for dna in house_songs() {
             if dna.melody.is_empty() {
                 assert!(!dna.plan.palette.contains(Track::Melody));
@@ -1869,18 +1870,28 @@ mod tests {
                         "seed {} bar {bar}",
                         dna.seed
                     );
-                    assert!(matches!(
+                    assert_eq!(
                         b.section,
-                        SectionKind::Groove | SectionKind::Drop | SectionKind::Breakdown
-                    ));
+                        SectionKind::Breakdown,
+                        "melody only in breakdowns"
+                    );
+                    kicks += b.active.contains(Track::Kick) as u32;
+                    basses += b.active.contains(Track::Bass) as u32;
+                    bare +=
+                        (!b.active.contains(Track::Kick) && !b.active.contains(Track::Bass)) as u32;
                 }
             }
         }
         let share = with as f32 / 200.0;
         assert!((share - p.melody.probability).abs() < 0.12, "{share}");
         assert!(
-            played > with * 20,
-            "melody should play for many bars: {played}"
+            played > with * 3,
+            "melody should play in the breakdowns: {played}"
+        );
+        // The backing varies: stripped groove, bass only / rhythm only, and nothing at all.
+        assert!(
+            kicks > 0 && basses > 0 && bare > 0,
+            "{kicks} {basses} {bare}"
         );
     }
 

@@ -68,6 +68,20 @@ pub enum MelodyVoice {
     Pluck,
 }
 
+/// What accompanies the melody in a breakdown: it can be a stripped groove or nearly nothing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MelodyBacking {
+    /// Kick, hats, clap and bass.
+    RhythmBass,
+    /// Bass only.
+    Bass,
+    /// Kick, hats and clap, no bass.
+    Rhythm,
+    /// Nothing but the strings.
+    Bare,
+}
+
 /// A melody over several bars that follows the chord progression (see `melody.rs`).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MelodyRules {
@@ -76,12 +90,10 @@ pub struct MelodyRules {
     pub voices: Weighted<MelodyVoice>,
     /// Length of the melody in bars (8 or 16), then it loops.
     pub bars: Weighted<u8>,
-    /// Share of the 8-bar phrases in grooves and drops that carry the melody.
-    pub phrase_prob: f32,
-    /// Same for breakdowns (after their first bars).
+    /// Share of the breakdowns that carry the melody (it plays only in breakdowns).
     pub breakdown_prob: f32,
-    /// Minimum arrangement energy for the melody in grooves and drops.
-    pub energy: f32,
+    /// What plays under the melody in a breakdown (besides the strings).
+    pub backing: Weighted<MelodyBacking>,
     /// Chance of a chromatic approach note before a strong note (jazz colour).
     pub chromatic_prob: f32,
     /// Chance that a bar is sparse (one or two long notes) instead of busy.
@@ -106,9 +118,11 @@ impl Default for MelodyRules {
                 values: vec![8],
                 weights: vec![1.0],
             },
-            phrase_prob: 0.6,
             breakdown_prob: 0.9,
-            energy: 0.55,
+            backing: Weighted {
+                values: vec![MelodyBacking::RhythmBass],
+                weights: vec![1.0],
+            },
             chromatic_prob: 0.2,
             rest_prob: 0.12,
             range: [0, 11],

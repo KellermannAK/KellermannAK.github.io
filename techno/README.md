@@ -148,7 +148,9 @@ Songs can carry a real melody over 8 or 16 bars instead of an arpeggio: it follo
 progression underneath (notes are stored relative to each bar's chord root), is jazz-like
 (syncopated rhythms, 3rd / 7th / 9th on the strong beats, chromatic approach notes) and is
 played by its own piano, glide lead or pluck. Songs with a melody get a progression that
-really moves and strings underneath; the melody replaces lead and arp while it plays.
+really moves and strings underneath. The melody plays only in breakdowns (after a few bars of
+strings) as the only short instrument; under it comes a stripped groove, only the bass, only the
+rhythm, or nothing but the strings (drawn per breakdown, `backing` in the profile).
 Code: `crates/core/src/melody.rs` plus the places marked `// melody:`. Switch it off with
 `probability = 0` in the `[melody]` section of `profiles/house.toml` (or delete the section).
 
