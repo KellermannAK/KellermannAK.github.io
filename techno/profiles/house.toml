@@ -277,8 +277,10 @@ delay_throw = 0.25
 # (jazz-like: syncopated rhythms, 3rd / 7th / 9th on the strong beats, chromatic approach
 # notes). Songs that carry one get a moving chord progression and strings underneath, and
 # the melody is the only short instrument while it plays, and only in breakdowns.
-# To switch it off again: probability = 0 (or delete this section).
-probability = 0.8
+# SWITCHED OFF for now (feedback: the melodies are bad; first improve the rest of the songs).
+# This is the moving melody layer only; the arpeggiator stays. Set it back to 0.8 to turn the
+# melody on again (the tests switch it on themselves).
+probability = 0.0
 # Almost always the song's own lead instrument (the sound we already have), rarely a piano.
 voices = { values = ["lead", "piano"], weights = [9.0, 1.0] }
 bars = { values = [8, 16], weights = [2.0, 1.0] }

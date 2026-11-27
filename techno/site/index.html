@@ -85,7 +85,7 @@
   ol.favlist .how { grid-column: 1; }
   /* ---- visuals mode: turntables and a mixer instead of the lower part of the page ---- */
   .vis-btn {
-    position: absolute; top: 34px; right: 64px; z-index: 21;
+    position: absolute; top: var(--btn-top, 34px); right: 64px; z-index: 21;
     width: 40px; height: 40px; border-radius: 50%; padding: 0;
     display: grid; place-items: center; cursor: pointer;
     background: var(--panel); color: var(--muted); border: 1.5px solid var(--line);
@@ -172,7 +172,7 @@
     html[data-visuals="1"] .g-arrow { width: 38px; height: 38px; }
     html[data-visuals="1"] .g-name { font-size: 1.3rem; }
     html[data-visuals="1"] .g-dots { margin-bottom: 0; }
-    .acc-btn, .vis-btn { top: 12px; }
+    html[data-visuals="1"] { --btn-top: 12px; }
     .vis { grid-template-columns: 1fr 1fr; grid-template-areas: "a b" "m m"; gap: 6px 10px; margin-top: 6px; align-items: start; justify-items: stretch; width: 100%; }
     .vis > .vis-deck[data-i="0"] { grid-area: a; width: 100%; }
     .vis > .vis-deck[data-i="1"] { grid-area: b; width: 100%; }
@@ -196,7 +196,7 @@
   .counters { display: flex; flex-direction: column; align-items: center; gap: 1px; margin: 40px 0 0; font-size: 0.82rem; color: var(--muted); font-variant-numeric: tabular-nums; text-align: center; }
   .counters b { color: var(--text); font-weight: 600; margin-right: 4px; }
   .acc-btn {
-    position: absolute; top: 34px; right: 16px; z-index: 21;
+    position: absolute; top: var(--btn-top, 34px); right: 16px; z-index: 21;
     width: 40px; height: 40px; border-radius: 50%; padding: 0;
     display: grid; place-items: center; cursor: pointer;
     background: var(--panel); color: var(--muted); border: 1.5px solid var(--line);

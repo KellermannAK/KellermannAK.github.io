@@ -148,7 +148,10 @@ deck i % 2, the fader curves are those of the live DJ strips, the blend timing c
 `blend_bars` / `in_bar` / `swap_after` in the mix JSON, estimated for older mixes), with
 previous / next song, a position slider and a switch between the mixes of the genre.
 
-### Melody layer (experiment, house)
+### Melody layer (experiment, house) - currently switched off
+
+(`probability = 0` in `profiles/house.toml` since the melodies were judged bad; the arpeggiator is
+not affected. Set it back to 0.8 to try again.)
 
 Songs can carry a real melody over 8 or 16 bars instead of an arpeggio. It is written against
 the chords underneath (the long notes of the pad), with the usual rules of tonal melody:

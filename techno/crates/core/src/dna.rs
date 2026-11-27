@@ -1778,6 +1778,18 @@ mod tests {
         );
     }
 
+    /// House with the melody layer switched on (the shipped profile has it off for now).
+    fn melody_profile() -> Profile {
+        let mut p = Profile::house();
+        p.melody.probability = 0.8;
+        p
+    }
+
+    fn melody_songs() -> impl Iterator<Item = SongDna> {
+        let p = melody_profile();
+        (0..200u64).map(move |s| SongDna::generate(s, &p))
+    }
+
     fn house_songs() -> impl Iterator<Item = SongDna> {
         let p = Profile::house();
         (0..200u64).map(move |s| SongDna::generate(s, &p))
@@ -1849,10 +1861,10 @@ mod tests {
 
     #[test]
     fn melody_songs_have_moving_chords_and_strings() {
-        let p = Profile::house();
+        let p = melody_profile();
         let (mut with, mut played) = (0, 0);
         let (mut kicks, mut basses, mut bare) = (0u32, 0u32, 0u32);
-        for dna in house_songs() {
+        for dna in melody_songs() {
             if dna.melody.is_empty() {
                 assert!(!dna.plan.palette.contains(Track::Melody));
                 continue;
