@@ -391,13 +391,21 @@ impl Deck {
         base_midi: i32,
         out: &mut [f32; 4],
     ) -> usize {
-        // Thinned chords keep only root, fifth and octave.
+        // Thinned chords keep only root, fifth and octave (rootless voicings: 3rd and 7th).
         let thin = self.plan.variation.thin_chord;
+        let rootless = !shape.degrees().contains(&0);
         let mut n = 0;
         for d in shape
             .degrees()
             .iter()
-            .filter(|d| !thin || matches!(**d, 0 | 4 | 7))
+            .filter(|d| {
+                !thin
+                    || if rootless {
+                        matches!(**d, 2 | 6)
+                    } else {
+                        matches!(**d, 0 | 4 | 7)
+                    }
+            })
             .take(4)
         {
             let midi = base_midi + self.dna.key.degree_to_semitone(root + d);

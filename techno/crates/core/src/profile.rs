@@ -551,6 +551,9 @@ pub struct SnareSound {
 pub struct PercRules {
     pub hits: [u32; 2],
     pub avoid_kick: bool,
+    /// The pattern also plays in grooves and drops (bongos in house), not only as fills.
+    #[serde(default)]
+    pub groove: bool,
     pub tone_hz: Range,
     pub decay: Range,
 }
@@ -620,8 +623,11 @@ pub enum ChordShape {
     Seventh,
     /// Root, fifth, tenth: open "dub techno" voicing.
     Dub,
-    /// Root, third, fifth, ninth: the warm house chord.
+    /// Root, third, fifth, ninth (an add9: no seventh).
     Ninth,
+    /// Rootless ninth chord: third, fifth, seventh, ninth. The deep-house m9 / maj9 voicing
+    /// (the bass plays the root, the seventh is always in).
+    Deep,
 }
 
 impl ChordShape {
@@ -633,6 +639,7 @@ impl ChordShape {
             ChordShape::Seventh => &[0, 2, 4, 6],
             ChordShape::Dub => &[0, 4, 9],
             ChordShape::Ninth => &[0, 2, 4, 8],
+            ChordShape::Deep => &[2, 4, 6, 8],
         }
     }
 }

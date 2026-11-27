@@ -506,6 +506,15 @@ impl SongDna {
                 palette = palette.with(Track::Arp);
             }
         }
+        // An arpeggio that takes over from a chord instrument always plays that chord.
+        if sr.breakdown_arp_prob > 0.0 && arp_chord.is_none() && alt_synth == Some(Track::Arp) {
+            arp_chord = match main_synth {
+                Track::Stab => Some(sound.stab.chord),
+                Track::Piano => Some(sound.piano.chord),
+                Track::Guitar => Some(sound.guitar.chord),
+                _ => None,
+            };
+        }
         // Two rhythmic chord instruments at once sound crowded (feedback): a companion
         // only joins if one of the two leaves room (held piano, muted / picked guitar, lead).
         let chordal = |t: Track| match t {

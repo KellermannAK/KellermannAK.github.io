@@ -396,6 +396,8 @@ pub struct SongPlan {
     groove_offset: f32,
     steady_rolls: bool,
     thin_before_breakdown: bool,
+    /// Bongos: the tom pattern plays in intros (second half), grooves, drops and breakdowns.
+    tom_groove: bool,
 }
 
 /// melody: per 8-bar phrase dice (compared with the profile's probabilities) and thresholds.
@@ -651,6 +653,7 @@ impl SongPlan {
             groove_offset: r.groove_energy_offset,
             steady_rolls: !r.roll_accelerates,
             thin_before_breakdown: r.pre_breakdown_thin,
+            tom_groove: profile.drums.tom.groove,
         }
     }
 
@@ -858,6 +861,19 @@ impl SongPlan {
                 a
             }
         };
+
+        // Bongos (house): a human percussion layer in the grooves, also in breakdowns.
+        if self.tom_groove {
+            let on = match s.kind {
+                SectionKind::Intro => sb >= s.bars / 2,
+                SectionKind::Groove => energy + self.groove_offset >= 0.55,
+                SectionKind::Drop | SectionKind::Breakdown => true,
+                _ => false,
+            };
+            if on {
+                active = active.with(Tom);
+            }
+        }
 
         // Phrase fills in steady sections.
         let phrase_end = (sb + 1) % 16 == 0 && left > 1;

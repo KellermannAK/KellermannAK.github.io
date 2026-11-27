@@ -5,8 +5,8 @@ comes from a seed and can be reproduced exactly. The music is not AI-generated: 
 hand-written rules, random seeds and synthesis code; only the code itself was written with AI. Two genres, each with its own rule tree:
 
 - **Techno** (`profiles/hard_techno_simple.toml`): hard, pounding, predictable, 134-136 BPM.
-- **House** (`profiles/house.toml`): softer and slower (120-124 BPM, swing), dorian / minor /
-  major, seventh and ninth chord loops, piano (modal synthesis), guitar (Karplus-Strong
+- **House** (`profiles/house.toml`): softer and slower (120-124 BPM, swing), mostly dorian /
+  minor, rootless m9 / maj9 and seventh chord loops, bongos, organ bass, formant "vox" stabs, piano (modal synthesis), guitar (Karplus-Strong
   string model), electronic glide leads, strings, a round bass; breakdowns flow back into
   the groove, drops are rare and soft. Own word library for titles and artists
   (`profiles/words_house.toml`).

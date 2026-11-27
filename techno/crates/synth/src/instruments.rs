@@ -617,6 +617,8 @@ impl Tom {
         let (decay, skin_mix, sweep, pitch) = match p.variant {
             1 => (p.decay * 0.8, 1.2, 0.25, 1.0),
             2 => (p.decay * 1.5, 0.3, 0.5, 0.75),
+            // 3 bongo: short, a hand slap, hardly any pitch drop.
+            3 => (p.decay * 0.6, 1.6, 0.12, 1.0),
             _ => (p.decay, 0.5, 0.35, 1.0),
         };
         Tom {
@@ -762,6 +764,13 @@ impl Bass {
             }
             // 4 clean sub: sine with a soft second harmonic, no filter, no drive.
             4 => sub * 0.85 + self.saw2.sine(self.freq * 2.0, sr) * 0.2 * (0.4 + 0.6 * fe),
+            // 5 organ (the classic M1-style house bass): drawbar sines 1, 2, 3, a quick click
+            // of the upper partials, clean.
+            5 => {
+                sub * 0.7
+                    + self.saw2.sine(self.freq * 2.0, sr) * 0.35 * (0.5 + 0.5 * fe)
+                    + self.saw.sine(self.freq * 3.0, sr) * 0.18 * fe
+            }
             _ => self.saw.saw(self.freq, sr) * (1.0 - p.sub_mix * 0.5) + sub * p.sub_mix,
         };
         let cutoff = p.cutoff_hz
@@ -769,7 +778,7 @@ impl Bass {
             * (1.0 + p.env_mod * fe * (1.0 + 0.5 * self.accent) * (0.4 + 0.6 * self.filter_mul));
         self.filt.set(cutoff, p.resonance, sr);
         let y = if p.variant >= 3 { x } else { self.filt.lp(x) };
-        if p.variant == 4 {
+        if p.variant >= 4 {
             return y * self.amp.next() * self.vel * self.gain;
         }
         saturate(y * self.amp.next(), p.drive) * self.vel * self.gain
@@ -995,6 +1004,9 @@ struct StabVoice {
     c: Osc,
     freq: f32,
     filt: Svf,
+    /// Second and third formant (variant 4, "vox"; the first one is `filt`).
+    f2: Svf,
+    f3: Svf,
     fenv: Decay,
     amp: Decay,
     vel: f32,
@@ -1014,6 +1026,13 @@ pub struct Stab {
 
 impl Stab {
     pub fn new(p: StabParams, sr: f32) -> Stab {
+        // Vox (variant 4): saw chords through three vowel formants, a stand-in for a vocal
+        // chop. The vowel ("ah", "oh", "eh") is fixed per song.
+        let vowel = [
+            [800.0, 1150.0, 2900.0],
+            [450.0, 800.0, 2830.0],
+            [400.0, 1600.0, 2700.0],
+        ][((p.detune * 1000.0) as usize) % 3];
         let voices = core::array::from_fn(|i| {
             let mut fenv = Decay::default();
             fenv.set_time(p.decay * 0.6, sr);
@@ -1024,7 +1043,13 @@ impl Stab {
                 b: Osc::with_phase(i as f32 * 0.57 % 1.0),
                 c: Osc::with_phase(i as f32 * 0.13 % 1.0),
                 freq: 220.0,
-                filt: Svf::new(p.cutoff_hz, 0.3, sr),
+                filt: if p.variant == 4 {
+                    Svf::new(vowel[0], 0.85, sr)
+                } else {
+                    Svf::new(p.cutoff_hz, 0.3, sr)
+                },
+                f2: Svf::new(vowel[1], 0.85, sr),
+                f3: Svf::new(vowel[2], 0.85, sr),
                 fenv,
                 amp,
                 vel: 0.0,
@@ -1084,6 +1109,9 @@ impl Stab {
             };
             let y = if self.p.variant == 2 || self.p.variant == 3 {
                 x // sine-based voices need no filter
+            } else if self.p.variant == 4 {
+                // Formants: fixed band-passes, the vowel stays the same.
+                (v.filt.bp(x) + 0.7 * v.f2.bp(x) + 0.35 * v.f3.bp(x)) * 0.45
             } else {
                 let cutoff = self.p.cutoff_hz * self.filter_mul * (1.0 + self.p.env_mod * fe);
                 v.filt.set(cutoff, 0.3, sr);

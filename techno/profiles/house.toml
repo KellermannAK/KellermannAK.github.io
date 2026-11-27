@@ -14,14 +14,16 @@ swing = [0.3, 0.5]
 
 [harmony]
 # Dorian is the soulful minor of house; major for the sunny tracks.
-scales = { values = ["dorian", "natural_minor", "major"], weights = [5.0, 3.0, 1.5] }
+# House is dorian ("happy-sad") and aeolian; major only now and then.
+scales = { values = ["dorian", "natural_minor", "major"], weights = [5.0, 3.0, 0.5] }
 # Chord loops instead of a tonic drone: two- and four-chord progressions.
 # Feedback (liked): rhythmic chords that change into other chords. Moving progressions more often.
 progression = { values = ["drone", "two", "return", "turn", "four"], weights = [0.1, 2.5, 0.8, 0.8, 4.5] }
 harmony_scope = { values = ["everywhere", "breakdown_only"], weights = [6.0, 1.0] }
 bars_per_root = { values = [1, 2, 4], weights = [0.7, 3.0, 1.2] }
 # Degrees after the tonic: 5 = VI/vi, 3 = iv/IV, 4 = v/V, 1 = ii, 6 = VII, 2 = III/iii.
-progression_degrees = { values = [5, 3, 4, 1, 6, 2], weights = [3.0, 3.0, 2.0, 2.0, 2.0, 1.0] }
+# Loops instead of cadences: the V (degree 4) less often.
+progression_degrees = { values = [5, 3, 4, 1, 6, 2], weights = [3.0, 3.0, 1.0, 2.0, 2.0, 1.0] }
 melody_steps = { values = [0, 1, -1, 2, -2, 3, -3, 4, -4, 7, -7], weights = [1.0, 4.0, 4.0, 3.0, 3.0, 1.5, 1.5, 0.8, 0.8, 0.4, 0.4] }
 # The house bass moves: octaves, fifths and walking steps.
 bass_steps = { values = [0, 7, -7, 4, -3, 2, -2, 1, -1], weights = [4.0, 3.0, 3.0, 1.5, 1.5, 1.0, 1.0, 0.8, 0.8] }
@@ -74,8 +76,10 @@ decay = [0.02, 0.05]
 [drums.tom]
 hits = [2, 4]
 avoid_kick = true
-tone_hz = [90.0, 140.0]
-decay = [0.15, 0.28]
+# Bongos (tom variant 3): high, short, two pitches; they play in grooves, drops and breakdowns.
+tone_hz = [300.0, 420.0]
+decay = [0.12, 0.2]
+groove = true
 
 [drums.ride]
 # Feedback (five times: "8ths with open hats ... make it quieter"): it was the ride cymbal, in
@@ -108,7 +112,8 @@ size = [0.75, 0.80]
 
 [stab]
 hits = [2, 5]
-chords = { values = ["ninth", "seventh", "triad"], weights = [3.0, 3.0, 1.0] }
+# Deep-house voicing: rootless m9 / maj9 (3-5-7-9, the bass has the root) most often.
+chords = { values = ["deep", "ninth", "seventh", "triad"], weights = [4.0, 1.0, 2.5, 0.3] }
 cutoff_hz = [900.0, 2500.0]
 env_mod = [1.0, 2.5]
 decay = [0.2, 0.45]
@@ -134,7 +139,7 @@ drive = [1.0, 1.5]
 square = [0.0, 0.3]
 
 [pad]
-chords = { values = ["ninth", "seventh", "triad"], weights = [3.0, 3.0, 1.0] }
+chords = { values = ["deep", "ninth", "seventh", "triad"], weights = [3.0, 1.0, 3.0, 0.5] }
 cutoff_hz = [1200.0, 3000.0]
 detune = [0.06, 0.15]
 attack = [0.4, 1.5]
@@ -155,7 +160,7 @@ detune = [0.06, 0.15]
 
 [piano]
 styles = { values = ["stabs", "offbeat", "held"], weights = [2.5, 1.5, 3.0] }
-chords = { values = ["seventh", "ninth", "triad"], weights = [3.0, 3.0, 0.3] }
+chords = { values = ["deep", "seventh", "ninth", "triad"], weights = [3.0, 3.0, 1.0, 0.3] }
 brightness = [0.35, 0.8]
 decay = [1.2, 2.6]
 # 0 grand, 1 felt, 2 electric (tine), 3 bright house piano
@@ -205,14 +210,17 @@ ride = { values = [0, 1, 2], weights = [2.0, 1.5, 1.0] }
 crash = { values = [0, 1, 2], weights = [2.0, 0.5, 1.5] }
 # rim: 0 click, 1 wood block, 2 clave
 rim = { values = [0, 1, 2], weights = [1.0, 2.0, 2.0] }
-tom = { values = [0, 1, 2], weights = [2.0, 0.3, 1.0] }
+# tom: 0 standard, 1 noisy, 2 deep, 3 bongo
+tom = { values = [0, 1, 2, 3], weights = [0.2, 0.0, 0.2, 5.0] }
 # bass: 0 saw + sub, 1 reese, 2 square + sub, 3 sine pluck
 # Feedback: the saw / reese basses were "too dirty for nice house".
 # 4 = clean sub (sine + soft 2nd harmonic, no filter, no drive).
-bass = { values = [0, 1, 2, 3, 4], weights = [0.0, 0.0, 0.2, 0.6, 7.0] }
+# 5 = organ (classic M1-style house bass: drawbar sines, clean).
+bass = { values = [0, 1, 2, 3, 4, 5], weights = [0.0, 0.0, 0.2, 0.6, 5.0, 2.5] }
 rumble = { values = [0], weights = [1.0] }
 # stab / arp: 0 detuned saws, 1 pulse, 2 FM bell, 3 organ
-stab = { values = [0, 1, 2, 3], weights = [1.0, 0.5, 2.0, 3.0] }
+# 4 = vox: saw chords through vowel formants, the hook a vocal chop would play.
+stab = { values = [0, 1, 2, 3, 4], weights = [1.0, 0.5, 2.0, 3.0, 2.0] }
 # Feedback: the saw arp was "too harsh"; bell and organ only.
 arp = { values = [0, 1, 2, 3], weights = [0.15, 0.15, 3.0, 2.0] }
 # pad: 0 saws, 1 hollow squares, 2 sine choir, 3 strings
