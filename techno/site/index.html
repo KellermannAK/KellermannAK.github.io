@@ -122,6 +122,19 @@
     width: min(100%, 330px); padding: 14px; border-radius: 16px; background: var(--panel);
     border: 1px solid var(--line); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35); order: 0;
   }
+  .mx-src { display: flex; gap: 6px; justify-content: center; margin-bottom: 10px; }
+  .mx-src button { flex: 1; padding: 5px 0; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--muted); font: 700 0.75rem system-ui, sans-serif; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; }
+  .mx-src button[aria-pressed="true"] { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+  .mx-src button:disabled { opacity: 0.4; cursor: default; }
+  .mx-transport { display: flex; align-items: center; gap: 10px; }
+  .mx-skip { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--text); cursor: pointer; display: grid; place-items: center; padding: 0; }
+  .mx-skip svg { width: 16px; height: 16px; fill: currentColor; }
+  .mx-skip:hover { border-color: var(--muted); }
+  .mx-mixbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; font-size: 0.82rem; color: var(--muted); }
+  .mx-mixbar button { background: none; border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 2px 9px; cursor: pointer; }
+  .mx-seek { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .mx-seek input { flex: 1; accent-color: var(--accent); min-width: 0; }
+  [hidden] { display: none !important; }
   .mx-lcd { display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 8px; background: #0b0d0b; color: #8dffb0; font: 600 0.9rem ui-monospace, Menlo, Consolas, monospace; }
   .mx-lcd b { font-size: 1.3rem; }
   .mx-sec { margin-top: 8px; text-align: center; color: var(--accent); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.8rem; }
@@ -403,6 +416,7 @@
   </div>
 </main>
 </div>
+<script src="app/mixvisual.js"></script>
 <script>
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
   const mmss = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
@@ -496,6 +510,8 @@
       <details><summary>Song structure</summary><pre>${songs.map((s) =>
         `#${s.index + 1}  ${s.artist ? esc(s.artist) + " – " + esc(s.title) + "  " : ""}Seed ${s.seed}  ${esc(deKey(s.key))} (${esc(s.camelot)})\n${esc(s.structure)}`).join("\n\n")}</pre></details>`;
     const audio = el.querySelector("audio");
+    // Visuals mode drives the turntables from this mix (see app/mixvisual.js).
+    el._mix = { audio, songs, set, seed, genre, build };
     const rows = [...el.querySelectorAll("li")];
     el.querySelectorAll(".heart").forEach((b) => b.addEventListener("click", (e) => {
       e.stopPropagation(); // do not jump to the song
@@ -600,6 +616,7 @@
     mixBox.innerHTML = "";
     cards.forEach((c) => mixBox.appendChild(c));
     refreshHearts();
+    if (window.TechnoMixVisual) window.TechnoMixVisual.set(cards.map((c) => c._mix).filter(Boolean));
     if (!mixes.length) {
       mixBox.innerHTML = `<p class="meta">No ${esc(g.name)} mixes yet – the first one arrives with the next push. The live set above already works.</p>`;
     }

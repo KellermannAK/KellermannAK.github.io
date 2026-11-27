@@ -315,7 +315,7 @@ fn cmd_mix(a: &Args, profile: &Profile) -> Result<(), String> {
             .iter()
             .map(|e| {
                 format!(
-                    "{{\"index\":{},\"seed\":{},\"title\":{},\"artist\":{},\"key\":{},\"camelot\":{},\"bpm\":{},\"start\":{:.2},\"transition\":{},\"structure\":{}}}",
+                    "{{\"index\":{},\"seed\":{},\"title\":{},\"artist\":{},\"key\":{},\"camelot\":{},\"bpm\":{},\"start\":{:.2},\"transition\":{},\"blend_bars\":{},\"in_bar\":{},\"swap_after\":{},\"structure\":{}}}",
                     e.index,
                     e.seed,
                     json_str(&e.title),
@@ -325,6 +325,9 @@ fn cmd_mix(a: &Args, profile: &Profile) -> Result<(), String> {
                     e.bpm,
                     e.start_seconds,
                     e.transition.map(|t| json_str(t.name())).unwrap_or_else(|| "null".into()),
+                    e.blend.map(|b| b.bars.to_string()).unwrap_or_else(|| "null".into()),
+                    e.blend.map(|b| b.in_bar.to_string()).unwrap_or_else(|| "null".into()),
+                    e.blend.map(|b| b.swap_after.to_string()).unwrap_or_else(|| "null".into()),
                     json_str(&e.structure)
                 )
             })

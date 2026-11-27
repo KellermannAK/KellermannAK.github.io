@@ -103,6 +103,20 @@ pub struct SetEntry {
     /// How the song was brought in (None for the first).
     pub transition: Option<TransitionKind>,
     pub structure: String,
+    /// How the blend into this song runs (None for the first song): lets a player redraw the
+    /// mixer (fader curves) from the tracklist alone.
+    pub blend: Option<Blend>,
+}
+
+/// Timing of a transition, in bars of the running tempo.
+#[derive(Clone, Copy, Debug)]
+pub struct Blend {
+    /// Length of the blend.
+    pub bars: u32,
+    /// Bar of the incoming song at which the blend starts.
+    pub in_bar: u32,
+    /// Bar of the blend at which the low end is swapped.
+    pub swap_after: u32,
 }
 
 /// DJ channel strip: fader, low-end kill and a high-/low-pass filter.
@@ -464,13 +478,19 @@ impl Set {
         }
         let other = 1 - self.current;
         let seconds = self.frame as f64 / self.sr as f64;
-        self.log.push(entry(
+        let mut e = entry(
             self.next_index,
             &deck.dna,
             &self.profile,
             seconds,
             Some(t.kind),
-        ));
+        );
+        e.blend = Some(Blend {
+            bars: t.bars,
+            in_bar,
+            swap_after: t.swap_after,
+        });
+        self.log.push(e);
         self.next_index += 1;
         self.slots[other] = Some(Slot { deck, strip });
         self.transition_start_frame = Some(self.frame);
@@ -625,6 +645,7 @@ fn entry(
         start_seconds,
         transition,
         structure: dna.plan.describe(dna.bpm),
+        blend: None,
     }
 }
 

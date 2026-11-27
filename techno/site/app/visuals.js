@@ -17,6 +17,8 @@ const read = () => {
 
 // ------------------------------------------------------------------ turntable drawing
 
+const fmt = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+
 const pt = (cx, cy, r, deg) => {
   const a = (deg * Math.PI) / 180;
   return [cx + r * Math.sin(a), cy - r * Math.cos(a)];
@@ -76,6 +78,21 @@ function fit(el, text, arc, size) {
 // ------------------------------------------------------------------ build
 
 let built = false;
+let source = "live"; // what drives the turntables: the live set or a mix
+let seeking = false;
+
+/** Switch between the live set and a mix (the other one is paused). */
+function chooseSource(s) {
+  const MV = window.TechnoMixVisual;
+  if (s === source) return;
+  if (s === "mix") {
+    if (!MV || !MV.count()) return;
+    if ($("lv-play").dataset.state === "playing") $("lv-play").click(); // pause the live set
+  } else if (MV && MV.isPlaying()) {
+    MV.toggle(); // pause the mix
+  }
+  source = s;
+}
 const decks = [{ angle: 0, vel: 0, key: "" }, { angle: 0, vel: 0, key: "" }];
 
 function build() {
@@ -86,6 +103,10 @@ function build() {
     <div class="vis">
       <div class="vis-deck" data-i="0">${deckSvg(0)}<div class="vis-cap" id="cap-0"></div></div>
       <div class="vis-mixer" aria-label="Mixer">
+        <div class="mx-src" role="group" aria-label="Source">
+          <button id="src-live" aria-pressed="true">Live</button>
+          <button id="src-mix" aria-pressed="false">Mix</button>
+        </div>
         <div class="mx-lcd"><span><b id="mx-bpm">---</b> BPM</span><span><b id="mx-key">--</b></span></div>
         <div class="mx-sec" id="mx-sec">&nbsp;</div>
         <div class="mx-mid">
@@ -96,10 +117,14 @@ function build() {
           </div>
           <div class="mx-center">
             <div class="mx-leds" id="mx-leds">${'<i></i>'.repeat(LEDS)}</div>
-            <button class="mx-play" id="mx-play" aria-label="Play">
-              <svg class="ico-play" viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>
-              <svg class="ico-pause" viewBox="0 0 24 24"><path d="M6 4h4.5v16H6zM13.5 4H18v16h-4.5z"/></svg>
-            </button>
+            <div class="mx-transport">
+              <button class="mx-skip" id="mx-sprev" aria-label="Previous song" hidden><svg viewBox="0 0 24 24"><path d="M6 5h2.5v14H6zM20 5v14L9.5 12z"/></svg></button>
+              <button class="mx-play" id="mx-play" aria-label="Play">
+                <svg class="ico-play" viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>
+                <svg class="ico-pause" viewBox="0 0 24 24"><path d="M6 4h4.5v16H6zM13.5 4H18v16h-4.5z"/></svg>
+              </button>
+              <button class="mx-skip" id="mx-snext" aria-label="Next song" hidden><svg viewBox="0 0 24 24"><path d="M15.5 5H18v14h-2.5zM4 5v14l10.5-7z"/></svg></button>
+            </div>
             <input type="range" id="mx-vol" min="0" max="1" step="0.01" aria-label="Volume">
             <div class="mx-row">
               <button class="heart" id="mx-fav" aria-label="Add to favorites" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M12 20.4C5.2 15.2 3 12.1 3 8.9 3 6.2 5 4.5 7.3 4.5c1.9 0 3.5 1.1 4.7 3 1.2-1.9 2.8-3 4.7-3C19 4.5 21 6.2 21 8.9c0 3.2-2.2 6.3-9 11.5z"/></svg></button>
@@ -112,6 +137,8 @@ function build() {
             <div class="mx-name">B</div>
           </div>
         </div>
+        <div class="mx-seek" id="mx-seekrow" hidden><span id="mx-t0">0:00</span><input type="range" id="mx-seek" min="0" max="1000" value="0" aria-label="Position in the mix"><span id="mx-t1">0:00</span></div>
+        <div class="mx-mixbar" id="mx-mixbar" hidden><button id="mx-mprev" aria-label="Previous mix">◀</button><span id="mx-mname"></span><button id="mx-mnext" aria-label="Next mix">▶</button></div>
         <div class="mx-next" id="mx-next">&nbsp;</div>
       </div>
       <div class="vis-deck" data-i="1">${deckSvg(1)}<div class="vis-cap" id="cap-1"></div></div>
@@ -119,12 +146,29 @@ function build() {
   const vol = $("mx-vol");
   vol.value = $("lv-vol").value;
   vol.addEventListener("input", () => {
+    if (window.TechnoMixVisual) window.TechnoMixVisual.setVolume(vol.value);
     $("lv-vol").value = vol.value;
     $("lv-vol").dispatchEvent(new Event("input", { bubbles: true }));
   });
-  $("mx-play").addEventListener("click", () => $("lv-play").click());
+  const MV = () => window.TechnoMixVisual;
+  $("mx-play").addEventListener("click", () => {
+    if (source === "mix" && MV()) MV().toggle();
+    else $("lv-play").click();
+  });
   $("mx-new").addEventListener("click", () => $("lv-new").click());
-  $("mx-fav").addEventListener("click", () => window.TechnoLive && window.TechnoLive.toggleFavorite());
+  $("mx-fav").addEventListener("click", () => {
+    if (source === "mix" && MV()) MV().toggleFavorite();
+    else if (window.TechnoLive) window.TechnoLive.toggleFavorite();
+  });
+  $("src-live").addEventListener("click", () => chooseSource("live"));
+  $("src-mix").addEventListener("click", () => chooseSource("mix"));
+  $("mx-sprev").addEventListener("click", () => MV() && MV().skip(-1));
+  $("mx-snext").addEventListener("click", () => MV() && MV().skip(1));
+  $("mx-mprev").addEventListener("click", () => MV() && MV().select(MV().index() - 1));
+  $("mx-mnext").addEventListener("click", () => MV() && MV().select(MV().index() + 1));
+  const seek = $("mx-seek");
+  seek.addEventListener("input", () => { seeking = true; });
+  seek.addEventListener("change", () => { seeking = false; if (MV()) MV().seek(Number(seek.value) / 1000); });
 }
 
 // ------------------------------------------------------------------ frame loop
@@ -137,8 +181,18 @@ function frame(t) {
   const dt = Math.min((t - last) / 1000, 0.1);
   last = t;
   const live = window.TechnoLive;
-  const v = live && live.visual ? live.visual() : null;
-  const state = $("lv-play") ? $("lv-play").dataset.state : "idle";
+  const MV = window.TechnoMixVisual;
+  // Whatever plays decides the source; when nothing plays the choice stays.
+  const mixPlaying = !!(MV && MV.isPlaying());
+  const livePlaying = !!(live && live.visual && live.visual().playing);
+  if (mixPlaying && source !== "mix") source = "mix";
+  else if (livePlaying && source !== "live") source = "live";
+  if (source === "mix" && (!MV || !MV.count())) source = "live";
+  const isMix = source === "mix";
+  const v = isMix ? MV.visual() : live && live.visual ? live.visual() : null;
+  const state = isMix
+    ? (mixPlaying ? "playing" : "idle")
+    : $("lv-play") ? $("lv-play").dataset.state : "idle";
   const playing = !!(v && v.playing);
 
   const gname = (window.TechnoGenre ? window.TechnoGenre.current().name : "").toUpperCase();
@@ -186,8 +240,24 @@ function frame(t) {
   $("mx-play").disabled = state === "loading";
   $("mx-play").setAttribute("aria-label", state === "playing" ? "Pause" : "Play");
   $("mx-next").textContent = v && v.next ? v.next : " ";
+  // Source switch and the controls that only a mix has.
+  const hasMixes = !!(MV && MV.count());
+  $("src-live").setAttribute("aria-pressed", String(!isMix));
+  $("src-mix").setAttribute("aria-pressed", String(isMix));
+  $("src-mix").disabled = !hasMixes;
+  $("src-mix").title = hasMixes ? "" : "No mixes for this genre yet";
+  for (const id of ["mx-sprev", "mx-snext", "mx-seekrow", "mx-mixbar"]) $(id).hidden = !isMix;
+  $("mx-new").hidden = isMix;
+  if (isMix && v) {
+    $("mx-mname").textContent = `${v.title} · ${v.mixIndex + 1}/${v.mixCount}`;
+    $("mx-t0").textContent = fmt(v.t);
+    $("mx-t1").textContent = fmt(v.duration);
+    if (!seeking) $("mx-seek").value = v.duration ? String(Math.round((v.t / v.duration) * 1000)) : "0";
+  }
   const fav = $("mx-fav");
-  const isFav = !!(live && live.isFavorite && live.isFavorite());
+  const isFav = isMix
+    ? !!(MV && MV.isFavorite())
+    : !!(live && live.isFavorite && live.isFavorite());
   fav.classList.toggle("on", isFav);
   fav.setAttribute("aria-pressed", String(isFav));
   fav.hidden = !playing;

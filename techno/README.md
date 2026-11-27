@@ -136,6 +136,12 @@ faders, the low-band kills, BPM, key, section, energy and the next transition. A
 read from the engine status (`techno_status`, fields 17-25); the buttons in the mixer press
 the controls of the live card. `?visuals=1` opens the page in this mode.
 
+The mixer also plays the archived mixes (switch LIVE / MIX at its top): the records and faders
+are redrawn from the playing position and the tracklist (`app/mixvisual.js`; song i sits on
+deck i % 2, the fader curves are those of the live DJ strips, the blend timing comes from
+`blend_bars` / `in_bar` / `swap_after` in the mix JSON, estimated for older mixes), with
+previous / next song, a position slider and a switch between the mixes of the genre.
+
 ### Melody layer (experiment, house)
 
 Songs can carry a real melody over 8 or 16 bars instead of an arpeggio: it follows the chord
