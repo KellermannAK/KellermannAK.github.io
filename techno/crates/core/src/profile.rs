@@ -409,6 +409,10 @@ pub struct SynthRules {
     pub companion: Option<Weighted<ShortSynth>>,
     #[serde(default)]
     pub companion_prob: f32,
+    /// Probability that a chordal main instrument (stab, piano, guitar) dissolves into an
+    /// arpeggio of the same chord in the breakdowns (instead of a random alternative).
+    #[serde(default)]
+    pub breakdown_arp_prob: f32,
     /// Energy from which the companion joins grooves and drops.
     #[serde(default = "default_companion_energy")]
     pub companion_energy: f32,

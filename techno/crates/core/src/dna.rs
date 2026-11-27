@@ -436,7 +436,7 @@ impl SongDna {
         let sr = &profile.synths;
         let to_track = |s: ShortSynth| s.track();
         let main_synth = to_track(sr.main.pick(&mut v));
-        let alt_synth = if v.chance(sr.breakdown_alt_prob) {
+        let mut alt_synth = if v.chance(sr.breakdown_alt_prob) {
             let others: Vec<(ShortSynth, f32)> = sr
                 .main
                 .values
@@ -491,6 +491,21 @@ impl SongDna {
         let (guitar, guitar_sound) =
             gen_guitar(&mut root.fork("guitar"), profile, key, &bass, &progression);
         sound.guitar = guitar_sound;
+        // Rhythmic chords that dissolve into an arpeggio of the same chord in the breakdowns
+        // (feedback: liked, "at the same energy"). Own stream.
+        let mut arp_chord: Option<ChordShape> = None;
+        if sr.breakdown_arp_prob > 0.0 && root.fork("breakdown-arp").chance(sr.breakdown_arp_prob) {
+            arp_chord = match main_synth {
+                Track::Stab => Some(sound.stab.chord),
+                Track::Piano => Some(sound.piano.chord),
+                Track::Guitar => Some(sound.guitar.chord),
+                _ => None,
+            };
+            if arp_chord.is_some() {
+                alt_synth = Some(Track::Arp);
+                palette = palette.with(Track::Arp);
+            }
+        }
         // Two rhythmic chord instruments at once sound crowded (feedback): a companion
         // only joins if one of the two leaves room (held piano, muted / picked guitar, lead).
         let chordal = |t: Track| match t {
@@ -574,7 +589,7 @@ impl SongDna {
         sound.arp.variant = vr.arp.pick(&mut vs);
         sound.pad.variant = vr.pad.pick(&mut vs);
         sound.drone.variant = vr.drone.pick(&mut vs);
-        let (arp, arp_sound) = gen_arp(&mut root.fork("arp"), profile);
+        let (arp, arp_sound) = gen_arp(&mut root.fork("arp"), profile, arp_chord);
         sound.arp = arp_sound;
         let mut r = root.fork("drone");
         sound.drone = DroneParams {
@@ -1098,9 +1113,12 @@ fn gen_lead(rng: &mut Rng, p: &Profile, key: Key, bass: &Motif, prog: &Progressi
     m
 }
 
-fn gen_arp(rng: &mut Rng, p: &Profile) -> (Motif, StabParams) {
+fn gen_arp(rng: &mut Rng, p: &Profile, chord: Option<ChordShape>) -> (Motif, StabParams) {
     let a = &p.arp;
-    let chord = a.chords.pick(rng);
+    // `chord` forces the chord shape (the arpeggio of the main instrument's chord); the draw
+    // happens anyway, so the other random choices stay the same.
+    let picked = a.chords.pick(rng);
+    let chord = chord.unwrap_or(picked);
     let octaves = a.octaves.pick(rng).clamp(1, 2) as i32;
     let rate = a.rate.pick(rng).clamp(1, 4) as usize;
     let pattern = a.patterns.pick(rng);
@@ -1928,6 +1946,38 @@ mod tests {
                     .contains(Track::Melody)));
             }
         }
+    }
+
+    #[test]
+    fn chords_dissolve_into_an_arpeggio_of_the_same_chord_in_breakdowns() {
+        let (mut chordal, mut dissolving) = (0, 0);
+        for dna in house_songs() {
+            let main = dna.plan.main_synth;
+            let chord = match main {
+                Track::Stab => dna.sound.stab.chord,
+                Track::Piano => dna.sound.piano.chord,
+                Track::Guitar => dna.sound.guitar.chord,
+                _ => continue,
+            };
+            chordal += 1;
+            if dna.plan.alt_synth == Some(Track::Arp) {
+                dissolving += 1;
+                assert_eq!(dna.sound.arp.chord, chord, "seed {}", dna.seed);
+                assert!(dna.plan.palette.contains(Track::Arp));
+                // In a breakdown the arpeggio takes the place of the chord instrument.
+                for bar in 0..dna.plan.total_bars {
+                    let b = dna.plan.bar(bar);
+                    if b.section == SectionKind::Breakdown && b.active.contains(Track::Arp) {
+                        assert!(!b.active.contains(main), "seed {} bar {bar}", dna.seed);
+                    }
+                }
+            }
+        }
+        assert!(chordal > 80);
+        assert!(
+            dissolving as f32 > 0.5 * chordal as f32,
+            "{dissolving}/{chordal}"
+        );
     }
 
     #[test]

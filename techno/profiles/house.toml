@@ -16,7 +16,8 @@ swing = [0.3, 0.5]
 # Dorian is the soulful minor of house; major for the sunny tracks.
 scales = { values = ["dorian", "natural_minor", "major"], weights = [5.0, 3.0, 1.5] }
 # Chord loops instead of a tonic drone: two- and four-chord progressions.
-progression = { values = ["drone", "two", "return", "turn", "four"], weights = [0.4, 3.0, 1.0, 1.0, 3.5] }
+# Feedback (liked): rhythmic chords that change into other chords. Moving progressions more often.
+progression = { values = ["drone", "two", "return", "turn", "four"], weights = [0.1, 2.5, 0.8, 0.8, 4.5] }
 harmony_scope = { values = ["everywhere", "breakdown_only"], weights = [6.0, 1.0] }
 bars_per_root = { values = [1, 2, 4], weights = [0.7, 3.0, 1.2] }
 # Degrees after the tonic: 5 = VI/vi, 3 = iv/IV, 4 = v/V, 1 = ii, 6 = VII, 2 = III/iii.
@@ -171,9 +172,12 @@ variants = { values = [0, 1, 2], weights = [1.5, 1.0, 2.5] }
 
 [synths]
 # The main instrument carries the song; piano and guitar are as likely as synths.
-main = { values = ["piano", "guitar", "lead", "stab", "arp"], weights = [4.0, 1.5, 2.5, 2.0, 0.8] }
+main = { values = ["piano", "guitar", "lead", "stab", "arp"], weights = [3.5, 1.5, 2.0, 3.5, 0.8] }
 # Feedback: complete theme changes are liked but came too often.
 breakdown_alt_prob = 0.22
+# Chordal main instruments (stab, piano, guitar) dissolve into an arpeggio of the same chord in
+# the breakdowns - same chords, same energy, just spread out.
+breakdown_arp_prob = 0.7
 # Strings / pads are the house backdrop.
 long_layer = { values = ["pad", "drone", "none"], weights = [6.0, 0.3, 0.6] }
 stab_notes = 4
