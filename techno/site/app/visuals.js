@@ -157,10 +157,40 @@ function build() {
 // ------------------------------------------------------------------ frame loop
 
 let raf = 0;
+
+/**
+ * On phones the visuals must fit the screen without scrolling: measure the block and shrink it
+ * (never enlarge) to the height that is left below the page header.
+ */
+function fit() {
+  const el = document.querySelector(".vis");
+  const box = $("visuals");
+  if (!el || !box) return;
+  el.style.transform = "";
+  box.style.height = "";
+  if (document.documentElement.dataset.visuals !== "1" || !matchMedia("(max-width: 899px)").matches) return;
+  const natural = el.offsetHeight;
+  const top = box.getBoundingClientRect().top;
+  const avail = window.innerHeight - top - 6;
+  const s = Math.max(0.45, Math.min(1, avail / natural));
+  if (s < 1) {
+    el.style.transformOrigin = "top center";
+    el.style.transform = `scale(${s.toFixed(3)})`;
+    box.style.height = `${Math.round(natural * s)}px`;
+  }
+}
+let fitAt = 0;
+window.addEventListener("resize", fit);
+window.addEventListener("orientationchange", () => setTimeout(fit, 200));
 let last = 0;
 
 function frame(t) {
   raf = requestAnimationFrame(frame);
+  // The mixer changes height (live / mix controls, captions): re-fit twice a second.
+  if (t - fitAt > 500) {
+    fitAt = t;
+    fit();
+  }
   const dt = Math.min((t - last) / 1000, 0.1);
   last = t;
   const live = window.TechnoLive;
@@ -262,6 +292,7 @@ function set(on, persist = true) {
   history.replaceState(null, "", url);
   $("visuals").hidden = !on;
   cancelAnimationFrame(raf);
+  fit();
   if (on) {
     build();
     last = performance.now();

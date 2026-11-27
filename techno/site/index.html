@@ -161,6 +161,32 @@
   .rate:hover { border-color: var(--muted); }
   .mx-new { padding: 5px 10px; font-size: 0.8rem; }
   .mx-next { margin-top: 10px; min-height: 1.4em; text-align: center; color: var(--muted); font-size: 0.82rem; }
+  /* Phones: nothing scrolls in visuals mode. The two turntables sit side by side above the
+     mixer, and visuals.js shrinks the whole block to what is left of the screen. */
+  @media (max-width: 899px) {
+    html[data-visuals="1"], html[data-visuals="1"] body { height: 100dvh; overflow: hidden; }
+    html[data-visuals="1"] main { height: 100dvh; overflow: hidden; padding: 12px 12px 6px; }
+    html[data-visuals="1"] h1 { font-size: 1.45rem; margin-bottom: 2px; }
+    html[data-visuals="1"] .tagline { font-size: 0.78rem; line-height: 1.35; margin-bottom: 2px; }
+    html[data-visuals="1"] .genre-nav { margin: 6px 0 2px; gap: 8px; }
+    html[data-visuals="1"] .g-arrow { width: 38px; height: 38px; }
+    html[data-visuals="1"] .g-name { font-size: 1.3rem; }
+    html[data-visuals="1"] .g-dots { margin-bottom: 0; }
+    .acc-btn, .vis-btn { top: 12px; }
+    .vis { grid-template-columns: 1fr 1fr; grid-template-areas: "a b" "m m"; gap: 6px 10px; margin-top: 6px; align-items: start; justify-items: stretch; width: 100%; }
+    .vis > .vis-deck[data-i="0"] { grid-area: a; width: 100%; }
+    .vis > .vis-deck[data-i="1"] { grid-area: b; width: 100%; }
+    .vis > .vis-mixer { grid-area: m; width: 100%; max-width: 380px; justify-self: center; padding: 10px; }
+    .vis-cap { min-height: 2.4em; margin-top: 2px; }
+    .vis-cap b { font-size: 0.85rem; }
+    .vis-cap span { font-size: 0.75rem; }
+    .mx-fader { height: 96px; }
+    .mx-play { width: 52px; height: 52px; }
+    .mx-center { gap: 6px; }
+    .mx-mid { margin-top: 6px; }
+    .mx-sec { margin-top: 4px; }
+    .mx-next { margin-top: 6px; }
+  }
   @media (min-width: 900px) {
     .vis { grid-template-columns: 1fr 340px 1fr; align-items: center; gap: 22px; }
     .vis-deck { width: 100%; max-width: 360px; }
