@@ -37,10 +37,11 @@ tracks! {
     Impact => "impact",
     Piano => "piano",
     Guitar => "guitar",
+    Melody => "melody",
 }
 
 impl Track {
-    pub const COUNT: usize = 20;
+    pub const COUNT: usize = 21;
 
     pub const fn index(self) -> usize {
         self as usize

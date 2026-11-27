@@ -127,6 +127,16 @@ crates/cli      `techno` binary: render songs and mixes to WAV, DNA inspection
 site/, scripts/ preview page (GitHub Pages) and its build script
 ```
 
+### Melody layer (experiment, house)
+
+Songs can carry a real melody over 8 or 16 bars instead of an arpeggio: it follows the chord
+progression underneath (notes are stored relative to each bar's chord root), is jazz-like
+(syncopated rhythms, 3rd / 7th / 9th on the strong beats, chromatic approach notes) and is
+played by its own piano, glide lead or pluck. Songs with a melody get a progression that
+really moves and strings underneath; the melody replaces lead and arp while it plays.
+Code: `crates/core/src/melody.rs` plus the places marked `// melody:`. Switch it off with
+`probability = 0` in the `[melody]` section of `profiles/house.toml` (or delete the section).
+
 ### Determinism
 
 - All randomness goes through `core::rng::Rng` (xoshiro256**, seeded), never system time.

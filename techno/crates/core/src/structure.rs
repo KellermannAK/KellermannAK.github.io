@@ -337,6 +337,8 @@ fn base_threshold(t: Track) -> f32 {
         Track::Pad => 0.95,
         Track::Piano => 0.6,
         Track::Guitar => 0.65,
+        // melody: event-driven by its own gate, never by energy.
+        Track::Melody => 2.0,
         // Event-driven or never energy-driven.
         Track::Snare | Track::Crash | Track::Riser | Track::Impact => 2.0,
     }
@@ -377,12 +379,23 @@ pub struct SongPlan {
     pub alt_synth: Option<Track>,
     /// Second instrument that plays together with the main one in fuller parts (house).
     pub companion: Option<Track>,
+    // melody: when the melody layer plays (None = the song has no melody).
+    melody: Option<MelodyGate>,
     companion_energy: f32,
     groove_layers: bool,
     soft: bool,
     groove_offset: f32,
     steady_rolls: bool,
     thin_before_breakdown: bool,
+}
+
+/// melody: per 8-bar phrase dice (compared with the profile's probabilities) and thresholds.
+#[derive(Clone, Copy, Debug)]
+struct MelodyGate {
+    roll: [f32; MAX_PHRASES],
+    phrase_prob: f32,
+    breakdown_prob: f32,
+    energy: f32,
 }
 
 fn len_pick(w: &Weighted<u32>, rng: &mut Rng) -> u32 {
@@ -614,6 +627,7 @@ impl SongPlan {
             filter_depth: r.synth_filter_depth,
             fx_boost: profile.fx.breakdown_boost,
             companion: None,
+            melody: None,
             companion_energy: profile.synths.companion_energy,
             groove_layers: r.groove_layers,
             soft: r.soft_transitions,
@@ -621,6 +635,21 @@ impl SongPlan {
             steady_rolls: !r.roll_accelerates,
             thin_before_breakdown: r.pre_breakdown_thin,
         }
+    }
+
+    /// melody: give the song a melody layer; `bar()` then adds `Track::Melody` in the phrases
+    /// the dice allow (grooves and drops above the energy threshold, breakdowns after 4 bars).
+    pub fn set_melody(&mut self, rng: &mut Rng, r: &crate::profile::MelodyRules) {
+        let mut roll = [0.0f32; MAX_PHRASES];
+        for x in roll.iter_mut() {
+            *x = rng.next_f32();
+        }
+        self.melody = Some(MelodyGate {
+            roll,
+            phrase_prob: r.phrase_prob,
+            breakdown_prob: r.breakdown_prob,
+            energy: r.energy,
+        });
     }
 
     pub fn sections(&self) -> &[Section] {
@@ -878,6 +907,22 @@ impl SongPlan {
             };
             if full && !active.and(SHORT_SYNTHS).is_empty() {
                 active = active.with(c);
+            }
+        }
+
+        // melody: the melody line replaces the other melodic short synths (lead, arp) while it
+        // plays; chord instruments (piano, guitar, stab) and the strings keep comping.
+        if let Some(g) = &self.melody {
+            let roll = g.roll[(bar / PHRASE_BARS) as usize % MAX_PHRASES];
+            let on = match s.kind {
+                SectionKind::Groove | SectionKind::Drop => {
+                    energy + self.groove_offset >= g.energy && roll < g.phrase_prob
+                }
+                SectionKind::Breakdown => sb >= 4.min(s.bars / 2) && roll < g.breakdown_prob,
+                _ => false,
+            };
+            if on {
+                active = active.with(Melody).without(Lead).without(Arp);
             }
         }
 

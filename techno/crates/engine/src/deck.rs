@@ -2,7 +2,7 @@
 //! and runs the instruments through their channel strips and send effects.
 
 use techno_core::dna::{bass_base_midi, Note, SongDna};
-use techno_core::profile::{Backbeat, ChordShape, GuitarStyle, KeysStyle, LeadKind};
+use techno_core::profile::{Backbeat, ChordShape, GuitarStyle, KeysStyle, LeadKind, MelodyVoice};
 use techno_core::structure::{Automation, BarPlan, Fill, RollKind, SongPlan};
 use techno_core::theory::midi_to_hz;
 use techno_core::time::{
@@ -64,6 +64,8 @@ fn channel_settings(t: Track, dna: &SongDna) -> ChannelSettings {
         Track::Impact => settings(0.45, 0.0, 0.0, 0.0, 0.35, 0.0),
         Track::Piano => settings(0.16, -0.08, sc * 0.5, 0.10, 0.22, 90.0),
         Track::Guitar => settings(0.13, 0.25, sc * 0.4, 0.16, 0.12, 120.0),
+        // melody: sits above the chords, with a little echo
+        Track::Melody => settings(0.22, 0.12, sc * 0.3, 0.14, 0.2, 150.0),
     }
 }
 
@@ -71,7 +73,9 @@ fn channel_settings(t: Track, dna: &SongDna) -> ChannelSettings {
 fn insert_params(t: Track, dna: &SongDna) -> InsertParams {
     let fx = &dna.sound.fx;
     let spec = match t {
-        Track::Lead | Track::Arp | Track::Stab | Track::Piano | Track::Guitar => fx.synth,
+        Track::Lead | Track::Arp | Track::Stab | Track::Piano | Track::Guitar | Track::Melody => {
+            fx.synth
+        }
         Track::Pad | Track::Drone => fx.layer,
         Track::HatClosed | Track::HatOpen => fx.hats,
         _ => return InsertParams::NONE,
@@ -140,6 +144,9 @@ pub struct Deck {
     drone: Drone,
     piano: Piano,
     guitar: Guitar,
+    // melody: one voice per song (piano or a lead), the other stays silent.
+    melody_piano: Piano,
+    melody_lead: Lead,
 
     delay: PingPongDelay,
     reverb: Reverb,
@@ -253,6 +260,8 @@ impl Deck {
             drone: Drone::new(s.drone, sr),
             piano: Piano::new(s.piano, sr),
             guitar: Guitar::new(s.guitar, sr),
+            melody_piano: Piano::new(s.melody.piano, sr),
+            melody_lead: Lead::new(s.melody.lead, sr),
             impact: Impact::new(seconds_per_bar(dna.bpm as f64) as f32, sr),
             delay,
             reverb,
@@ -605,6 +614,30 @@ impl Deck {
         }
     }
 
+    // melody: play the melody note that starts on this step (chord-relative, so it follows
+    // the progression; chromatic approach notes carry a semitone offset).
+    fn on_melody(&mut self, bar: u32, step: u32) {
+        if !self.plan.active.contains(Track::Melody) {
+            return;
+        }
+        let abs = bar * 16 + step;
+        let Some(n) = self.dna.melody.at(abs) else {
+            return;
+        };
+        let root = fold_root(self.dna.root_at(bar));
+        let semis = self.dna.key.degree_to_semitone(root + n.degree as i32) + n.chroma as i32;
+        let midi = self.bass_base + 29 + semis;
+        let f = midi_to_hz(midi as f32);
+        let v = (n.vel as f32 / 255.0 + humanize(abs as u64, 9)).clamp(0.3, 1.0);
+        let gate = (n.len as f32 * self.step_samples * 0.95) as u32;
+        match self.dna.sound.melody.voice {
+            MelodyVoice::Piano => self.melody_piano.trigger_chord(&[f], v, gate, 0),
+            MelodyVoice::Glide | MelodyVoice::Pluck => {
+                self.melody_lead.trigger(f, v, false, gate, false)
+            }
+        }
+    }
+
     /// +12 semitones in the last bar of a phrase that has the end-octave variation.
     fn end_octave(&self, bar: u32) -> i32 {
         if self.plan.variation.end_octave && bar % 8 == 7 {
@@ -649,6 +682,7 @@ impl Deck {
             self.on_step(t.bar(), step);
             self.on_arp(t.bar(), step);
             self.on_keys(t.bar(), step);
+            self.on_melody(t.bar(), step);
         }
     }
 
@@ -672,6 +706,8 @@ impl Deck {
         self.arp.filter_mul = sf;
         self.piano.filter_mul = sf;
         self.guitar.filter_mul = sf;
+        self.melody_piano.filter_mul = sf;
+        self.melody_lead.filter_open = (0.85 * sf).clamp(0.0, 1.3);
         // Delay throw: synth delay sends open up in the last beat of a phrase.
         let throw = if self.throw_active { 0.45 } else { 0.0 };
         for t in [
@@ -680,6 +716,7 @@ impl Deck {
             Track::Stab,
             Track::Piano,
             Track::Guitar,
+            Track::Melody,
         ] {
             self.channels[t.index()].delay_boost = throw;
         }
@@ -693,7 +730,9 @@ impl Deck {
         let (hc, ho) = self.hats.process();
         let (pad_l, pad_r) = self.pad.process();
 
-        let mono: [(Track, f32); 19] = [
+        let melody = self.melody_piano.process() + self.melody_lead.process();
+        let mono: [(Track, f32); 20] = [
+            (Track::Melody, melody),
             (Track::Piano, self.piano.process()),
             (Track::Guitar, self.guitar.process()),
             (Track::Arp, self.arp.process()),

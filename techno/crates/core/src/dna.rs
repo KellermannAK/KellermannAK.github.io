@@ -7,10 +7,11 @@
 
 use crate::euclid::{euclid, Pattern};
 use crate::markov::next_degree;
+use crate::melody::{self, MelodyLine};
 use crate::profile::{
     ArpPattern, Backbeat, BassRhythm, ChordShape, GuitarStyle, HarmonyScope, HatStyle, InsertKind,
-    KeysStyle, KickStyle, LeadKind, LeadStyle, LongLayer, Profile, ProgressionShape, RideStyle,
-    ShortSynth,
+    KeysStyle, KickStyle, LeadKind, LeadStyle, LongLayer, MelodyVoice, Profile, ProgressionShape,
+    RideStyle, ShortSynth,
 };
 use crate::rng::Rng;
 use crate::structure::{SectionKind, SongPlan, SHORT_SYNTHS};
@@ -254,6 +255,14 @@ pub struct GuitarParams {
     pub sustain: f32,
 }
 
+/// Sound of the melody layer (melody:). Only the voice that `voice` names is played.
+#[derive(Clone, Copy, Debug)]
+pub struct MelodySound {
+    pub voice: MelodyVoice,
+    pub piano: KeysParams,
+    pub lead: LeadParams,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct MixParams {
     pub sidechain_depth: f32,
@@ -308,6 +317,8 @@ pub struct SoundParams {
     pub mix: MixParams,
     pub piano: KeysParams,
     pub guitar: GuitarParams,
+    // melody:
+    pub melody: MelodySound,
 }
 
 /// Everything that defines a song's identity.
@@ -327,6 +338,8 @@ pub struct SongDna {
     pub piano: Motif,
     /// Guitar: muted notes, strums (chords) or picked notes depending on the style.
     pub guitar: Motif,
+    // melody: a melody over several bars following the chords (empty if the song has none).
+    pub melody: MelodyLine,
     pub sound: SoundParams,
     /// Song structure, fixed at song start.
     pub plan: SongPlan,
@@ -385,7 +398,13 @@ impl SongDna {
             key.root = k % 12;
         }
 
-        let progression = gen_progression(&mut root.fork("progression"), profile, key);
+        // melody: does this song carry one? Then the chords underneath must actually move.
+        let has_melody = profile.melody.probability > 0.0
+            && root.fork("melody").chance(profile.melody.probability);
+        let mut progression = gen_progression(&mut root.fork("progression"), profile, key);
+        if has_melody {
+            progression = moving_progression(&root, profile, key, progression);
+        }
         let drums = gen_drums(&mut root.fork("drums"), profile);
         let mut sound = gen_sound(&mut root.fork("sound"), profile, key);
         let stab = gen_stab(&mut root.fork("stab"), profile);
@@ -435,9 +454,11 @@ impl SongDna {
             LongLayer::Drone => Some(Track::Drone),
             LongLayer::None => None,
         };
-        let mut palette = TrackSet::ALL
-            .minus(SHORT_SYNTHS)
-            .minus(TrackSet::of(&[Track::Pad, Track::Drone]));
+        let mut palette = TrackSet::ALL.minus(SHORT_SYNTHS).minus(TrackSet::of(&[
+            Track::Pad,
+            Track::Drone,
+            Track::Melody,
+        ]));
         palette = palette.with(main_synth);
         if let Some(t) = alt_synth {
             palette = palette.with(t);
@@ -474,6 +495,48 @@ impl SongDna {
         let companion = companion.filter(|c| !(chordal(*c) && chordal(main_synth)));
         if let Some(t) = companion {
             palette = palette.with(t);
+        }
+        // melody: voice, line and the strings that carry the chords underneath.
+        let mut melody_line = MelodyLine::empty();
+        if has_melody {
+            melody_line = melody::generate(&mut root.fork("melody-line"), &profile.melody);
+            let mut ms = root.fork("melody-sound");
+            let mr = &profile.melody;
+            let mut voice = mr.voices.pick(&mut ms);
+            if voice == MelodyVoice::Piano
+                && (main_synth == Track::Piano || companion == Some(Track::Piano))
+            {
+                voice = MelodyVoice::Glide; // no second piano on top of the chord piano
+            }
+            let lr = &profile.lead;
+            sound.melody = MelodySound {
+                voice,
+                piano: KeysParams {
+                    variant: mr.piano_variants.pick(&mut ms),
+                    style: KeysStyle::Held,
+                    chord: ChordShape::Seventh,
+                    brightness: ms.in_range(mr.brightness),
+                    decay: ms.in_range(mr.decay),
+                },
+                lead: LeadParams {
+                    kind: if voice == MelodyVoice::Pluck {
+                        LeadKind::Pluck
+                    } else {
+                        LeadKind::Glide
+                    },
+                    style: LeadStyle::Long,
+                    cutoff_hz: ms.in_range(lr.cutoff_hz),
+                    resonance: ms.in_range(lr.resonance),
+                    env_mod: ms.in_range(lr.env_mod),
+                    decay: ms.in_range(lr.decay),
+                    drive: 1.0,
+                    square: ms.in_range(lr.square),
+                },
+            };
+            palette = palette
+                .with(Track::Melody)
+                .with(Track::Pad)
+                .minus(TrackSet::NONE.with(Track::Drone));
         }
         // Glide leads slide between neighbouring notes: the electronic house glide.
         if sound.lead.kind == LeadKind::Glide {
@@ -525,6 +588,9 @@ impl SongDna {
             alt_synth,
         );
         plan.companion = companion;
+        if has_melody {
+            plan.set_melody(&mut root.fork("melody-plan"), &profile.melody);
+        }
 
         SongDna {
             seed,
@@ -539,6 +605,7 @@ impl SongDna {
             arp,
             piano,
             guitar,
+            melody: melody_line,
             sound,
             plan,
         }
@@ -576,6 +643,7 @@ impl SongDna {
              synths     main {}, breakdown {}, companion {}\n\
              piano      {}   {:?} {:?} v{}\n\
              guitar     {}   {:?} {:?} v{}\n\
+             melody     {}   {:?}\n\
              palette    {}\n\
              (motif digits = scale degree above root, a/b/c.. = 1/2/3.. below)",
             self.seed,
@@ -641,6 +709,12 @@ impl SongDna {
             self.sound.guitar.style,
             self.sound.guitar.chord,
             self.sound.guitar.variant,
+            if self.melody.is_empty() {
+                "none".to_string()
+            } else {
+                self.melody.to_string_grid()
+            },
+            self.sound.melody.voice,
             self.plan
                 .palette
                 .iter()
@@ -654,6 +728,24 @@ impl SongDna {
 // ---------------------------------------------------------------------------------------
 // Generators
 // ---------------------------------------------------------------------------------------
+
+/// melody: a progression with at least two chords that moves everywhere (a melody needs
+/// chords to follow). Keeps the first one if it already does.
+fn moving_progression(root: &Rng, p: &Profile, key: Key, first: Progression) -> Progression {
+    let mut prog = first;
+    for i in 0..8 {
+        if prog.count >= 2 {
+            break;
+        }
+        prog = gen_progression(&mut root.fork(&format!("progression-m{i}")), p, key);
+    }
+    if prog.count < 2 {
+        prog.roots[1] = 3;
+        prog.count = 2;
+    }
+    prog.breakdown_only = false;
+    prog
+}
 
 fn gen_progression(rng: &mut Rng, p: &Profile, key: Key) -> Progression {
     let h = &p.harmony;
@@ -1327,6 +1419,26 @@ fn gen_sound(rng: &mut Rng, p: &Profile, key: Key) -> SoundParams {
             detune: rng.in_range(p.pad.detune),
             attack: rng.in_range(p.pad.attack),
         },
+        melody: MelodySound {
+            voice: MelodyVoice::Piano,
+            piano: KeysParams {
+                variant: 0,
+                style: KeysStyle::Held,
+                chord: ChordShape::Seventh,
+                brightness: 0.5,
+                decay: 2.0,
+            },
+            lead: LeadParams {
+                kind: LeadKind::Glide,
+                style: LeadStyle::Long,
+                cutoff_hz: 800.0,
+                resonance: 0.2,
+                env_mod: 1.0,
+                decay: 0.3,
+                drive: 1.0,
+                square: 0.1,
+            },
+        },
         mix: MixParams {
             sidechain_depth: rng.in_range(p.mix.sidechain_depth),
             sidechain_release: rng.in_range(p.mix.sidechain_release),
@@ -1723,6 +1835,62 @@ mod tests {
             "piano / guitar should be common: {natural}/200"
         );
         assert!(companions > 30, "{companions}/200");
+    }
+
+    #[test]
+    fn melody_songs_have_moving_chords_and_strings() {
+        let p = Profile::house();
+        let (mut with, mut played) = (0, 0);
+        for dna in house_songs() {
+            if dna.melody.is_empty() {
+                assert!(!dna.plan.palette.contains(Track::Melody));
+                continue;
+            }
+            with += 1;
+            // The chords the melody follows really move, everywhere, over strings.
+            assert!(dna.progression.count >= 2, "seed {}", dna.seed);
+            assert!(!dna.progression.breakdown_only, "seed {}", dna.seed);
+            assert!(dna.plan.palette.contains(Track::Pad), "seed {}", dna.seed);
+            assert!(dna.plan.palette.contains(Track::Melody));
+            assert!(!dna.plan.palette.contains(Track::Drone));
+            for bar in 0..dna.plan.total_bars {
+                let b = dna.plan.bar(bar);
+                if b.active.contains(Track::Melody) {
+                    played += 1;
+                    // Replaces the melodic short synths; never in intro, outro or builds.
+                    assert!(!b.active.contains(Track::Lead) && !b.active.contains(Track::Arp));
+                    assert!(matches!(
+                        b.section,
+                        SectionKind::Groove | SectionKind::Drop | SectionKind::Breakdown
+                    ));
+                }
+            }
+        }
+        let share = with as f32 / 200.0;
+        assert!((share - p.melody.probability).abs() < 0.12, "{share}");
+        assert!(
+            played > with * 20,
+            "melody should play for many bars: {played}"
+        );
+    }
+
+    #[test]
+    fn melody_is_off_for_techno_and_when_probability_is_zero() {
+        let t = Profile::hard_techno_simple();
+        let mut h = Profile::house();
+        h.melody.probability = 0.0;
+        for s in 0..100u64 {
+            for p in [&t, &h] {
+                let d = SongDna::generate(s, p);
+                assert!(d.melody.is_empty());
+                assert!(!d.plan.palette.contains(Track::Melody));
+                assert!((0..d.plan.total_bars).all(|b| !d
+                    .plan
+                    .bar(b)
+                    .active
+                    .contains(Track::Melody)));
+            }
+        }
     }
 
     #[test]

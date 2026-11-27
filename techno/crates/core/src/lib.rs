@@ -6,6 +6,7 @@
 pub mod dna;
 pub mod euclid;
 pub mod markov;
+pub mod melody;
 pub mod naming;
 pub mod profile;
 pub mod rng;

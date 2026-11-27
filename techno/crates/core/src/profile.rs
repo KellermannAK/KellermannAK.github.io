@@ -51,6 +51,72 @@ pub struct Profile {
     /// Plucked guitar (house).
     #[serde(default)]
     pub guitar: GuitarRules,
+    /// Melody layer (experiment). Off unless the profile has a `[melody]` section with a
+    /// probability above 0.
+    #[serde(default)]
+    pub melody: MelodyRules,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MelodyVoice {
+    /// Piano (own instance, a different one than the chord piano).
+    Piano,
+    /// Soft lead with long portamento: the electronic glide.
+    Glide,
+    /// FM pluck.
+    Pluck,
+}
+
+/// A melody over several bars that follows the chord progression (see `melody.rs`).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MelodyRules {
+    /// Per song: probability that it carries a melody. 0 = feature off.
+    pub probability: f32,
+    pub voices: Weighted<MelodyVoice>,
+    /// Length of the melody in bars (8 or 16), then it loops.
+    pub bars: Weighted<u8>,
+    /// Share of the 8-bar phrases in grooves and drops that carry the melody.
+    pub phrase_prob: f32,
+    /// Same for breakdowns (after their first bars).
+    pub breakdown_prob: f32,
+    /// Minimum arrangement energy for the melody in grooves and drops.
+    pub energy: f32,
+    /// Chance of a chromatic approach note before a strong note (jazz colour).
+    pub chromatic_prob: f32,
+    /// Chance that a bar is sparse (one or two long notes) instead of busy.
+    pub rest_prob: f32,
+    /// Range in scale degrees above the chord root.
+    pub range: [i32; 2],
+    pub brightness: Range,
+    pub decay: Range,
+    /// Piano variants for the melody piano: 0 grand, 1 felt, 2 electric, 3 bright.
+    pub piano_variants: Weighted<u8>,
+}
+
+impl Default for MelodyRules {
+    fn default() -> Self {
+        MelodyRules {
+            probability: 0.0,
+            voices: Weighted {
+                values: vec![MelodyVoice::Piano],
+                weights: vec![1.0],
+            },
+            bars: Weighted {
+                values: vec![8],
+                weights: vec![1.0],
+            },
+            phrase_prob: 0.6,
+            breakdown_prob: 0.9,
+            energy: 0.55,
+            chromatic_prob: 0.2,
+            rest_prob: 0.12,
+            range: [0, 11],
+            brightness: [0.4, 0.7],
+            decay: [1.5, 2.5],
+            piano_variants: zero_variant(),
+        }
+    }
 }
 
 fn zero_variant() -> Weighted<u8> {
