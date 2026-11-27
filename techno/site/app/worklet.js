@@ -8,7 +8,7 @@ const now = () => (globalThis.performance && performance.now ? performance.now()
 class TechnoProcessor extends AudioWorkletProcessor {
   constructor(options) {
     super();
-    const { wasm, seedLo, seedHi, gain, eco, genre } = options.processorOptions;
+    const { wasm, seedLo, seedHi, gain, eco, genre, playlist } = options.processorOptions;
     this.ready = false;
     this.blocksPerStatus = Math.max(1, Math.round(sampleRate / 128 / 8)); // ~8 updates/s
     this.blockCount = 0;
@@ -18,7 +18,14 @@ class TechnoProcessor extends AudioWorkletProcessor {
     WebAssembly.instantiate(wasm, {})
       .then(({ instance }) => {
         this.w = instance.exports;
-        if (this.w.techno_new_genre) {
+        if (playlist && playlist.length && this.w.techno_new_playlist) {
+          // Favourites: [seed, keyRoot, bpm] per song, played in order and wrapping around.
+          this.w.techno_playlist_clear();
+          for (const [s, root, bpm] of playlist) {
+            this.w.techno_playlist_push(s >>> 0, Math.floor(s / 2 ** 32), root, bpm);
+          }
+          this.e = this.w.techno_new_playlist(sampleRate, eco ? 2 : 1, genre || 0);
+        } else if (this.w.techno_new_genre) {
           this.e = this.w.techno_new_genre(seedLo >>> 0, seedHi >>> 0, sampleRate, eco ? 2 : 1, genre || 0);
         } else {
           this.e = eco

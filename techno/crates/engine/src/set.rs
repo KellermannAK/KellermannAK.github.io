@@ -146,7 +146,17 @@ struct Slot {
     strip: DeckStrip,
 }
 
+/// One song of a playlist set (favourites): the seed plus the tempo and key it was heard in.
+#[derive(Clone, Copy, Debug)]
+pub struct PlaylistSong {
+    pub seed: u64,
+    pub key_root: u8,
+    pub bpm: f32,
+}
+
 pub struct Set {
+    /// Songs to play in order, wrapping around (empty = an endless generated set).
+    playlist: Vec<PlaylistSong>,
     sr: f32,
     profile: Profile,
     rng: Rng,
@@ -174,8 +184,39 @@ impl Set {
         let mut rng = Rng::new(set_seed);
         let first_seed = rng.next_u64() % 1_000_000;
         let dna = SongDna::generate(first_seed, &profile);
+        Set::build(rng, profile, dna, Vec::new(), max_songs, sample_rate)
+    }
+
+    /// A set of chosen songs (favourites), played in order and wrapping around endlessly.
+    /// Every song is generated with the tempo and key it was heard in; from the second song
+    /// on the tempo is the running song's (decks stay in sync) and the key is adjusted to
+    /// the Camelot wheel where the stored one would clash. `songs` must not be empty.
+    pub fn new_playlist(profile: Profile, songs: Vec<PlaylistSong>, sample_rate: f32) -> Set {
+        assert!(!songs.is_empty(), "playlist without songs");
+        let first = songs[0];
+        let rng = Rng::new(first.seed ^ 0x5eed_f00d);
+        let dna = SongDna::generate_with(
+            first.seed,
+            &profile,
+            Constraints {
+                bpm: Some(first.bpm),
+                key_root: Some(first.key_root),
+            },
+        );
+        Set::build(rng, profile, dna, songs, u32::MAX, sample_rate)
+    }
+
+    fn build(
+        rng: Rng,
+        profile: Profile,
+        dna: SongDna,
+        playlist: Vec<PlaylistSong>,
+        max_songs: u32,
+        sample_rate: f32,
+    ) -> Set {
         let frames_per_bar = seconds_per_bar(dna.bpm as f64) * sample_rate as f64;
         let mut set = Set {
+            playlist,
             sr: sample_rate,
             profile,
             rng,
@@ -342,7 +383,28 @@ impl Set {
             bpm: Some(cur.bpm),
             key_root: Some(key.root),
         };
-        let dna = SongDna::generate_with(seed, &self.profile, c);
+        let dna = if self.playlist.is_empty() {
+            SongDna::generate_with(seed, &self.profile, c)
+        } else {
+            // Favourites: the song as it was heard, if its key fits the running one.
+            let e = self.playlist[self.next_index as usize % self.playlist.len()];
+            let heard = SongDna::generate_with(
+                e.seed,
+                &self.profile,
+                Constraints {
+                    bpm: Some(cur.bpm),
+                    key_root: Some(e.key_root),
+                },
+            );
+            let (n0, r0) = cur.key.camelot();
+            let (n1, r1) = heard.key.camelot();
+            let d = (n1 as i32 - n0 as i32).rem_euclid(12);
+            if r0 == r1 && (d == 0 || d == 1 || d == 11) {
+                heard
+            } else {
+                SongDna::generate_with(e.seed, &self.profile, c)
+            }
+        };
         self.next = Some(match self.spare.take() {
             Some(old) => old.recycle(dna),
             None => Deck::new(dna, self.sr),
@@ -562,6 +624,37 @@ mod tests {
             assert!(w[1].start_seconds > w[0].start_seconds);
             assert_eq!(w[0].bpm, w[1].bpm, "tempo is global");
         }
+    }
+
+    #[test]
+    fn playlist_plays_songs_in_order_and_wraps() {
+        let p = Profile::house();
+        let heard = |seed: u64, bpm: f32, root: u8| PlaylistSong {
+            seed,
+            key_root: root,
+            bpm,
+        };
+        let songs = vec![heard(101, 122.0, 2), heard(202, 122.0, 9)];
+        let mut set = Set::new_playlist(p.clone(), songs.clone(), 8000.0);
+        let mut buf = vec![0.0f32; 2 * 4000];
+        while set.log.len() < 3 {
+            set.render_interleaved(&mut buf);
+            assert!(set.frame < 8000 * 60 * 40, "playlist stalled");
+        }
+        let seeds: Vec<u64> = set.log.iter().map(|e| e.seed).collect();
+        assert_eq!(seeds, vec![101, 202, 101], "order and wrap-around");
+        // The first song is exactly the one that was heard.
+        let dna = SongDna::generate_with(
+            101,
+            &p,
+            Constraints {
+                bpm: Some(122.0),
+                key_root: Some(2),
+            },
+        );
+        assert_eq!(set.log[0].key, dna.key.name());
+        assert_eq!(set.log[0].bpm, 122.0);
+        assert!(!set.finished());
     }
 
     #[test]

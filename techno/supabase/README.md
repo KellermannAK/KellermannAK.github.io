@@ -65,3 +65,10 @@ not split by genre yet.
 Run `public_stats.sql` once (after `stats.sql` and `genre.sql`). It adds `public_stats()`, which
 returns only aggregates for the last 30 days (distinct listeners and listening hours, per genre
 and in total). The site shows them under the genre switcher; without the function they stay hidden.
+
+## Favorites
+
+Run `favorites.sql` once (needs `schema.sql`). It creates the `favorites` table: per user the
+songs with the heart on (genre, seed, key root, BPM, title, artist), readable and changeable
+only by their owner (RLS, at most 300 per user). Without it the favorites still work, kept on
+the device only.

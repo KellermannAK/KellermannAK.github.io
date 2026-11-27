@@ -7,7 +7,7 @@ pub mod deck;
 pub mod set;
 
 pub use deck::Deck;
-pub use set::{Set, SetEntry, SetStatus, TransitionKind};
+pub use set::{PlaylistSong, Set, SetEntry, SetStatus, TransitionKind};
 use techno_core::{Profile, SongDna};
 use techno_synth::mixer::MasterBus;
 

@@ -7,6 +7,8 @@ const keyName = (root, scale) =>
 const genre = () => (window.TechnoGenre ? window.TechnoGenre.current() : { id: "techno", name: "Techno", index: 0 });
 // Genre the running set was started with (the switcher may change it later).
 let setGenre = genre();
+// Favourites mix: [[seed, keyRoot, bpm], ...] while one is playing, else null.
+let favMix = null;
 const SECTIONS = ["Intro", "Groove", "Build-up", "Breakdown", "Drop", "Outro"];
 const TRANSITIONS = ["Hard cut", "Fast blend", "Slow blend", "Filter blend"];
 // Short silent WAV: playing it through an <audio> element moves iOS into the
@@ -132,10 +134,11 @@ async function ensureContext() {
 
 let starting = false;
 
-async function startSet(newSeed) {
+async function startSet(newSeed, playlist = null) {
   if (starting) return; // ignore double clicks while loading
   starting = true;
   try {
+    favMix = playlist;
     await startSetInner(newSeed);
   } finally {
     starting = false;
@@ -180,13 +183,14 @@ async function startSetInner(newSeed) {
   setGenre = genre();
   lastSongSeed = -1;
   const url = new URL(location.href);
-  url.searchParams.set("set", seed);
+  if (favMix) url.searchParams.delete("set");
+  else url.searchParams.set("set", seed);
   history.replaceState(null, "", url);
   node = new AudioWorkletNode(ctx, "techno", {
     numberOfInputs: 0,
     numberOfOutputs: 1,
     outputChannelCount: [2],
-    processorOptions: { wasm: wasmBytes, seedLo: seed, seedHi: 0, gain: volume(), eco, genre: setGenre.index },
+    processorOptions: { wasm: wasmBytes, seedLo: seed, seedHi: 0, gain: volume(), eco, genre: setGenre.index, playlist: favMix },
   });
   node.port.onmessage = (ev) => {
     const m = ev.data;
@@ -241,6 +245,7 @@ function feedback(rating) {
   const [song, songSeed, root, scale, camelot, bpm, section, bar, secBar, secBars, totalBars] = lastStatus;
   window.TechnoFeedback.open({
     source: "Live set",
+    favorites: !!favMix,
     genre: setGenre.id,
     setSeed: seed,
     songIndex: song,
@@ -293,17 +298,53 @@ function showStatus(s) {
   if (inTransition) next = `Transition running: ${TRANSITIONS[transition] || ""}`;
   else if (transition >= 0) next = `Next song: ${TRANSITIONS[transition].toLowerCase()} in ${barsTo} bars`;
   $("lv-next").textContent = next;
-  $("lv-time").textContent = `Set #${seed} · ${mmss(seconds)}`;
+  $("lv-time").textContent = `${favMix ? "Favorites mix" : `Set #${seed}`} · ${mmss(seconds)}`;
+  showFav();
+  $("lv-card-title").textContent = favMix ? "Favorites mix" : "Endless set";
   const title = currentName ? currentName.title : `Song ${song + 1} – ${key}`;
   if (title !== lastTitle && "mediaSession" in navigator) {
     lastTitle = title;
     navigator.mediaSession.metadata = new MediaMetadata({
       title,
       artist: currentName ? currentName.artist : "Techno Generator",
-      album: `Techno Generator · ${setGenre.name} · Live set #${seed}`,
+      album: `Techno Generator · ${setGenre.name} · ${favMix ? "Favorites mix" : `Live set #${seed}`}`,
     });
   }
 }
+
+/** Heart of the playing song: info for the favourites list, from the last status. */
+function favInfo() {
+  if (!lastStatus) return null;
+  const [, songSeed, root, scale, , bpm] = lastStatus;
+  return {
+    genre: setGenre.id, seed: songSeed, root, bpm,
+    title: currentName ? currentName.title : "", artist: currentName ? currentName.artist : "",
+    key: keyName(root, scale),
+  };
+}
+
+function showFav() {
+  const b = $("lv-fav");
+  const f = window.TechnoFavs;
+  if (!b || !f || !lastStatus) return;
+  const on = f.has(setGenre.id, lastStatus[1]);
+  b.classList.toggle("on", on);
+  b.setAttribute("aria-pressed", String(on));
+  b.setAttribute("aria-label", on ? "Remove from favorites" : "Add to favorites");
+}
+
+/** Play the favourites of a genre as a mix (in order, endless). */
+async function playFavorites(genreId) {
+  const g = (window.TechnoGenre ? window.TechnoGenre.list : []).find((x) => x.id === genreId);
+  const favs = window.TechnoFavs ? window.TechnoFavs.forGenre(genreId) : [];
+  if (!g || !favs.length) return;
+  // Oldest first: the order in which they were added.
+  const pl = favs.slice().reverse().map((f) => [f.seed, f.root, f.bpm]);
+  if (window.TechnoGenre) window.TechnoGenre.set(genreId);
+  $("lv-play").closest(".card").scrollIntoView({ behavior: "smooth", block: "start" });
+  await startSet(0, pl).catch((e) => showError(e.message));
+}
+window.TechnoLive = { playFavorites };
 
 function setupMediaSession() {
   if (!("mediaSession" in navigator)) return;
@@ -346,6 +387,12 @@ function init() {
     const s = parseInt($("lv-seed").value, 10);
     if (Number.isFinite(s) && s >= 0) startSet(s).catch((e) => showError(e.message));
   });
+  $("lv-fav").addEventListener("click", () => {
+    const i = favInfo();
+    if (i && window.TechnoFavs) window.TechnoFavs.toggle(i);
+    showFav();
+  });
+  window.addEventListener("favchange", showFav);
   $("lv-up").addEventListener("click", () => feedback("up"));
   $("lv-down").addEventListener("click", () => feedback("down"));
   $("lv-idea").addEventListener("click", () => feedback("idea"));
@@ -353,7 +400,7 @@ function init() {
   ecoSel.value = ecoPref();
   ecoSel.addEventListener("change", () => {
     try { localStorage.setItem(ECO_KEY, ecoSel.value); } catch (_) {}
-    if (node) startSet(seed).catch((e) => showError(e.message)); // restart with the new mode
+    if (node) startSet(seed, favMix).catch((e) => showError(e.message)); // restart with the new mode
   });
   $("lv-vol").addEventListener("input", () => {
     if (node) node.port.postMessage({ type: "gain", value: volume() });
@@ -363,7 +410,19 @@ function init() {
   // Genre switch: a running set continues in the new genre (same set seed); a paused or
   // stopped one is reset so the next start plays the new genre.
   window.addEventListener("genrechange", () => {
-    if (node && playing) {
+    if (favMix && node) {
+      // A favourites mix belongs to one genre: stop it (the new genre may have none).
+      favMix = null;
+      node.port.postMessage({ type: "stop" });
+      node.disconnect();
+      node.port.onmessage = null;
+      node = null;
+      playing = false;
+      lastStatus = null;
+      $("lv-info").hidden = true;
+      setPlayButton("idle");
+      if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
+    } else if (node && playing) {
       startSet(seed).catch((e) => showError(e.message));
     } else if (node) {
       node.port.postMessage({ type: "stop" });

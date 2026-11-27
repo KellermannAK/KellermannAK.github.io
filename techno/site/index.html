@@ -24,6 +24,7 @@
     --accent-line: rgba(255, 61, 90, 0.35);
     --accent2: #ffb13d;
     --code: #c9c9d3;
+    --heart: #ff4d6d;
   }
   /* House: warm violet night with a sunset amber accent. */
   html[data-genre="house"] {
@@ -37,6 +38,7 @@
     --accent-line: rgba(255, 179, 71, 0.4);
     --accent2: #ff7ab8;
     --code: #e2d6ee;
+    --heart: #ff7ab8;
   }
   html[data-genre="house"] .play, html[data-genre="house"] .acc-btn.in { color: #2a1636; }
   * { box-sizing: border-box; }
@@ -68,6 +70,17 @@
   .g-dots { display: flex; justify-content: center; gap: 6px; margin-bottom: 4px; }
   .g-dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--line); transition: background 0.3s; }
   .g-dots span.on { background: var(--accent); }
+  .heart { flex: none; background: none; border: 0; padding: 4px; color: var(--muted); cursor: pointer; line-height: 0; border-radius: 50%; }
+  .heart svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; transition: transform 0.15s; }
+  .heart:hover { color: var(--heart); }
+  .heart:active svg { transform: scale(0.85); }
+  .heart.on { color: var(--heart); }
+  .heart.on svg { fill: currentColor; }
+  .song-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .cam { display: flex; align-items: center; gap: 4px; }
+  ol.favlist { margin-top: 0; }
+  ol.favlist li { grid-template-columns: 1fr auto; cursor: default; }
+  ol.favlist .how { grid-column: 1; }
   .counters { display: flex; flex-direction: column; align-items: center; gap: 1px; margin: 40px 0 0; font-size: 0.82rem; color: var(--muted); font-variant-numeric: tabular-nums; text-align: center; }
   .counters b { color: var(--text); font-weight: 600; margin-right: 4px; }
   .acc-btn {
@@ -239,7 +252,7 @@
   <h2>Live</h2>
   <section class="card live">
     <div class="head">
-      <span class="title">Endless set</span>
+      <span class="title" id="lv-card-title">Endless set</span>
       <span class="pill" id="lv-cam">live</span>
     </div>
     <button class="play" id="lv-play" data-state="idle">
@@ -250,7 +263,7 @@
     <p class="err" id="lv-error" hidden></p>
     <p class="label" id="lv-slow" hidden style="margin:8px 0 0;color:#ffb13d"></p>
     <div class="live-now" id="lv-info" hidden>
-      <div class="now-song" id="lv-song">–</div>
+      <div class="song-row"><div class="now-song" id="lv-song">–</div><button class="heart" id="lv-fav" aria-label="Add to favorites" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.4C5.2 15.2 3 12.1 3 8.9 3 6.2 5 4.5 7.3 4.5c1.9 0 3.5 1.1 4.7 3 1.2-1.9 2.8-3 4.7-3C19 4.5 21 6.2 21 8.9c0 3.2-2.2 6.3-9 11.5z"/></svg></button></div>
       <div id="lv-artist" style="font-weight:500"></div>
       <div class="meta" id="lv-key" style="font-size:.9rem;margin-top:2px"></div>
       <div class="row"><span class="section-name" id="lv-section">–</span><span class="label" id="lv-bars"></span></div>
@@ -291,6 +304,9 @@
   <h2>Mixes</h2>
   <div id="mixes"><p class="meta">Loading…</p></div>
 
+  <h2 id="fav-title">Favorites</h2>
+  <section class="card" id="favs"></section>
+
   <h2 id="songs-title">Single songs</h2>
   <div id="songs"></div>
 
@@ -325,6 +341,46 @@
     return r.json();
   }
 
+  const HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.4C5.2 15.2 3 12.1 3 8.9 3 6.2 5 4.5 7.3 4.5c1.9 0 3.5 1.1 4.7 3 1.2-1.9 2.8-3 4.7-3C19 4.5 21 6.2 21 8.9c0 3.2-2.2 6.3-9 11.5z"/></svg>';
+  const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+  const favBtn = (extra = "") => `<button class="heart" ${extra} aria-pressed="false" aria-label="Add to favorites">${HEART}</button>`;
+  /** Show the state of every heart on the page from the favourites list. */
+  function refreshHearts() {
+    const f = window.TechnoFavs;
+    document.querySelectorAll(".heart[data-seed]").forEach((b) => {
+      const on = !!f && f.has(b.dataset.genre, Number(b.dataset.seed));
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-pressed", String(on));
+      b.setAttribute("aria-label", on ? "Remove from favorites" : "Add to favorites");
+    });
+  }
+
+  function renderFavs() {
+    const box = document.getElementById("favs");
+    const g = genreNow();
+    const f = window.TechnoFavs;
+    const favs = f ? f.forGenre(g.id) : [];
+    if (!favs.length) {
+      box.innerHTML = `<p class="meta" style="margin:0">No ${esc(g.name)} favorites yet. Tap the heart on the playing song or in a mix tracklist to add it here.</p>`;
+      return;
+    }
+    box.innerHTML = `
+      <div class="head"><span class="title">${favs.length} ${esc(g.name)} favorite${favs.length === 1 ? "" : "s"}</span></div>
+      <button class="play" id="fav-play" style="margin-top:0"><svg class="ico-play" viewBox="0 0 24 24" style="display:inline"><path d="M7 4.5v15l13-7.5z"/></svg><span>Play favorites as a mix</span></button>
+      <ol class="tracks favlist">${favs.map((s) => `
+        <li>
+          <span class="song-key">${s.title ? esc(s.title) : "Seed " + s.seed}</span>
+          <span class="cam">${favBtn(`data-genre="${esc(s.genre)}" data-seed="${s.seed}"`)}</span>
+          <span class="how">${s.artist ? esc(s.artist) + " · " : ""}${s.key ? esc(s.key) + " · " : ""}${s.bpm} BPM · Seed ${s.seed}</span>
+        </li>`).join("")}
+      </ol>
+      <p class="label" style="margin:10px 0 0">Favorites are generated again when played, in the order you added them. After an engine update a song can sound different from when you liked it.</p>`;
+    box.querySelectorAll(".heart").forEach((b, i) => b.addEventListener("click", () => f.toggle({ genre: favs[i].genre, seed: favs[i].seed, root: favs[i].root, bpm: favs[i].bpm })));
+    box.querySelector("#fav-play").addEventListener("click", () => window.TechnoLive && window.TechnoLive.playFavorites(g.id));
+    refreshHearts();
+  }
+  window.addEventListener("favchange", () => { renderFavs(); refreshHearts(); });
+
   const genreNow = () => (window.TechnoGenre ? window.TechnoGenre.current() : { id: "techno", name: "Techno" });
   // Mix files: techno keeps its original names, other genres get a prefix.
   const mixFile = (genre, seed) => (genre === "techno" ? `audio/mix-${seed}` : `audio/${genre}-mix-${seed}`);
@@ -353,7 +409,7 @@
         <li data-start="${s.start}" data-i="${i}">
           <span class="time">${mmss(s.start)}</span>
           <span class="song-key">${s.title ? esc(s.title) : esc(deKey(s.key))}</span>
-          <span class="cam">${esc(s.camelot)}</span>
+          <span class="cam"><span>${esc(s.camelot)}</span>${favBtn(`data-genre="${genre}" data-seed="${s.seed}" data-i="${i}"`)}</span>
           <span class="how">${s.artist ? esc(s.artist) + " · " : ""}${s.title ? esc(deKey(s.key)) + " · " : ""}${s.transition ? esc(HOW[s.transition] || s.transition) : "start"} · Seed ${s.seed}</span>
         </li>`).join("")}
       </ol>
@@ -361,6 +417,14 @@
         `#${s.index + 1}  ${s.artist ? esc(s.artist) + " – " + esc(s.title) + "  " : ""}Seed ${s.seed}  ${esc(deKey(s.key))} (${esc(s.camelot)})\n${esc(s.structure)}`).join("\n\n")}</pre></details>`;
     const audio = el.querySelector("audio");
     const rows = [...el.querySelectorAll("li")];
+    el.querySelectorAll(".heart").forEach((b) => b.addEventListener("click", (e) => {
+      e.stopPropagation(); // do not jump to the song
+      const s = songs[Number(b.dataset.i)];
+      const root = NOTE_NAMES.indexOf(String(s.key).split(" ")[0]);
+      if (window.TechnoFavs && root >= 0) {
+        window.TechnoFavs.toggle({ genre, seed: s.seed, root, bpm: s.bpm, title: s.title || "", artist: s.artist || "", key: s.key, build });
+      }
+    }));
     el.querySelectorAll(".fb-row .thumb").forEach((b) => b.addEventListener("click", () => {
       const t = audio.currentTime;
       let cur = 0;
@@ -455,6 +519,7 @@
     if (run !== loadRun) return; // the genre changed while loading
     mixBox.innerHTML = "";
     cards.forEach((c) => mixBox.appendChild(c));
+    refreshHearts();
     if (!mixes.length) {
       mixBox.innerHTML = `<p class="meta">No ${esc(g.name)} mixes yet – the first one arrives with the next push. The live set above already works.</p>`;
     }
@@ -483,7 +548,8 @@
       `Build <code>${esc(sha)}</code> · ${esc(index.built || "")} · Feedback format: “mix X, minute Y, problem” or “seed X, bar Y, problem”`;
   }
   load();
-  window.addEventListener("genrechange", () => { load(); dots(); });
+  window.addEventListener("genrechange", () => { load(); dots(); renderFavs(); });
+  renderFavs();
   function dots() {
     const box = document.getElementById("g-dots");
     if (!box || !window.TechnoGenre) return;
@@ -497,6 +563,7 @@
 <script src="app/feedback.js"></script>
 <script type="module" src="app/db.js"></script>
 <script type="module" src="app/stats.js"></script>
+<script type="module" src="app/favorites.js"></script>
 <script type="module" src="app/account.js"></script>
 <script type="module" src="app/counters.js"></script>
 <script type="module" src="app/live.js"></script>

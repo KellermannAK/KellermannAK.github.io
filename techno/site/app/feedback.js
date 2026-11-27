@@ -36,6 +36,7 @@
   function where(ctx) {
     const parts = [];
     if (ctx.mixSeed !== undefined) parts.push(`Mix ${ctx.mixSeed} @ ${ctx.time}`);
+    else if (ctx.favorites) parts.push(`Favorites mix @ ${ctx.time}`);
     else parts.push(`Live set ${ctx.setSeed} @ ${ctx.time}`);
     if (ctx.songIndex !== undefined) parts.push(`Song ${ctx.songIndex + 1}${ctx.title ? ` “${ctx.title}”` : ""}${ctx.songSeed !== undefined ? ` (Seed ${ctx.songSeed})` : ""}`);
     if (ctx.section) parts.push(`${ctx.section}${ctx.sectionBar ? ` ${ctx.sectionBar}` : ""}`);

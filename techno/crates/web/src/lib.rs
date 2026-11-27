@@ -18,7 +18,7 @@
 use techno_core::profile::Profile;
 use techno_core::structure::SectionKind;
 use techno_core::theory::ScaleKind;
-use techno_engine::{Set, TransitionKind};
+use techno_engine::{PlaylistSong, Set, TransitionKind};
 
 pub const MAX_FRAMES: usize = 4096;
 pub const STATUS_LEN: usize = 17;
@@ -114,13 +114,30 @@ impl WebEngine {
     /// `genre`: index into `GENRES` (0 techno, 1 house).
     pub fn with_genre(seed: u64, sample_rate: f32, factor: usize, genre: u32) -> WebEngine {
         let factor = factor.clamp(1, 2);
+        let set = Set::new(
+            seed,
+            profile(genre).clone(),
+            u32::MAX,
+            sample_rate / factor as f32,
+        );
+        WebEngine::with_set(set, factor)
+    }
+
+    /// Playlist engine (favourites): `songs` play in order and wrap around.
+    pub fn with_playlist(
+        songs: Vec<PlaylistSong>,
+        sample_rate: f32,
+        factor: usize,
+        genre: u32,
+    ) -> WebEngine {
+        let factor = factor.clamp(1, 2);
+        let set = Set::new_playlist(profile(genre).clone(), songs, sample_rate / factor as f32);
+        WebEngine::with_set(set, factor)
+    }
+
+    fn with_set(set: Set, factor: usize) -> WebEngine {
         WebEngine {
-            set: Set::new(
-                seed,
-                profile(genre).clone(),
-                u32::MAX,
-                sample_rate / factor as f32,
-            ),
+            set,
             left: vec![0.0; MAX_FRAMES],
             right: vec![0.0; MAX_FRAMES],
             status: [0.0; STATUS_LEN],
@@ -255,6 +272,39 @@ fn profile(genre: u32) -> &'static Profile {
     }
 }
 
+static PLAYLIST: std::sync::Mutex<Vec<PlaylistSong>> = std::sync::Mutex::new(Vec::new());
+
+/// Start collecting a playlist (favourites): clear the staged songs.
+#[no_mangle]
+pub extern "C" fn techno_playlist_clear() {
+    PLAYLIST.lock().unwrap().clear();
+}
+
+/// Stage one song of the playlist: seed, key root (0 = C) and BPM it was heard in.
+#[no_mangle]
+pub extern "C" fn techno_playlist_push(seed_lo: u32, seed_hi: u32, key_root: u32, bpm: f32) {
+    PLAYLIST.lock().unwrap().push(PlaylistSong {
+        seed: (seed_hi as u64) << 32 | seed_lo as u64,
+        key_root: (key_root % 12) as u8,
+        bpm: bpm.clamp(60.0, 200.0),
+    });
+}
+
+/// Engine for the staged playlist (null if nothing was staged). Songs play in order and wrap.
+#[no_mangle]
+pub extern "C" fn techno_new_playlist(sample_rate: f32, factor: u32, genre: u32) -> *mut WebEngine {
+    let songs: Vec<PlaylistSong> = PLAYLIST.lock().unwrap().clone();
+    if songs.is_empty() {
+        return core::ptr::null_mut();
+    }
+    Box::into_raw(Box::new(WebEngine::with_playlist(
+        songs,
+        sample_rate,
+        factor as usize,
+        genre,
+    )))
+}
+
 /// Constructor with genre: `factor` as in `techno_new_eco`, `genre` 0 techno, 1 house.
 #[no_mangle]
 pub extern "C" fn techno_new_genre(
@@ -376,6 +426,27 @@ mod tests {
         assert!(s[5] >= 118.0 && s[5] <= 126.0, "bpm {}", s[5]);
         let len = techno_name_genre(5, 0, 1);
         assert!(len > 3);
+    }
+
+    #[test]
+    fn playlist_engine_renders_staged_songs() {
+        techno_playlist_clear();
+        assert!(techno_new_playlist(48000.0, 1, 1).is_null());
+        techno_playlist_push(777, 0, 4, 122.0);
+        techno_playlist_push(888, 0, 11, 122.0);
+        let e = techno_new_playlist(48000.0, 1, 1);
+        assert!(!e.is_null());
+        // SAFETY: just created by techno_new_playlist.
+        unsafe {
+            for _ in 0..300 {
+                techno_render(e, 128);
+            }
+            let s = std::slice::from_raw_parts(techno_status(e), STATUS_LEN);
+            assert_eq!(s[1], 777.0);
+            assert_eq!(s[5], 122.0);
+            techno_free(e);
+        }
+        techno_playlist_clear();
     }
 
     #[test]
