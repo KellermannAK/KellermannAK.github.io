@@ -282,9 +282,10 @@ breakdown_prob = 0.33
 # What plays under it, drawn per breakdown: a stripped groove (kick, hats, clap + bass),
 # only the bass, only the rhythm, or nothing but the strings.
 backing = { values = ["rhythm_bass", "bass", "rhythm", "bare"], weights = [3.0, 2.0, 1.2, 2.0] }
-chromatic_prob = 0.08
+# A leap (fifth / sixth) at the start of a half phrase; the line then turns and fills the gap.
+leap_prob = 0.25
 rest_prob = 0.12
-# Scale degrees above the chord root.
+# Scale degrees above the key's tonic.
 range = [0, 11]
 brightness = [0.35, 0.7]
 decay = [1.5, 2.5]

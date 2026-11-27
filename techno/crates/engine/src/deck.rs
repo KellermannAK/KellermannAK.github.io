@@ -93,11 +93,7 @@ fn insert_params(t: Track, dna: &SongDna) -> InsertParams {
 /// Fold a progression root so the harmony stays in one register (VI and VII go below).
 #[inline]
 fn fold_root(root: i32) -> i32 {
-    if root >= 4 {
-        root - 7
-    } else {
-        root
-    }
+    techno_core::melody::fold_root(root)
 }
 
 /// Small deterministic velocity variation (no RNG state in the audio path).

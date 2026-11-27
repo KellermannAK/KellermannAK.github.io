@@ -150,13 +150,24 @@ previous / next song, a position slider and a switch between the mixes of the ge
 
 ### Melody layer (experiment, house)
 
-Songs can carry a real melody over 8 or 16 bars instead of an arpeggio: it follows the chord
-progression underneath (notes are stored relative to each bar's chord root), is jazz-like
-(syncopated rhythms, 3rd / 7th / 9th on the strong beats, chromatic approach notes) and is
-played by the song's own lead instrument (almost always) or, rarely, a piano. Songs with a melody get a progression that
-really moves and strings underneath. The melody plays only in breakdowns (after a few bars of
-strings) as the only short instrument; under it comes a stripped groove, only the bass, only the
-rhythm, or nothing but the strings (drawn per breakdown, `backing` in the profile).
+Songs can carry a real melody over 8 or 16 bars instead of an arpeggio. It is written against
+the chords underneath (the long notes of the pad), with the usual rules of tonal melody:
+
+- **Chord tones carry it.** Long notes and notes on strong beats are tones of the pad chord
+  (3rd and 7th favoured, 9th as colour). Other scale tones are only short passing or neighbour
+  tones, approached and left by step; a tone a semitone above a chord tone (jazz "avoid note")
+  only as a quick passing 16th. Less allowed notes are drawn less often.
+- **Periods.** Four bars ending on a half cadence (a chord tone that is degree 5, 2 or 7 where
+  possible), four bars ending on the tonic (perfect cadence; over a chord without the tonic on
+  its 3rd / root / 5th), approached by step, often from the 2nd.
+- **Anchors and leaps.** Fixed anchors (first note, the two cadence notes) with random lines in
+  between; now and then a leap of a fifth / sixth at the start of a half phrase, after which
+  the line turns and fills the gap by step. An arch over each half phrase.
+- It plays only in breakdowns (after a few bars of strings), as the only short instrument,
+  with the song's own lead instrument (almost always) or a piano. Under it comes a stripped
+  groove, only the bass, only the rhythm, or nothing but the strings (drawn per breakdown).
+  Songs with a melody get a progression that really moves and strings underneath.
+
 Code: `crates/core/src/melody.rs` plus the places marked `// melody:`. Switch it off with
 `probability = 0` in the `[melody]` section of `profiles/house.toml` (or delete the section).
 

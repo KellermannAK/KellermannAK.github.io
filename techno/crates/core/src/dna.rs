@@ -499,7 +499,13 @@ impl SongDna {
         // melody: voice, line and the strings that carry the chords underneath.
         let mut melody_line = MelodyLine::empty();
         if has_melody {
-            melody_line = melody::generate(&mut root.fork("melody-line"), &profile.melody);
+            melody_line = melody::generate(
+                &mut root.fork("melody-line"),
+                &profile.melody,
+                key,
+                &progression,
+                sound.pad.chord,
+            );
             let mut ms = root.fork("melody-sound");
             let mr = &profile.melody;
             let mut voice = mr.voices.pick(&mut ms);

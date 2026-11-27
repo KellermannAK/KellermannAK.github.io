@@ -92,11 +92,11 @@ pub struct MelodyRules {
     pub breakdown_prob: f32,
     /// What plays under the melody in a breakdown (besides the strings).
     pub backing: Weighted<MelodyBacking>,
-    /// Chance of a chromatic approach note before a strong note (jazz colour).
-    pub chromatic_prob: f32,
+    /// Chance of a leap (a fifth or sixth) at the start of a half phrase.
+    pub leap_prob: f32,
     /// Chance that a bar is sparse (one or two long notes) instead of busy.
     pub rest_prob: f32,
-    /// Range in scale degrees above the chord root.
+    /// Range in scale degrees above the key's tonic (0 = tonic, 7 = an octave above).
     pub range: [i32; 2],
     pub brightness: Range,
     pub decay: Range,
@@ -121,7 +121,7 @@ impl Default for MelodyRules {
                 values: vec![MelodyBacking::RhythmBass],
                 weights: vec![1.0],
             },
-            chromatic_prob: 0.2,
+            leap_prob: 0.25,
             rest_prob: 0.12,
             range: [0, 11],
             brightness: [0.4, 0.7],
