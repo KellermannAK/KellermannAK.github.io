@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Techno Generator</title>
-<meta name="description" content="Endless electronic music generated live in your browser – techno and house, fully algorithmic and synthesized, no samples. Plus DJ mixes from the current engine version.">
+<meta name="description" content="Endless electronic music generated live in your browser – techno and house, fully algorithmic and synthesized, no samples, not AI-generated music (only the code is). Plus DJ mixes from the current engine version.">
 <meta name="theme-color" content="#0d0d0f">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -96,9 +96,8 @@
   .tagline { padding-right: 104px; }
   #visuals { display: none; }
   html[data-visuals="1"] #visuals { display: block; }
-  html[data-visuals="1"] #lower, html[data-visuals="1"] .site-title, html[data-visuals="1"] .tagline { display: none; }
+  html[data-visuals="1"] #lower { display: none; }
   html[data-visuals="1"] main { max-width: 1040px; }
-  html[data-visuals="1"] #g-head { padding-top: 52px; }
   html[data-visuals="1"] .genre-nav { margin-top: 0; }
   .vis { display: grid; gap: 16px; margin-top: 18px; grid-template-columns: 1fr; justify-items: center; }
   .vis-deck { width: min(100%, 330px); }
@@ -327,7 +326,7 @@
 <main id="face">
   <header id="g-head">
     <h1 class="site-title">Techno<span>.</span>Generator</h1>
-    <p class="tagline">Completely algorithmically generated and synthesized. No samples.</p>
+    <p class="tagline">Completely algorithmically generated and synthesized. No samples. The music is not AI-generated – only the code is.</p>
     <nav class="genre-nav" aria-label="Genre">
       <button class="g-arrow" id="g-prev" aria-label="Previous genre"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
       <div class="g-name" id="g-name" aria-live="polite">Techno</div>

@@ -506,9 +506,8 @@ impl SongDna {
             if voice == MelodyVoice::Piano
                 && (main_synth == Track::Piano || companion == Some(Track::Piano))
             {
-                voice = MelodyVoice::Glide; // no second piano on top of the chord piano
+                voice = MelodyVoice::Lead; // no second piano on top of the chord piano
             }
-            let lr = &profile.lead;
             sound.melody = MelodySound {
                 voice,
                 piano: KeysParams {
@@ -518,19 +517,10 @@ impl SongDna {
                     brightness: ms.in_range(mr.brightness),
                     decay: ms.in_range(mr.decay),
                 },
+                // The song's own lead instrument (same kind and settings), now playing the melody.
                 lead: LeadParams {
-                    kind: if voice == MelodyVoice::Pluck {
-                        LeadKind::Pluck
-                    } else {
-                        LeadKind::Glide
-                    },
                     style: LeadStyle::Long,
-                    cutoff_hz: ms.in_range(lr.cutoff_hz),
-                    resonance: ms.in_range(lr.resonance),
-                    env_mod: ms.in_range(lr.env_mod),
-                    decay: ms.in_range(lr.decay),
-                    drive: 1.0,
-                    square: ms.in_range(lr.square),
+                    ..sound.lead
                 },
             };
             palette = palette

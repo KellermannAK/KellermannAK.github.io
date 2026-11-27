@@ -60,12 +60,10 @@ pub struct Profile {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MelodyVoice {
+    /// The song's own lead instrument (same kind and settings as its lead).
+    Lead,
     /// Piano (own instance, a different one than the chord piano).
     Piano,
-    /// Soft lead with long portamento: the electronic glide.
-    Glide,
-    /// FM pluck.
-    Pluck,
 }
 
 /// What accompanies the melody in a breakdown: it can be a stripped groove or nearly nothing.
@@ -111,7 +109,7 @@ impl Default for MelodyRules {
         MelodyRules {
             probability: 0.0,
             voices: Weighted {
-                values: vec![MelodyVoice::Piano],
+                values: vec![MelodyVoice::Lead],
                 weights: vec![1.0],
             },
             bars: Weighted {

@@ -1,7 +1,8 @@
 # Algorithmic Techno Generator
 
 Endless electronic music, generated and synthesized live. No samples, no vocals. Every song
-comes from a seed and can be reproduced exactly. Two genres, each with its own rule tree:
+comes from a seed and can be reproduced exactly. The music is not AI-generated: it comes from
+hand-written rules, random seeds and synthesis code; only the code itself was written with AI. Two genres, each with its own rule tree:
 
 - **Techno** (`profiles/hard_techno_simple.toml`): hard, pounding, predictable, 134-136 BPM.
 - **House** (`profiles/house.toml`): softer and slower (120-124 BPM, swing), dorian / minor /
@@ -152,7 +153,7 @@ previous / next song, a position slider and a switch between the mixes of the ge
 Songs can carry a real melody over 8 or 16 bars instead of an arpeggio: it follows the chord
 progression underneath (notes are stored relative to each bar's chord root), is jazz-like
 (syncopated rhythms, 3rd / 7th / 9th on the strong beats, chromatic approach notes) and is
-played by its own piano, glide lead or pluck. Songs with a melody get a progression that
+played by the song's own lead instrument (almost always) or, rarely, a piano. Songs with a melody get a progression that
 really moves and strings underneath. The melody plays only in breakdowns (after a few bars of
 strings) as the only short instrument; under it comes a stripped groove, only the bass, only the
 rhythm, or nothing but the strings (drawn per breakdown, `backing` in the profile).

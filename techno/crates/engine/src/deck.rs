@@ -632,9 +632,7 @@ impl Deck {
         let gate = (n.len as f32 * self.step_samples * 0.95) as u32;
         match self.dna.sound.melody.voice {
             MelodyVoice::Piano => self.melody_piano.trigger_chord(&[f], v, gate, 0),
-            MelodyVoice::Glide | MelodyVoice::Pluck => {
-                self.melody_lead.trigger(f, v, false, gate, false)
-            }
+            MelodyVoice::Lead => self.melody_lead.trigger(f, v, false, gate, false),
         }
     }
 

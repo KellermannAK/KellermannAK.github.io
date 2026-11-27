@@ -273,7 +273,8 @@ delay_throw = 0.25
 # the melody is the only short instrument while it plays, and only in breakdowns.
 # To switch it off again: probability = 0 (or delete this section).
 probability = 0.8
-voices = { values = ["piano", "glide", "pluck"], weights = [3.0, 3.0, 1.5] }
+# Almost always the song's own lead instrument (the sound we already have), rarely a piano.
+voices = { values = ["lead", "piano"], weights = [9.0, 1.0] }
 bars = { values = [8, 16], weights = [2.0, 1.0] }
 # The melody plays only in breakdowns (after a few bars of strings), as the only short
 # instrument. breakdown_prob = share of the breakdowns that carry it.
