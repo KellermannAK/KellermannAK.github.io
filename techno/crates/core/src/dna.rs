@@ -1863,8 +1863,12 @@ mod tests {
                 let b = dna.plan.bar(bar);
                 if b.active.contains(Track::Melody) {
                     played += 1;
-                    // Replaces the melodic short synths; never in intro, outro or builds.
-                    assert!(!b.active.contains(Track::Lead) && !b.active.contains(Track::Arp));
+                    // The only short instrument while it plays; never in intro, outro or builds.
+                    assert!(
+                        b.active.and(SHORT_SYNTHS).is_empty(),
+                        "seed {} bar {bar}",
+                        dna.seed
+                    );
                     assert!(matches!(
                         b.section,
                         SectionKind::Groove | SectionKind::Drop | SectionKind::Breakdown

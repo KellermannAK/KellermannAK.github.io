@@ -72,5 +72,6 @@ never counted as good or bad.
 | house (9a5f1bd) | Guitar too clean, wants a natural acoustic sound with fret noise or very light distortion | Pick click on every note, fret squeak when the hand changes pitch, light overdrive (more on the electric variant). |
 | house (919d919) | After a breakdown / drop the melody comes back at once; wants a few bars without melody | `entry_delay` (0 / 4 / 8 bars, per section): short synths and melody wait after a breakdown or drop. Melody probability 0.45 -> 0.6 (glides and the lead melody were praised: "awesome", "idea is great, but the tones are crap"). |
 | house (919d919) | Arp synth "too harsh" on the offbeat (rhythm liked) | Arp variants: bell and organ only, saws rare, lower cutoff. |
+| house (db248df) | Melody "terrible, too much in the background"; "in the breakdown it fits better, but the music overall is not harmonic" (seed 834463: stab + guitar companion + pad + melody piano in the groove, only the pad in the breakdown) | While the melody plays it is the only short instrument (no stab / piano / guitar / lead / arp behind it); chromatic approach notes 0.2 -> 0.08. |
 | techno | 👍 Live set with a build-up (Haldos - Specter) | Noted, no change. |
 

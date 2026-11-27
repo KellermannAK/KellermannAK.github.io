@@ -937,8 +937,9 @@ impl SongPlan {
             }
         }
 
-        // melody: the melody line replaces the other melodic short synths (lead, arp) while it
-        // plays; chord instruments (piano, guitar, stab) and the strings keep comping.
+        // melody: while the melody plays it is the only short instrument: no lead, arp, stab,
+        // piano or guitar behind it (feedback: "too much in the background", "not harmonic").
+        // The strings, the bass and the drums carry the chords.
         if let Some(g) = &self.melody {
             let roll = g.roll[(bar / PHRASE_BARS) as usize % MAX_PHRASES];
             let on = match s.kind {
@@ -949,7 +950,7 @@ impl SongPlan {
                 _ => false,
             };
             if on && !delayed {
-                active = active.with(Melody).without(Lead).without(Arp);
+                active = active.minus(SHORT_SYNTHS).with(Melody);
             }
         }
 

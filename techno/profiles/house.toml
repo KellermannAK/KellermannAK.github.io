@@ -269,7 +269,7 @@ delay_throw = 0.25
 # EXPERIMENT: a real melody over 8 or 16 bars that follows the chord progression underneath
 # (jazz-like: syncopated rhythms, 3rd / 7th / 9th on the strong beats, chromatic approach
 # notes). Songs that carry one get a moving chord progression and strings underneath, and
-# the melody replaces the lead / arp while it plays.
+# the melody is the only short instrument while it plays (pad, bass and drums underneath).
 # To switch it off again: probability = 0 (or delete this section).
 probability = 0.6
 voices = { values = ["piano", "glide", "pluck"], weights = [3.0, 3.0, 1.5] }
@@ -278,7 +278,7 @@ bars = { values = [8, 16], weights = [2.0, 1.0] }
 phrase_prob = 0.6
 breakdown_prob = 0.9
 energy = 0.55
-chromatic_prob = 0.2
+chromatic_prob = 0.08
 rest_prob = 0.12
 # Scale degrees above the chord root.
 range = [0, 11]
