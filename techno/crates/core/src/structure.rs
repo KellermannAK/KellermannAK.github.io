@@ -323,6 +323,9 @@ pub struct StructureRules {
     /// breakdown before the big one), so the change is not a hard cut.
     #[serde(default)]
     pub pre_breakdown_thin: bool,
+    /// Probability that a song has sea waves (filtered noise) in its breakdowns.
+    #[serde(default)]
+    pub ocean_prob: f32,
 }
 
 fn yes() -> bool {
@@ -348,6 +351,7 @@ fn base_threshold(t: Track) -> f32 {
         Track::Guitar => 0.65,
         // melody: event-driven by its own gate, never by energy.
         Track::Melody => 2.0,
+        Track::Ocean => 2.0,
         // Event-driven or never energy-driven.
         Track::Snare | Track::Crash | Track::Riser | Track::Impact => 2.0,
     }
@@ -398,6 +402,8 @@ pub struct SongPlan {
     thin_before_breakdown: bool,
     /// Bongos: the tom pattern plays in intros (second half), grooves, drops and breakdowns.
     tom_groove: bool,
+    /// Sea waves in the breakdowns.
+    pub ocean: bool,
 }
 
 /// melody: per 8-bar phrase dice (compared with the profile's probabilities) and thresholds.
@@ -654,6 +660,7 @@ impl SongPlan {
             steady_rolls: !r.roll_accelerates,
             thin_before_breakdown: r.pre_breakdown_thin,
             tom_groove: profile.drums.tom.groove,
+            ocean: false,
         }
     }
 
@@ -873,6 +880,10 @@ impl SongPlan {
             if on {
                 active = active.with(Tom);
             }
+        }
+
+        if self.ocean && s.kind == SectionKind::Breakdown {
+            active = active.with(Ocean);
         }
 
         // Phrase fills in steady sections.

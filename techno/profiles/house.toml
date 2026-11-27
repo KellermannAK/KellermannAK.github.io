@@ -47,9 +47,11 @@ click = [0.04, 0.14]
 styles = { values = ["sixteenths", "offbeat", "euclid"], weights = [2.0, 4.0, 2.0] }
 euclid_hits = [6, 10]
 # The open offbeat hat is the signature of house.
-open_hat_prob = 0.5
+open_hat_prob = 0.75
 # Feedback (three times): open hats on every offbeat are too much. One per bar, short.
-open_single = true
+# Feedback 56: offbeat open hats back (short and quiet); loud 8th rides stay out.
+open_single = false
+offbeat_style_open = true
 tone_hz = [8000.0, 11000.0]
 closed_decay = [0.02, 0.045]
 open_decay = [0.07, 0.14]
@@ -167,7 +169,8 @@ decay = [1.2, 2.6]
 variants = { values = [0, 1, 2, 3], weights = [2.0, 1.5, 2.0, 2.5] }
 
 [guitar]
-styles = { values = ["muted", "strum", "picked"], weights = [3.0, 2.0, 1.5] }
+# Feedback 53: strummed chords from the guitar chord library (patterns: skank, pop, funk ...).
+styles = { values = ["muted", "strum", "picked"], weights = [1.5, 4.0, 1.0] }
 chords = { values = ["triad", "seventh"], weights = [2.0, 1.0] }
 # Feedback: guitar too loud and too clear.
 brightness = [0.15, 0.5]
@@ -177,7 +180,7 @@ variants = { values = [0, 1, 2], weights = [1.5, 1.0, 2.5] }
 
 [synths]
 # The main instrument carries the song; piano and guitar are as likely as synths.
-main = { values = ["piano", "guitar", "lead", "stab", "arp"], weights = [3.5, 1.5, 2.0, 3.5, 0.8] }
+main = { values = ["piano", "guitar", "lead", "stab", "arp"], weights = [3.5, 2.0, 2.0, 3.5, 0.8] }
 # Feedback: complete theme changes are liked but came too often.
 breakdown_alt_prob = 0.22
 # Chordal main instruments (stab, piano, guitar) dissolve into an arpeggio of the same chord in
@@ -241,7 +244,20 @@ sidechain_release = [0.15, 0.25]
 open_hat_gain = 0.4
 ride_gain = 0.6
 
+[motion]
+# Feedback 54: wandering effects on the short instruments (not the bass): filters close and
+# reopen in slow waves, echo / reverb swell, sometimes a quiet octave fades in and out.
+filter_depth = [0.3, 0.6]
+filter_bars = { values = [4, 8, 16], weights = [1.0, 2.0, 1.5] }
+send_depth = [0.4, 1.0]
+send_bars = { values = [8, 12, 16], weights = [1.0, 1.0, 1.0] }
+octave_prob = 0.5
+octave_level = [0.15, 0.35]
+octave_bars = { values = [8, 16], weights = [1.0, 1.0] }
+
 [structure]
+# Feedback 55: sea waves rarely (~7 % of songs), then under every breakdown.
+ocean_prob = 0.07
 # ~5:20-7:00 at 122 BPM.
 target_bars = [160, 208]
 intro_bars = 32

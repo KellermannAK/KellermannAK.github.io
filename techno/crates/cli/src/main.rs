@@ -43,7 +43,7 @@ const USAGE: &str = "usage:
                 [--profile FILE | --genre G] [--solo t1,t2] [--mute t1,t2] [--no-fx]
   (mix also takes --genre)
 tracks: kick rumble bass hat_closed hat_open clap snare rim tom ride crash stab lead pad
-        arp drone riser impact piano guitar";
+        arp drone riser impact piano guitar melody ocean";
 
 fn parse_tracks(s: &str) -> Result<TrackSet, String> {
     let mut set = TrackSet::NONE;

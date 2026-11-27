@@ -253,6 +253,8 @@ pub struct GuitarParams {
     pub chord: ChordShape,
     pub brightness: f32,
     pub sustain: f32,
+    /// Strumming pattern (index into `guitar::PATTERNS`) for the strum style.
+    pub pattern: u8,
 }
 
 /// Sound of the melody layer (melody:). Only the voice that `voice` names is played.
@@ -261,6 +263,21 @@ pub struct MelodySound {
     pub voice: MelodyVoice,
     pub piano: KeysParams,
     pub lead: LeadParams,
+}
+
+/// Wandering effects on the short instruments (see `MotionRules`): depth, cycle length in
+/// bars and start phase (0..1) of each slow movement.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct MotionParams {
+    pub filter_depth: f32,
+    pub filter_bars: f32,
+    pub filter_phase: f32,
+    pub send_depth: f32,
+    pub send_bars: f32,
+    pub send_phase: f32,
+    pub octave_level: f32,
+    pub octave_bars: f32,
+    pub octave_phase: f32,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -320,6 +337,7 @@ pub struct SoundParams {
     pub guitar: GuitarParams,
     // melody:
     pub melody: MelodySound,
+    pub motion: MotionParams,
 }
 
 /// Everything that defines a song's identity.
@@ -459,6 +477,7 @@ impl SongDna {
             Track::Pad,
             Track::Drone,
             Track::Melody,
+            Track::Ocean,
         ]));
         palette = palette.with(main_synth);
         if let Some(t) = alt_synth {
@@ -615,6 +634,31 @@ impl SongDna {
             alt_synth,
         );
         plan.companion = companion;
+        // Sea waves in the breakdowns (own stream).
+        if profile.structure.ocean_prob > 0.0
+            && root.fork("ocean").chance(profile.structure.ocean_prob)
+        {
+            plan.ocean = true;
+            plan.palette = plan.palette.with(Track::Ocean);
+        }
+        // Wandering effects (own stream).
+        let mr = &profile.motion;
+        let mut mo = root.fork("motion");
+        sound.motion = MotionParams {
+            filter_depth: mo.in_range(mr.filter_depth),
+            filter_bars: mr.filter_bars.pick(&mut mo).max(1) as f32,
+            filter_phase: mo.next_f32(),
+            send_depth: mo.in_range(mr.send_depth),
+            send_bars: mr.send_bars.pick(&mut mo).max(1) as f32,
+            send_phase: mo.next_f32(),
+            octave_level: if mo.chance(mr.octave_prob) {
+                mo.in_range(mr.octave_level)
+            } else {
+                0.0
+            },
+            octave_bars: mr.octave_bars.pick(&mut mo).max(1) as f32,
+            octave_phase: mo.next_f32(),
+        };
         if has_melody {
             plan.set_melody(&mut root.fork("melody-plan"), &profile.melody);
         }
@@ -860,6 +904,9 @@ fn gen_drums(rng: &mut Rng, p: &Profile) -> DrumPatterns {
             Pattern::from_mask(0xFFFF, 16),
             if open { open_pat } else { Pattern::empty(16) },
         ),
+        HatStyle::Offbeat if open && d.hats.offbeat_style_open => {
+            (Pattern::from_mask(0x8888, 16), OFFBEATS)
+        }
         HatStyle::Offbeat => (
             OFFBEATS,
             if open {
@@ -1455,6 +1502,7 @@ fn gen_sound(rng: &mut Rng, p: &Profile, key: Key) -> SoundParams {
             detune: rng.in_range(p.pad.detune),
             attack: rng.in_range(p.pad.attack),
         },
+        motion: MotionParams::default(),
         melody: MelodySound {
             voice: MelodyVoice::Piano,
             piano: KeysParams {
@@ -1495,6 +1543,7 @@ fn gen_sound(rng: &mut Rng, p: &Profile, key: Key) -> SoundParams {
             chord: ChordShape::Triad,
             brightness: 0.5,
             sustain: 1.0,
+            pattern: 0,
         },
     }
 }
@@ -1583,6 +1632,7 @@ fn gen_guitar(
     let r = &p.guitar;
     let style = r.styles.pick(rng);
     let mut m = Motif::empty(16);
+    let mut pattern = 0u8;
     match style {
         GuitarStyle::Muted => {
             // Funky muted 16ths: a euclidean rhythm, mostly root and octave.
@@ -1599,18 +1649,15 @@ fn gen_guitar(
             }
         }
         GuitarStyle::Strum => {
-            // Offbeat strums, every other one an up-strum (accent = down).
+            // A strumming pattern from the library: accent = down stroke, slide = muted chuck.
+            pattern = rng.range_i32(0, crate::guitar::PATTERNS.len() as i32 - 1) as u8;
             m = Motif::empty(16);
-            for (i, s) in [2usize, 6, 10, 14].into_iter().enumerate() {
-                let mut n = Note::new(0, if i % 2 == 0 { 0.9 } else { 0.7 });
-                n.accent = i % 2 == 0;
-                n.len = 2;
-                m.notes[s] = Some(n);
-            }
-            if rng.chance(0.5) {
-                let mut n = Note::new(0, 0.6);
-                n.len = 1;
-                m.notes[15] = Some(n);
+            for s in crate::guitar::PATTERNS[pattern as usize] {
+                let mut n = Note::new(0, s.vel);
+                n.accent = s.down;
+                n.slide = s.muted;
+                n.len = s.len;
+                m.notes[s.step as usize] = Some(n);
             }
         }
         GuitarStyle::Picked => {
@@ -1629,6 +1676,7 @@ fn gen_guitar(
         chord: r.chords.pick(rng),
         brightness: rng.in_range(r.brightness),
         sustain: rng.in_range(r.sustain),
+        pattern,
     };
     (m, params)
 }

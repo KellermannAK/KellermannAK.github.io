@@ -197,5 +197,12 @@ Kick (hard / punch / distorted; pitch sweep, click, saturation, tuned to the key
 low-pass -> drive, deep sidechain), rolling bass, closed/open hats (808-style metal + noise,
 choke), clap and/or snare backbeat, snare rolls, rim, tuned toms, ride, crash, chord stab
 (delay/reverb), lead (acid with slides and accents, hoover, supersaw or FM pluck), arpeggiator,
-drone, pad, riser (noise sweep + rising saw stack), impact with downlifter. Master: glue compressor, saturation,
+drone, pad, riser (noise sweep + rising saw stack), impact with downlifter, piano (modal
+synthesis), guitar (plucked strings; strummed chords come from a voicing library in
+`crates/core/src/guitar.rs`: barre chords in E or A shape as a player finds them on the neck,
+six strum patterns from disco skank and funk chucks to ballad rolls), ocean waves (house
+breakdowns in ~5 % of the songs: filtered stereo noise swelling every 5-9 s).
+**Wandering effects** (`[motion]`, house): the filters of the short synths close and reopen
+in slow waves (4-16 bars, each instrument offset), echo and reverb sends swell, sometimes a
+quiet octave doubling fades in and out on stab / piano / arp; the bass stays dry. Master: glue compressor, saturation,
 look-ahead limiter at -0.8 dBFS.

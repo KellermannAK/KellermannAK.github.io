@@ -2033,6 +2033,7 @@ mod keys_tests {
                     chord: ChordShape::Triad,
                     brightness: 0.6,
                     sustain: 1.5,
+                    pattern: 0,
                 },
                 sr,
             );
@@ -2045,5 +2046,97 @@ mod keys_tests {
             let peak = late[24000..].iter().fold(0.0f32, |m, v| m.max(v.abs()));
             assert!(peak < 1e-3, "variant {variant}: string never stops {peak}");
         }
+    }
+}
+
+// ----------------------------------------------------------------------------- ocean
+
+/// Sea waves for breakdowns: noise through a low-pass whose cutoff and level swell and recede
+/// like a wave rolling in, one wave every 5-9 seconds, slightly different left and right.
+pub struct Ocean {
+    sr: f32,
+    noise_l: Noise,
+    noise_r: Noise,
+    rnd: Noise,
+    lp_l: OnePole,
+    lp_r: OnePole,
+    lp2_l: OnePole,
+    lp2_r: OnePole,
+    wave_t: f32,
+    wave_len: f32,
+    ctrl: u32,
+    level: f32,
+}
+
+impl Ocean {
+    pub fn new(seed: u64, sr: f32) -> Ocean {
+        Ocean {
+            sr,
+            noise_l: Noise::new(0x0CEA_0001 ^ seed as u32),
+            noise_r: Noise::new(0x0CEA_0002 ^ (seed >> 7) as u32),
+            rnd: Noise::new(0x0CEA_0003 ^ (seed >> 13) as u32),
+            lp_l: OnePole::new(600.0, sr),
+            lp_r: OnePole::new(600.0, sr),
+            lp2_l: OnePole::new(600.0, sr),
+            lp2_r: OnePole::new(600.0, sr),
+            wave_t: 0.0,
+            wave_len: 7.0,
+            ctrl: 0,
+            level: 0.0,
+        }
+    }
+
+    #[inline]
+    pub fn process(&mut self) -> (f32, f32) {
+        if self.ctrl == 0 {
+            let w = (self.wave_t / self.wave_len).min(1.0);
+            // Rolls in fast, recedes slowly.
+            let shape = if w < 0.35 {
+                (w / 0.35).powf(1.5)
+            } else {
+                1.0 - ((w - 0.35) / 0.65).powf(0.7)
+            };
+            self.level = 0.15 + 0.85 * shape;
+            let cutoff = 250.0 + 1700.0 * shape;
+            self.lp_l.set(cutoff, self.sr);
+            self.lp_r.set(cutoff * 1.08, self.sr);
+            self.lp2_l.set(cutoff * 1.5, self.sr);
+            self.lp2_r.set(cutoff * 1.4, self.sr);
+            if w >= 1.0 {
+                self.wave_t = 0.0;
+                self.wave_len = 5.0 + 4.0 * (self.rnd.next() * 0.5 + 0.5);
+            }
+        }
+        self.ctrl = (self.ctrl + 1) & 31;
+        self.wave_t += 1.0 / self.sr;
+        let l = self.lp2_l.lp(self.lp_l.lp(self.noise_l.next()));
+        let r = self.lp2_r.lp(self.lp_r.lp(self.noise_r.next()));
+        (l * self.level * 1.6, r * self.level * 1.6)
+    }
+}
+
+#[cfg(test)]
+mod ocean_tests {
+    use super::*;
+
+    #[test]
+    fn ocean_swells_and_stays_finite() {
+        let sr = 48000.0;
+        let mut o = Ocean::new(7, sr);
+        // RMS per half second over 20 s: finite, audible, and clearly varying (waves).
+        let mut rms = Vec::new();
+        for _ in 0..40 {
+            let mut e = 0.0f32;
+            for _ in 0..24000 {
+                let (l, r) = o.process();
+                assert!(l.is_finite() && r.is_finite());
+                e += l * l + r * r;
+            }
+            rms.push((e / 48000.0).sqrt());
+        }
+        let lo = rms.iter().cloned().fold(f32::MAX, f32::min);
+        let hi = rms.iter().cloned().fold(0.0, f32::max);
+        assert!(hi > 0.02 && hi < 1.0, "{rms:?}");
+        assert!(hi / lo > 2.0, "no swell: {rms:?}");
     }
 }

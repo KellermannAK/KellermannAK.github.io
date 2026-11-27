@@ -66,6 +66,7 @@ fn channel_settings(t: Track, dna: &SongDna) -> ChannelSettings {
         Track::Guitar => settings(0.13, 0.25, sc * 0.4, 0.16, 0.12, 120.0),
         // melody: sits above the chords, with a little echo
         Track::Melody => settings(0.22, 0.12, sc * 0.3, 0.14, 0.2, 150.0),
+        Track::Ocean => settings(0.24, 0.0, 0.0, 0.0, 0.25, 80.0),
     }
 }
 
@@ -143,6 +144,7 @@ pub struct Deck {
     // melody: one voice per song (piano or a lead), the other stays silent.
     melody_piano: Piano,
     melody_lead: Lead,
+    ocean: Ocean,
 
     delay: PingPongDelay,
     reverb: Reverb,
@@ -260,6 +262,7 @@ impl Deck {
             guitar: Guitar::new(s.guitar, sr),
             melody_piano: Piano::new(s.melody.piano, sr),
             melody_lead: Lead::new(s.melody.lead, sr),
+            ocean: Ocean::new(dna.seed, sr),
             impact: Impact::new(seconds_per_bar(dna.bpm as f64) as f32, sr),
             delay,
             reverb,
@@ -542,6 +545,13 @@ impl Deck {
                 );
                 let k = k.min(self.dna.sound.stab.notes.max(1) as usize);
                 self.stab.trigger_chord(&buf[..k], n.velocity);
+                let oct = self.octave_amount(bar);
+                if oct > 0.0 {
+                    for f in buf[..k].iter_mut() {
+                        *f *= 2.0;
+                    }
+                    self.stab.trigger_chord(&buf[..k], n.velocity * oct);
+                }
             }
         }
 
@@ -595,6 +605,13 @@ impl Deck {
                 let spread = (self.sr * if held { 0.014 } else { 0.004 }) as u32;
                 let v = (n.velocity + humanize(abs as u64, 7)).clamp(0.3, 1.0);
                 self.piano.trigger_chord(&buf[..k], v, gate, spread);
+                let oct = self.octave_amount(bar);
+                if oct > 0.0 {
+                    for f in buf[..k].iter_mut() {
+                        *f *= 2.0;
+                    }
+                    self.piano.trigger_chord(&buf[..k], v * oct, gate, spread);
+                }
             }
         }
         if a.contains(Track::Guitar) {
@@ -602,12 +619,36 @@ impl Deck {
                 let v = (n.velocity + humanize(abs as u64, 8)).clamp(0.3, 1.0);
                 match self.dna.sound.guitar.style {
                     GuitarStyle::Strum => {
-                        let mut buf = [0.0f32; 4];
-                        let k = self.chord_freqs(root, self.dna.sound.guitar.chord, base, &mut buf);
-                        let gate = (n.len as f32 * self.step_samples * 0.95) as u32;
-                        let spread = (self.sr * 0.011) as u32;
+                        // A real guitar chord from the voicing library, strummed: down strokes
+                        // over all strings from the bass up, up strokes over the top strings,
+                        // muted chucks as short dampened strokes; long notes are rolled slower.
+                        let seventh = !matches!(self.dna.sound.guitar.chord, ChordShape::Triad);
+                        let voicing = techno_core::guitar::voicing(self.dna.key, root, seventh);
+                        let mut buf = [0.0f32; 6];
+                        let mut k = 0;
+                        for midi in voicing.iter().flatten() {
+                            buf[k] = midi_to_hz(*midi as f32);
+                            k += 1;
+                        }
+                        let notes = if n.accent {
+                            &buf[..k]
+                        } else {
+                            &buf[k.saturating_sub(4)..k]
+                        };
+                        let muted = n.slide;
+                        let len = if muted { 0.6 } else { n.len as f32 * 0.95 };
+                        let gate = (len * self.step_samples) as u32;
+                        let ms = if n.len >= 8 {
+                            0.024
+                        } else if n.accent {
+                            0.009
+                        } else {
+                            0.006
+                        };
+                        let spread = (self.sr * ms) as u32;
+                        let v = if muted { v * 0.8 } else { v };
                         self.guitar
-                            .trigger_chord(&buf[..k], v, gate, spread, false, n.accent);
+                            .trigger_chord(notes, v, gate, spread, muted, n.accent);
                     }
                     style => {
                         let muted = style == GuitarStyle::Muted;
@@ -646,6 +687,21 @@ impl Deck {
         }
     }
 
+    /// Level of the quiet octave doubling at this bar (wandering effects; 0 = off).
+    fn octave_amount(&self, bar: u32) -> f32 {
+        let m = &self.dna.sound.motion;
+        if m.octave_level <= 0.0 {
+            return 0.0;
+        }
+        let x = (bar as f32 / m.octave_bars + m.octave_phase) * core::f32::consts::TAU;
+        let a = m.octave_level * (0.5 - 0.5 * x.cos());
+        if a > 0.05 {
+            a
+        } else {
+            0.0
+        }
+    }
+
     /// +12 semitones in the last bar of a phrase that has the end-octave variation.
     fn end_octave(&self, bar: u32) -> i32 {
         if self.plan.variation.end_octave && bar % 8 == 7 {
@@ -668,6 +724,10 @@ impl Deck {
             let root = fold_root(self.dna.root_at(bar));
             let f = self.note_freq(self.bass_base + 36 + self.end_octave(bar), root, &n);
             self.arp.trigger_chord(&[f], n.velocity);
+            let oct = self.octave_amount(bar);
+            if oct > 0.0 {
+                self.arp.trigger_chord(&[f * 2.0], n.velocity * oct);
+            }
         }
     }
 
@@ -709,18 +769,33 @@ impl Deck {
         self.kick.drive_mul = 1.0 + 0.35 * power;
         self.channels[Track::Rumble.index()].gain_mul = 1.0 + 0.4 * power;
         let sf = self.synth_filter.next();
-        self.lead.filter_open = (self.lead_filter.next() * sf).clamp(0.0, 1.3);
-        self.stab.filter_mul = sf;
-        self.arp.filter_mul = sf;
-        self.piano.filter_mul = sf;
-        self.guitar.filter_mul = sf;
+        // Wandering effects: the filters of the short synths close and reopen in slow waves
+        // (each instrument shifted a little), their echo and reverb swell; bass stays put.
+        let bars_now = self.tick as f32 / TICKS_PER_BAR as f32;
+        let mo = self.dna.sound.motion;
+        let (fw, sw) = if mo.filter_depth > 0.0 || mo.send_depth > 0.0 {
+            let w = |bars: f32, phase: f32, shift: f32| {
+                0.5 - 0.5 * ((bars_now / bars + phase + shift) * core::f32::consts::TAU).cos()
+            };
+            let f = |shift: f32| 1.0 - mo.filter_depth * w(mo.filter_bars, mo.filter_phase, shift);
+            (
+                [f(0.0), f(0.17), f(0.33), f(0.5)],
+                mo.send_depth * w(mo.send_bars, mo.send_phase, 0.0),
+            )
+        } else {
+            ([1.0; 4], 0.0)
+        };
+        self.lead.filter_open = (self.lead_filter.next() * sf * fw[3]).clamp(0.0, 1.3);
+        self.stab.filter_mul = sf * fw[0];
+        self.arp.filter_mul = sf * fw[1];
+        self.piano.filter_mul = sf * fw[2];
+        self.guitar.filter_mul = sf * fw[3];
         self.melody_piano.filter_mul = sf;
         self.melody_lead.filter_open = (0.85 * sf).clamp(0.0, 1.3);
         // Delay throw: synth delay sends open up in the last beat of a phrase.
         // Second half of the song: the effects of the short synths (arp, lead, stab ...) swell
         // and fade in a slow cycle of their own, and their delay opens up in between.
         let late = self.late_fx.next();
-        let bars_now = self.tick as f32 / TICKS_PER_BAR as f32;
         let wob = 0.5 + 0.5 * (bars_now * core::f32::consts::TAU / 12.0).sin();
         let short_fx = 1.0 + late * (0.5 + 0.9 * wob);
         let throw = if self.throw_active { 0.45 } else { 0.0 } + late * 0.3 * (1.0 - wob);
@@ -732,7 +807,8 @@ impl Deck {
             Track::Guitar,
             Track::Melody,
         ] {
-            self.channels[t.index()].delay_boost = throw;
+            self.channels[t.index()].delay_boost = throw + 0.3 * sw;
+            self.channels[t.index()].reverb_boost = 0.25 * sw;
         }
         self.bass.filter_mul = self.bass_filter.next();
         let fx_send = self.fx_send.next();
@@ -810,6 +886,11 @@ impl Deck {
         };
         if !pad_silent {
             add(self.channels[p].process_stereo(pad_l, pad_r, duck));
+        }
+        let o = Track::Ocean.index();
+        if !self.channels[o].is_silent() {
+            let (ol, or) = self.ocean.process();
+            add(self.channels[o].process_stereo(ol, or, duck));
         }
 
         let (dl, dr) = self.delay.process(sum.delay * fx_send);

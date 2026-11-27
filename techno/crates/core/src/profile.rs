@@ -55,6 +55,45 @@ pub struct Profile {
     /// probability above 0.
     #[serde(default)]
     pub melody: MelodyRules,
+    /// Wandering effects on the short instruments (house). Off unless the profile sets them.
+    #[serde(default)]
+    pub motion: MotionRules,
+}
+
+/// Slow, wandering movement on the short instruments (stab, piano, guitar, lead, arp): filter
+/// cutoff, reverb / delay sends and a quiet octave doubling, each on its own slow cycle.
+/// Nothing here touches the bass.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MotionRules {
+    /// Depth of the cutoff movement (0.4 = cutoff swings by about +-40 %).
+    pub filter_depth: Range,
+    /// Length of one filter cycle in bars.
+    pub filter_bars: Weighted<u32>,
+    /// How far the reverb / delay sends open at the top of their cycle.
+    pub send_depth: Range,
+    pub send_bars: Weighted<u32>,
+    /// Probability of a quiet octave doubling that fades in and out.
+    pub octave_prob: f32,
+    pub octave_level: Range,
+    pub octave_bars: Weighted<u32>,
+}
+
+impl Default for MotionRules {
+    fn default() -> Self {
+        let bars = Weighted {
+            values: vec![8],
+            weights: vec![1.0],
+        };
+        MotionRules {
+            filter_depth: [0.0, 0.0],
+            filter_bars: bars.clone(),
+            send_depth: [0.0, 0.0],
+            send_bars: bars.clone(),
+            octave_prob: 0.0,
+            octave_level: [0.0, 0.0],
+            octave_bars: bars,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -522,6 +561,10 @@ pub struct HatRules {
     /// One open hat per bar (on the last offbeat) instead of one on every offbeat.
     #[serde(default)]
     pub open_single: bool,
+    /// Offbeat hat style with open hats: open hats on all offbeats, closed ticks on the
+    /// 16th before each beat (house "ts-tss"), instead of one open hat per bar.
+    #[serde(default)]
+    pub offbeat_style_open: bool,
     pub tone_hz: Range,
     pub closed_decay: Range,
     pub open_decay: Range,
