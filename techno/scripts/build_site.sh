@@ -23,6 +23,9 @@ commit=$(printf '%-12s' "$commit" | tr ' ' 0)
 genres=${GENRES:-techno house}
 songs=${MIX_SONGS:-10}
 keep=${KEEP:-4}
+# Scheduled rebuilds run on an unchanged commit: SEED_SALT (e.g. the run number) makes the
+# seeds, and so the new mixes, differ from the previous build. Unset = derived from the commit only.
+salt=${SEED_SALT:-0}
 prev_url=${PREV_URL-https://kellermannak.github.io}
 built=$(date -u +%Y-%m-%dT%H:%MZ)
 version=$("$bin" version)
@@ -37,9 +40,9 @@ prefix() { if [ "$1" = techno ]; then echo "mix"; else echo "$1-mix"; fi; }
 new=""
 for g in $genres; do
   if [ "$g" = techno ]; then
-    seed=${MIX_SEED:-$((16#${commit:0:6} % 1000000))}
+    seed=${MIX_SEED:-$(( (16#${commit:0:6} + salt) % 1000000 ))}
   else
-    seed=$(( (16#${commit:6:6} + ${#g} * 7919) % 1000000 ))
+    seed=$(( (16#${commit:6:6} + ${#g} * 7919 + salt * 31) % 1000000 ))
   fi
   f="$out/audio/$(prefix "$g")-$seed"
   echo "rendering $g mix $seed with $songs songs (build ${commit:0:7})"
